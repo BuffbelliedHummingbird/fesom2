@@ -2,9 +2,10 @@
 *.o
 *.mod
 *.x
-#*.out
+*.out
 *~
 *.swp
+*.xx
 src/icepack_drivers/Icepack
 /work_*
 Makefile.in
@@ -51,5 +52,5 @@ test_nosinking_noremin_nobenthos/
 view/modules/fesom_plot_tools.pyc
 view/modules/load_mesh_data.pyc
 view/modules/ut.pyc
-
+.DS_Store
 
