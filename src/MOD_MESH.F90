@@ -17,7 +17,7 @@ TYPE SPARSE_MATRIX
 END TYPE SPARSE_MATRIX
 
 TYPE T_MESH
-integer                                     :: nod2D           ! the number of 2D nodes
+integer                                     :: nod2D        ! the number of 2D nodes
 real(kind=WP)                               :: ocean_area, ocean_areawithcav
 real(kind=WP), allocatable, dimension(:,:)  :: coord_nod2D, geo_coord_nod2D
 integer                                     :: edge2D       ! the number of 2D edges
@@ -53,7 +53,7 @@ integer                                     :: nl
 ! initial layer, mid-depth layer and element depth
 real(kind=WP), allocatable, dimension(:)    :: zbar, Z,elem_depth
 
-! upper boudnary index of all vertical vertice/element loops, default==1 but when 
+! upper boundary index of all vertical vertice/element loops, default==1 but when 
 ! cavity is used becomes index of cavity-ocean boundary at vertices and elements
 integer,       allocatable, dimension(:)    :: ulevels, ulevels_nod2D, ulevels_nod2D_max
 
