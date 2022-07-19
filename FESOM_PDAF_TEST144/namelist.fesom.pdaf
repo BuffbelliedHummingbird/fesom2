@@ -1,0 +1,83 @@
+! Namelist for PDAF configuration 
+&pdaf
+
+! General settings for PDAF:
+delt_obs_ocn=32        ! Time step interval between filter analyses
+                       ! for daily obs, this should be set equal to 
+                       ! step_per_day in namelist.config
+filtertype=7           ! Choose filter algorithm
+locweight=4            ! Set weighting function for localization
+local_range=2.0e5      ! Cut-off radius for localization
+srange=2.0e5           ! Support radius for weighting function
+forget=1.0             ! Set forgetting factor
+loctype=0
+varscale=1.0
+type_trans=0           ! Type of ensemble transformation in (L)ESTKF/(L)SEIK/(L)ETKF
+type_forget=0          ! Set type of forgetting factor
+screen=2               ! set verbosity of PDAF
+printconfig=.true.
+twin_experiment=.false.
+
+path_init='/work/ollie/frbunsen/model_runs/fesom2/dist_cov144/'
+file_init='cov_'
+DAoutput_path='/work/ollie/frbunsen/model_runs/fesom2/FESOM_PDAF_TEST144/work/'
+write_3D_monthly_mean=.false.
+write_ens_snapshot=.true.
+
+str_daspec='FESOM_PDAF_TEST144'
+
+ASIM_START_USE_CLIM_STATE=.false.
+this_is_pdaf_restart=.false.
+use_global_obs=.false.
+
+ASSIM_O_ssh = .true.
+path_obs_ssh='/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
+file_ssh_prefix='SSH_track_2016_dist144_'
+file_ssh_suffix ='.nc'
+rms_obs_ssh= 0.25
+ssh_fixed_rmse=.false.
+
+ASSIM_O_sst = .true.
+path_obs_sst='/work/ollie/frbunsen/data/physics/SST/OSTIA/CORE2/dist_144/'
+file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist144_'
+file_sst_suffix ='.nc'
+rms_obs_sst=0.5
+sst_fixed_rmse=.false.
+sst_exclude_ice=.true.
+sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
+
+ASSIM_O_sss = .true.
+path_obs_sss='/work/ollie/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_144/'
+file_sss_prefix='SMOS_SSS_2016_dist144_'
+file_sss_suffix ='.nc'
+rms_obs_sss=0.05
+sss_fixed_rmse=.false.
+
+ASSIM_O_en4_t = .true.
+ASSIM_O_en4_s = .true.
+path_obs_prof='/work/ollie/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist144/'
+file_prof_prefix='obs_profile_'
+file_prof_suffix='.nc'
+rms_obs_T=0.05
+rms_obs_S=0.01
+path_obs_rawprof='/work/ollie/frbunsen/data/physics/Temp-Salt-3D/EN4/'
+file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
+proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
+                                                                        ! 1: Processing of EN4 raw profile data to distributed files.
+
+start_year_o = 2016
+end_year_o   = 2016
+
+/
+
+! Namelist for parallel configuration for ensemble DA
+&pdaf_parallel
+
+! General:
+dim_ens=20
+
+! ! Coupled to AWI-CM only:
+! cpus_atm=0
+! ncpus_ocn=4
+! pairs=.false.
+/
