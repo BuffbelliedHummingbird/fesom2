@@ -8,9 +8,16 @@ option(DISABLE_MULTITHREADING "disable asynchronous operations" OFF)
 # get our source files
 set(src_home ${CMAKE_CURRENT_LIST_DIR}) # path to src directory starting from the dir containing our CMakeLists.txt
 if(${RECOM_COUPLED})
+	if(NOT ${PDAF_ACTIVE})
 		file(GLOB sources_Fortran ${src_home}/*.F90 
                                           ${src_home}/int_recom/*.F90 
                                           ${src_home}/int_recom/recom/*.F90)
+	elseif(${PDAF_ACTIVE})
+			file(GLOB sources_Fortran ${src_home}/*.F90 
+                                          ${src_home}/int_recom/*.F90 
+                                          ${src_home}/int_recom/recom/*.F90
+                                          ${src_home}/pdaf/*.F90)
+	endif()
 elseif(${USE_ICEPACK})
    file(GLOB sources_Fortran ${src_home}/*.F90
                              ${src_home}/icepack_drivers/*.F90
@@ -76,6 +83,12 @@ endif()
 if(${VERBOSE})
    target_compile_definitions(${PROJECT_NAME} PRIVATE VERBOSE)
 endif()
+
+# Define use_PDAF to implement PDAF.
+if(${PDAF_ACTIVE})
+	target_compile_definitions(${PROJECT_NAME} PRIVATE use_PDAF)
+endif()
+
 # CMAKE_Fortran_COMPILER_ID will also work if a wrapper is being used (e.g. mpif90 wraps ifort -> compiler id is Intel)
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL  Intel )
 	target_compile_options(${PROJECT_NAME} PRIVATE -r8 -i4 -fp-model precise -no-prec-div -no-prec-sqrt -fast-transcendentals -xHost -ip -init=zero -no-wrap-margin)
@@ -94,6 +107,26 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SCRIP_Fortran_INCLUDE_DIREC
 target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_C ${NETCDF_Fortran_LIBRARIES} ${NETCDF_C_LIBRARIES} ${OASIS_Fortran_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_C ${MCT_Fortran_LIBRARIES} ${MPEU_Fortran_LIBRARIES} ${SCRIP_Fortran_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} async_threads_cpp)
+
+# Link PDAF library.
+# Before compiling FESOM-REcoM with PDAF the first time, make sure that
+# either: libpdaf-d.a is compiled already. The libpdaf-d.a file should
+# be located in your PDAF_DIR/lib/ directory.
+# Else, libpdaf-d needs to be compiled first:
+# (1) Go to your PDAF_DIR
+# (2) Create empty directories /lib and /include
+# (3) Go to PDAF_DIR/src
+# (4) Include machine-specific definitions in the Makefile
+# (5) Type "make" to compile the library
+# (6) Now, you find your .mod files in the include directory!
+
+ if(${PDAF_ACTIVE})
+   set(ENV{PDAF_DIR} "${CMAKE_CURRENT_LIST_DIR}/../PDAF_V2.0") # path to PDAF directory starting from the dir containing our CMakeLists.txt
+   message("Linking libpdaf from: $ENV{PDAF_DIR}")
+   target_include_directories(${PROJECT_NAME} PRIVATE $ENV{PDAF_DIR}/include)
+   target_link_libraries(${PROJECT_NAME} $ENV{PDAF_DIR}/lib/libpdaf-d.a)
+ endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE Fortran)
 
 set(FESOM_INSTALL_FILEPATH "${CMAKE_CURRENT_LIST_DIR}/../bin/fesom.x" CACHE FILEPATH "file path where the FESOM binary should be put")
