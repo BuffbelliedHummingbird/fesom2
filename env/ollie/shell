@@ -1,5 +1,7 @@
 # make the contents as shell agnostic as possible so we can include them with bash, zsh and others
 
+echo "Including Ollie shell settings"
+
 module load intel.compiler intel.mpi netcdf/4.4.0_intel
 module load centoslibs # required on compute nodes
 
@@ -9,3 +11,5 @@ export NETCDF_CXX_INCLUDE_DIRECTORIES=/global/AWIsoft/tkleiner/netcdf/4.4.0_inte
 export PATH=/home/ollie/dsidoren/cmake-3.13.2-Linux-x86_64/bin:$PATH
 
 export FC="mpiifort -mkl" CC=mpiicc CXX=mpiicpc
+
+# export PDAF_DIR=/home/ollie/frbunsen/f2r2_pdaf/fesom2.1_recom/PDAF_V2.0
