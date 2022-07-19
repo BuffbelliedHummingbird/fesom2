@@ -37,7 +37,13 @@ use cpl_driver
 #if defined(__recom)
   use REcoM_GloVar
   use recom_config
-  use recom_diag                                                                                           
+  use recom_diag                                                                                              
+#endif
+
+#ifdef use_PDAF
+ use timer, only: timeit, time_tot
+! use mod_parallel_pdaf, only: abort_parallel
+ use mod_assim_pdaf, only: mesh_fesom                                                                                          
 #endif
 
 IMPLICIT NONE
@@ -50,16 +56,16 @@ real(kind=real32) :: rtime_setup_ice,  rtime_setup_other, rtime_setup_restart
 real(kind=real32) :: mean_rtime(15), max_rtime(15), min_rtime(15)
 real(kind=real32) :: runtime_alltimesteps
 #if defined(__recom)
-real(kind=WP),  save,  target                 :: intDSi
-real(kind=WP),  save,  target                 :: intDiaSi
-real(kind=WP),  save,  target                 :: intDetSi
-real(kind=WP),  save,  target                 :: intDetz2Si
-real(kind=WP),  save,  target                 :: intBenSi
-real(kind=WP),  save,  target                 :: sumSi1, sumSi2
+real(kind=WP),  save,  target  :: intDSi
+real(kind=WP),  save,  target  :: intDiaSi
+real(kind=WP),  save,  target  :: intDetSi
+real(kind=WP),  save,  target  :: intDetz2Si
+real(kind=WP),  save,  target  :: intBenSi
+real(kind=WP),  save,  target  :: sumSi1, sumSi2
 
 #endif
 
-type(t_mesh),             target, save :: mesh
+type(t_mesh),   save,  target  :: mesh
 
 #ifndef __oifs
     !ECHAM6-FESOM2 coupling: cpl_oasis3mct_init is called here in order to avoid circular dependencies between modules (cpl_driver and g_PARSUP)
@@ -73,7 +79,18 @@ type(t_mesh),             target, save :: mesh
 #endif
     t1 = MPI_Wtime()
 
-    call par_init 
+#ifdef use_PDAF
+    call init_parallel_pdaf(0, 1)
+#else
+    call par_init
+#endif 
+    
+#ifdef use_PDAF
+    call timeit(7, 'ini')
+    call timeit(1, 'new')
+    call timeit(2, 'new')
+#endif
+ 
     if(mype==0) then
         write(*,*)
         print *,"FESOM2 git SHA: "//fesom_git_sha()
@@ -191,6 +208,15 @@ type(t_mesh),             target, save :: mesh
     rtime_write_means   = 0._WP
     rtime_compute_diag  = 0._WP
     rtime_read_forcing  = 0._WP
+    
+#ifdef use_PDAF
+    call timeit(2, 'old')
+    call timeit(3, 'new')
+    mesh_fesom => mesh
+    CALL init_PDAF()
+    call timeit(3, 'old')
+    call timeit(4, 'new')
+#endif
 
     if (mype==0) write(*,*) 'FESOM start iteration before the barrier...'
     call MPI_Barrier(MPI_COMM_FESOM, MPIERR)
@@ -294,7 +320,18 @@ type(t_mesh),             target, save :: mesh
         rtime_write_means   = rtime_write_means   + t5 - t4   
         rtime_write_restart = rtime_write_restart + t6 - t5
         rtime_read_forcing  = rtime_read_forcing  + t1_frc - t0_frc
+
+#ifdef use_PDAF
+        CALL timeit(7, 'new')
+        CALL assimilate_PDAF(mstep)
+        CALL timeit(7, 'old')
+#endif
     end do
+    
+#ifdef use_PDAF
+    CALL timeit(4, 'old')
+    CALL timeit(5, 'new')
+#endif
     
     call finalize_output()
     
