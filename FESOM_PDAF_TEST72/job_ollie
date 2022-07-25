@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fesom2.0
 #SBATCH -p mpp
-#SBATCH --ntasks=1440 #288 #1440
+#SBATCH --ntasks=144 #288 #1440
 #SBATCH --time=00:30:00
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
@@ -20,7 +20,7 @@ start_dir=${PWD}
 run_dir=/work/ollie/frbunsen/model_runs/fesom2/${exp_name}/work
 
 # Settings:
-NENS=20            # number of ensembles --> namelist.fesom.pdaf
+NENS=2            # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72     # ntasks divided by NENS
 
 # ----------------------------------------------------------------------
