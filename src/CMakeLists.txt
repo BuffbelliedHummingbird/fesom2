@@ -117,7 +117,7 @@ target_link_libraries(${PROJECT_NAME} async_threads_cpp)
 # (2) Create empty directories /lib and /include
 # (3) Go to PDAF_DIR/src
 # (4) Include machine-specific definitions in the Makefile
-# (5) Type "make" to compile the library
+# (5) Type "make" (or "make ../lib/libpdaf-d.a") to compile the library
 # (6) Now, you find your .mod files in the include directory!
 
  if(${PDAF_ACTIVE})
