@@ -1423,8 +1423,8 @@ pe0: IF (writepe) THEN
 
   IF (writetype/='s') THEN
   
-     write(*,*) 's: ', s
-     write(*,*) 'stat(s)', stat(s)
+!~      write(*,*) 's: ', s
+!~      write(*,*) 'stat(s)', stat(s)
      
      stat(s) = NF_PUT_VARA_INT(fileid,  VarId_asmlstep, pos1, nmb, write_pos_da) 
      s = s + 1
@@ -1872,9 +1872,9 @@ DO member = 1, dim_ens
 
 
     ! Gather full fields on PE 0 and write into files
-    IF (writepe) THEN
-       WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Gather full fields on PE 0 and write into files'
-    END IF
+!~     IF (writepe) THEN
+!~        WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Gather full fields on PE 0 and write into files'
+!~     END IF
 	ALLOCATE(ssh_temp_g(mesh_fesom%nod2D))
 	ALLOCATE(uv_temp_g (mesh_fesom%nl-1, mesh_fesom%nod2D))
 	ALLOCATE(w_temp_g  (mesh_fesom%nl,   mesh_fesom%nod2D))
@@ -1888,9 +1888,9 @@ DO member = 1, dim_ens
     pe0: IF (writepe) THEN
 
 ! ----- Open Netcdf File
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Open netCDF file'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Open netCDF file'
+!~        END IF
        stat(1) = NF_OPEN(filename, NF_WRITE, FileId)
 
        IF (stat(1) /= NF_NOERR) STOP 'nc-file error'
@@ -2017,9 +2017,9 @@ DO member = 1, dim_ens
        END DO
 
 ! ----- WRITE VARIABLES
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write variables'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write variables'
+!~        END IF
        s = 1
 
        IF (.not. DEBUGOUTPUT) THEN
@@ -2049,9 +2049,9 @@ DO member = 1, dim_ens
 
 	!----- 2D FIELDS
 	!----- sea surface height (1)
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write SSH'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write SSH'
+!~        END IF
 
 	DO i = 1, myDim_nod2D
 	   my_ssh_temp(i) = state_l(i + offset(1), member)
@@ -2084,9 +2084,9 @@ DO member = 1, dim_ens
 	IF (writetype=='a') THEN
 
 	!----- Effective observation dimension
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write effective observation dimension'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write effective observation dimension'
+!~        END IF
 
 	  CALL gather_nod_pdaf(eff_dim_obs, ssh_temp_g)
 	  pe0z: IF (writepe) THEN
@@ -2113,9 +2113,9 @@ DO member = 1, dim_ens
 
 
 	!----- Localization radius
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write localisation radius'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write localisation radius'
+!~        END IF
        
 	  CALL gather_nod_pdaf(loc_radius, ssh_temp_g)
 	  pe0z1: IF (writepe) THEN
@@ -2143,9 +2143,9 @@ DO member = 1, dim_ens
 
 	!----- 3D variables
 	!----- u (2), v(3)
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write u and v'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write u and v'
+!~        END IF
 	
 	uv: DO n = 2,3
 	
@@ -2185,9 +2185,9 @@ DO member = 1, dim_ens
 	END DO uv
 
 	!----- w (4)
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write w'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write w'
+!~        END IF
 	
 	DO i = 1, myDim_nod2D
 	   DO k = 1, mesh_fesom%nl
@@ -2222,9 +2222,9 @@ DO member = 1, dim_ens
 	END IF pe0b1
 
 	!----- Temperature (5), Salinity (6)
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write temp and salt'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write temp and salt'
+!~        END IF
 	
 	ts: DO n=5,6
 
@@ -2272,9 +2272,9 @@ DO member = 1, dim_ens
        END DO
 
 	! ----- RMS errors
-       IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write RMS errors'
-       END IF
+!~        IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Write RMS errors'
+!~        END IF
 	  s = 1
 
 	  IF (.not. DEBUGOUTPUT) THEN
@@ -2370,9 +2370,9 @@ DO member = 1, dim_ens
    
    DEALLOCATE(my_ssh_temp, my_uv_temp, my_w_temp, my_ts_temp)
    
-         IF (writepe) THEN
-          WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Ocean state written to ENS success'
-       END IF
+!~          IF (writepe) THEN
+!~           WRITE(*,'(a, 8x, a)') 'FESOM-PDAF', 'Ocean state written to ENS success'
+!~          END IF
   END SUBROUTINE write_nc_oce_pdaf_ens
 
    
