@@ -42,18 +42,6 @@ SUBROUTINE read_config_pdaf()
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        rms_obs_S, rms_obs_T, &
        file_syntobs_prof, prof_exclude_diff, bias_obs_prof
-!~   USE mod_obs_sic_pdaf, &
-!~        ONLY: assim_o_sic, rms_obs_sic, path_obs_sic, file_sic_prefix, file_sic_suffix, &
-!~        file_syntobs_sic, bias_obs_sic, sic_fixed_rmse
-!~   USE mod_obs_sit_pdaf, &
-!~        ONLY: assim_o_sit, rms_obs_sit, path_obs_sit, file_sit_prefix, file_sit_suffix, &
-!~        file_syntobs_sit, bias_obs_sit, sit_fixed_rmse
-!~   USE mod_obs_siu_pdaf, &
-!~        ONLY: assim_o_siu, rms_obs_siu, path_obs_siu, file_siu_prefix, file_siu_suffix, &
-!~        file_syntobs_siu, bias_obs_siu, siu_fixed_rmse
-!~   USE mod_obs_siv_pdaf, &
-!~        ONLY: assim_o_siv, rms_obs_siv, path_obs_siv, file_siv_prefix, file_siv_suffix, &
-!~        file_syntobs_siv, bias_obs_siv, siv_fixed_rmse
 
 
   IMPLICIT NONE
@@ -63,32 +51,6 @@ SUBROUTINE read_config_pdaf()
   CHARACTER(len=100) :: nmlfile ='namelist.fesom.pdaf'    ! name of namelist file
   CHARACTER(len=32)  :: handle             ! Handle for command line parser
   LOGICAL :: printconfig = .TRUE.          ! Print information on all configuration parameters
-
-
-!~   NAMELIST /pdaf/ filtertype, subtype, dim_ens, screen, &
-!~        incremental, type_forget, forget, dim_bias, &
-!~        local_range, locweight, srange, DA_couple_type, &
-!~        path_obs_sst, path_obs_prof, file_sst_prefix, &
-!~        file_sst_suffix, file_prof_prefix, file_prof_suffix, &
-!~        n_modeltasks, peak_obs_error, use_global_obs, &
-!~        path_init, file_init, step_null, printconfig, &
-!~        file_inistate, read_inistate, write_da, write_ens_snapshot, varscale, &
-!~        str_daspec, type_trans, type_sqrt, dim_lag, bias_obs_sst, &
-!~        bias_obs_prof, loctype, loc_ratio, delt_obs_ocn, delt_obs_atm, &     
-!~        rms_obs_sst, sst_exclude_ice, sst_exclude_diff, sst_fixed_rmse, &
-!~        sic_fixed_rmse, sit_fixed_rmse, siu_fixed_rmse, siv_fixed_rmse, &
-!~        ssh_fixed_rmse, sss_fixed_rmse, &
-!~        rms_obs_T, rms_obs_S, dim_obs_max, prof_exclude_diff, &
-!~        twin_experiment, file_syntobs_sst, file_syntobs_prof, proffiles_o, &
-!~        assim_o_sst, assim_o_en4_t, assim_o_en4_s,write_3D_monthly_mean, &
-!~        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, DAoutput_path, &
-!~        assim_o_sss, assim_o_ssh, assim_o_sic, assim_o_sit, assim_o_siu, &
-!~        assim_o_siv, rms_obs_sss, rms_obs_ssh, rms_obs_sic, rms_obs_sit, rms_obs_siu, &
-!~        rms_obs_siv, path_obs_sss, file_sss_prefix, file_sss_suffix, path_obs_ssh, file_ssh_prefix, &
-!~        file_ssh_suffix, path_obs_sic, file_sic_prefix, file_sic_suffix, path_obs_sit, &
-!~        file_sit_prefix, file_sit_suffix, path_obs_siv, file_siv_prefix, file_siv_suffix, &
-!~        path_obs_siu, file_siu_prefix, file_siu_suffix, &
-!~        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart
        
   NAMELIST /pdaf/ filtertype, subtype, dim_ens, screen, &
        incremental, type_forget, forget, dim_bias, &
@@ -217,23 +179,9 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_ssh     ', TRIM(path_obs_ssh)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_prefix  ', TRIM(file_ssh_prefix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_suffix  ', TRIM(file_ssh_suffix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sic     ', TRIM(path_obs_sic)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sic_prefix  ', TRIM(file_sic_prefix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sic_suffix  ', TRIM(file_sic_suffix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sit     ', TRIM(path_obs_sit)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sit_prefix  ', TRIM(file_sit_prefix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sit_suffix  ', TRIM(file_sit_suffix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_siu     ', TRIM(path_obs_siu)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_siu_prefix  ', TRIM(file_siu_prefix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_siu_suffix  ', TRIM(file_siu_suffix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_siv     ', TRIM(path_obs_siv)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_siv_prefix  ', TRIM(file_siv_prefix)
-!~      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_siv_suffix  ', TRIM(file_siv_suffix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_init   ', TRIM(path_init)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_init   ', TRIM(file_init)
      IF (filtertype==100 .or. twin_experiment) THEN
-!~         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_syntobs_sst', TRIM(file_syntobs_sst)
-!~         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_syntobs_prof', TRIM(file_syntobs_prof)
         WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_obs_max ', dim_obs_max
      END IF
      IF (read_inistate) THEN
