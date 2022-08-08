@@ -51,23 +51,6 @@ SUBROUTINE init_pdaf()
        rms_obs_S, rms_obs_T, &
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        bias_obs_prof, prof_exclude_diff
-  
-  ! USE mod_obs_sic_pdaf, &
-!~        ONLY: assim_o_sic, rms_obs_sic, path_obs_sic, file_sic_prefix, file_sic_suffix, &
-!~        file_syntobs_sic, bias_obs_sic, sic_fixed_rmse
-!~   USE mod_obs_sit_pdaf, &
-!~        ONLY: assim_o_sit, rms_obs_sit, path_obs_sit, file_sit_prefix, file_sit_suffix, &
-!~        file_syntobs_sit, bias_obs_sit, sit_fixed_rmse
-!~   USE mod_obs_siu_pdaf, &
-!~        ONLY: assim_o_siu, rms_obs_siu, path_obs_siu, file_siu_prefix, file_siu_suffix, &
-!~        file_syntobs_siu, bias_obs_siu, siu_fixed_rmse
-!~   USE mod_obs_siv_pdaf, &
-!~        ONLY: assim_o_siv, rms_obs_siv, path_obs_siv, file_siv_prefix, file_siv_suffix, &
-!~        file_syntobs_siv, bias_obs_siv, siv_fixed_rmse
-!~   USE mod_obs_TSprof_EN4_pdaf, &
-!~        ONLY: assim_o_en4_t, assim_o_en4_s, rms_obs_T, rms_obs_S, &
-!~        path_obs_prof, file_prof_prefix, file_prof_suffix, &
-!~        prof_exclude_diff, file_syntobs_prof, bias_obs_prof
 
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
