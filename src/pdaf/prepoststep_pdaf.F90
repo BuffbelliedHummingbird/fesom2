@@ -84,9 +84,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   
   INTEGER :: myDebug_id(1)
 
-  IF (this_is_pdaf_restart) THEN
-    IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF is restarting, skip prepoststep_pdaf...'
-  ELSE
+!~   IF (this_is_pdaf_restart) THEN
+!~     IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF is restarting, skip prepoststep_pdaf...'
+!~   ELSE
 
 ! **********************
 ! *** INITIALIZATION ***
@@ -94,8 +94,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
   IF (mype_filter==0) THEN
      IF (step-step_null==0) THEN
+       IF (.not.(this_is_pdaf_restart)) THEN
         WRITE (*,'(a, i7,3x,a)') 'FESOM-PDAF', step,'Analyze initial state ensemble'
         WRITE (typestr,'(a1)') 'i'
+       END IF
      ELSE IF (step>0) THEN
         WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Analyze assimilated state ensemble'
         WRITE (typestr,'(a1)') 'a'
@@ -365,6 +367,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   write_pos_da = daynew
   write_pos_da_ens = write_pos_da
   IF (yearold/=yearnew) mon_snapshot_mem =0
+  
 ! NOTE:
 !       write_3D_monthly_mean ==.TRUE.   -> write monthly mean ocean state analysis
 !       write_3D_monthly_mean ==.FALSE.  -> write daily ocean state analysis
@@ -373,8 +376,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   output: IF (write_da) THEN
   
    IF ((step - step_null)==0) THEN
+    IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
       CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
+    END IF
    ELSE IF ((step - step_null) > 0) THEN
       ! *** write assimilated state fields ***  
       CALL write_netcdf_pdaf('a', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_a, whichmonth, now_to_write_monthly)
@@ -390,8 +395,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    !                        |_ is set .true. daily                        , if write_3D_monthly_mean==.false.
 
    IF ((step - step_null)==0) THEN
+     IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
       CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+     END IF
    ELSE IF ((step - step_null) > 0) THEN
       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
           ! *** write assimilated state fields ***
@@ -424,7 +431,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF ((step - step_null) > 0) DEALLOCATE(std_p)
   DEALLOCATE(monthly_state_a, monthly_state_f)
   
-ENDIF ! this_is_pdaf_restart
+!~ ENDIF ! this_is_pdaf_restart
 
 
 

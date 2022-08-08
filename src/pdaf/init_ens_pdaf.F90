@@ -35,7 +35,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 
 ! !CALLING SEQUENCE:
 ! Called by: PDAF_init       (as U_init_ens)
-!EOP
 
 ! *** local variables ***
   INTEGER :: i, member, s, row, col, k ! Counters
