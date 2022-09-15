@@ -16,7 +16,7 @@ SUBROUTINE assimilate_pdaf(istep)
   USE mod_parallel_pdaf, &        ! Parallelization variables
        ONLY: mype_world, abort_parallel, task_id, mype_submodel
   USE mod_assim_pdaf, &           ! Variables for assimilation
-       ONLY: filtertype, istep_asml
+       ONLY: filtertype, istep_asml, step_null
 
   IMPLICIT NONE
 
@@ -46,18 +46,17 @@ SUBROUTINE assimilate_pdaf(istep)
   ! Subroutines used for generating observations
   EXTERNAL :: get_obs_f_pdaf         ! Get vector of synthetic observations from PDAF
 
-
 ! *********************************
 ! *** Call assimilation routine ***
 ! *********************************
 
-  write (*,'(a,i1.1,a,i,a,i)') &
-          'FESOM ',task_id,' ',mype_submodel,' assimilate_pdaf, step', istep
+! write (*,'(a,i1.1,a,i,a,i)') &
+!        'FESOM ',task_id,' ',mype_submodel,' assimilate_pdaf, step', istep
 
-  if(mype_submodel==0 .and. task_id==1) write (*,'(a,i1.1,a,i,a,i)') &
-          'FESOM ',task_id,' ',mype_submodel,' assimilate_pdaf, step', istep
+  istep_asml = istep + step_null
 
-  istep_asml = istep
+  if(mype_submodel==0 .and. task_id==1) write (*,'(a,i1.1,a,i,a,i,a,i)') &
+          'FESOM ',task_id,' ',mype_submodel,' assimilate_pdaf, istep', istep, '  istep_asml', istep_asml
 
   ! Check  whether the filter is domain-localized
   CALL PDAF_get_localfilter(localfilter)

@@ -50,6 +50,9 @@ IMPLICIT NONE
 
 integer :: n, nsteps, offset, row, i, provided
 real(kind=WP)     :: t0, t1, t2, t3, t4, t5, t6, t7, t8, t0_ice, t1_ice, t0_frc, t1_frc
+#ifdef use_PDAF
+real(kind=WP)     :: t4b
+#endif
 real(kind=WP)     :: rtime_fullice,    rtime_write_restart, rtime_write_means, rtime_compute_diag, rtime_read_forcing
 real(kind=real32) :: rtime_setup_mesh, rtime_setup_ocean, rtime_setup_forcing 
 real(kind=real32) :: rtime_setup_ice,  rtime_setup_other, rtime_setup_restart
@@ -62,7 +65,6 @@ real(kind=WP),  save,  target  :: intDetSi
 real(kind=WP),  save,  target  :: intDetz2Si
 real(kind=WP),  save,  target  :: intBenSi
 real(kind=WP),  save,  target  :: sumSi1, sumSi2
-
 #endif
 
 type(t_mesh),   save,  target  :: mesh
@@ -243,7 +245,7 @@ type(t_mesh),   save,  target  :: mesh
         if (mod(n,logfile_outfreq)==0 .and. mype==0) then
             write(*,*) 'FESOM ======================================================='
 !             write(*,*) 'FESOM step:',n,' day:', n*dt/24./3600.,
-            write(*,*) 'FESOM step:',n,' day:', daynew,' year:',yearnew 
+            write(*,*) 'FESOM step:',n,' year:',yearnew, ' day:', daynew, ' time:', timenew/3600.0
             write(*,*)
         end if
 #if defined (__oifs) || defined (__oasis)
@@ -308,6 +310,14 @@ type(t_mesh),   save,  target  :: mesh
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call compute_diagnostics(1)'//achar(27)//'[0m'
         call compute_diagnostics(1, mesh)
         t4 = MPI_Wtime()
+        
+#ifdef use_PDAF
+        CALL timeit(7, 'new')
+        CALL assimilate_PDAF(mstep)
+        CALL timeit(7, 'old')
+        t4b = MPI_Wtime()
+#endif
+
         !___prepare output______________________________________________________
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call output (n)'//achar(27)//'[0m'
         call output (n, mesh)
@@ -317,15 +327,19 @@ type(t_mesh),   save,  target  :: mesh
         
         rtime_fullice       = rtime_fullice       + t2 - t1
         rtime_compute_diag  = rtime_compute_diag  + t4 - t3
-        rtime_write_means   = rtime_write_means   + t5 - t4   
+#ifdef use_PDAF
+        rtime_write_means   = rtime_write_means   + t5 - t4b
+#else
+        rtime_write_means   = rtime_write_means   + t5 - t4
+#endif
         rtime_write_restart = rtime_write_restart + t6 - t5
         rtime_read_forcing  = rtime_read_forcing  + t1_frc - t0_frc
 
-#ifdef use_PDAF
-        CALL timeit(7, 'new')
-        CALL assimilate_PDAF(mstep)
-        CALL timeit(7, 'old')
-#endif
+!#ifdef use_PDAF
+!        CALL timeit(7, 'new')
+!        CALL assimilate_PDAF(mstep)
+!        CALL timeit(7, 'old')
+!#endif
     end do
     
 #ifdef use_PDAF

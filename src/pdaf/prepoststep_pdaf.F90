@@ -84,10 +84,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   
   INTEGER :: myDebug_id(1)
 
-!~   IF (this_is_pdaf_restart) THEN
-!~     IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF is restarting, skip prepoststep_pdaf...'
-!~   ELSE
-
 ! **********************
 ! *** INITIALIZATION ***
 ! **********************
@@ -97,6 +93,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        IF (.not.(this_is_pdaf_restart)) THEN
         WRITE (*,'(a, i7,3x,a)') 'FESOM-PDAF', step,'Analyze initial state ensemble'
         WRITE (typestr,'(a1)') 'i'
+       ELSE
+        WRITE (*,*) 'FESOM-PDAF: This is a PDAF restart.'
        END IF
      ELSE IF (step>0) THEN
         WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Analyze assimilated state ensemble'
@@ -185,7 +183,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END DO
   END DO
   state_p(:) = invdim_ens * state_p(:)
-
 
 
 ! *********************************************************************
@@ -325,10 +322,12 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! **************************
 ! *** Write output files ***
 ! **************************
+
   IF (write_3D_monthly_mean) THEN
   
       now_to_write_monthly = .FALSE.
       call check_fleapyr(yearold, fleap)
+      
       find_month: DO month_iter=1,12
         if (dayold <= endday_of_month_in_year(fleap,month_iter)) THEN
             whichmonth = month_iter
@@ -366,7 +365,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
   write_pos_da = daynew
   write_pos_da_ens = write_pos_da
-  IF (yearold/=yearnew) mon_snapshot_mem =0
+  IF (yearold/=yearnew) mon_snapshot_mem = 0
   
 ! NOTE:
 !       write_3D_monthly_mean ==.TRUE.   -> write monthly mean ocean state analysis

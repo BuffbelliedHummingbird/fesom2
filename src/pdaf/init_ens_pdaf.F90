@@ -82,7 +82,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 !~      MDT = 0.0D0
 !~   ENDIF 
 
-! no need to initialize the ens in case of restart, just skip this routine
+! no need to initialize the ens in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF is restarting, skip init_ens_pdaf...'
   ELSE

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=FeRePDAF
+#SBATCH --job-name=fesom2.0
 #SBATCH -p mpp
 #SBATCH --ntasks=1440 #288 #1440
 #SBATCH --time=12:00:00 # 7 hours
@@ -24,7 +24,7 @@ source ./librunscript.sh
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name=FESOM_PDAF_TEST72
+exp_name=FESOM_PDAF_CONTROL
 start_dir=${PWD}
 run_dir=/work/ollie/frbunsen/model_runs/fesom2/${exp_name}/work
 #ctrl_file_dir=${start_dir}/ctrl # what is this for?
@@ -119,9 +119,6 @@ do
     leg_start_date_yyyymmdd=$(date -u -d "${leg_start_date}" +%Y%m%d)
     leg_start_date_yyyy=$(date -u -d "${leg_start_date}" +%Y)
     leg_end_date_yyyy=$(date -u -d "${leg_end_date}" +%Y)
-    
-    leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
-    step_null=$((32*(${leg_start_dayofyear}-1))) # 32 is number of time steps per day
 
     # Check whether there's actually time left to simulate - exit otherwise
     if [ ${leg_length_sec} -le 0 ]; then
@@ -177,15 +174,10 @@ do
             
             sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
-            sed -i `grep -n str_daspec           ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c str_daspec='${exp_name}'"               ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
             sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
-            
             sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
 
             sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
-            sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
 
 
@@ -219,10 +211,7 @@ do
                 echo 'preparing namelists...'${ENS4str}
                 cd ${run_dir}/${ENSstr}
                 
-                sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-
-                sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-
+                sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             done
 
     fi # ! $leg_is_restart
