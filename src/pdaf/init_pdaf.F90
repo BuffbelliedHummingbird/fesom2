@@ -162,11 +162,13 @@ SUBROUTINE init_pdaf()
                    ! (2) generate global profile file
                    
 ! *** Set assimilation variables
-  assim_o_sst   = .true.
+  assim_o_sst   = .false.
   assim_o_sss   = .false.
   assim_o_ssh   = .false.
 
   write_ens_snapshot = .false.
+  
+  step_null = 0
 
 ! *** specifications for observations ***
   ! This error is the standard deviation for the Gaussian distribution 
@@ -356,7 +358,7 @@ end if
   filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
   filter_param_r(1) = forget      ! Forgetting factor
      
-  CALL PDAF_init(filtertype, subtype, 0, &
+  CALL PDAF_init(filtertype, subtype, step_null, &
        filter_param_i, 7,&
        filter_param_r, 2, &
        COMM_model, COMM_filter, COMM_couple, &

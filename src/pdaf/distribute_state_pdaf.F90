@@ -28,7 +28,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
        ONLY: mype_submodel, mype_world, task_id, mype_model
   USE mod_assim_pdaf, &
        ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, &
-       dim_fields, id
+       dim_fields, id, istep_asml, step_null
   USE g_PARSUP, &
        ONLY: myDim_nod2D, myDim_elem2D 
   USE o_arrays, &
@@ -61,10 +61,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! **********************
 ! no need to distibute the ens in case of restart, just skip this routine:
 
-  IF (this_is_pdaf_restart) THEN
-    if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF is restarting, skip distribute_state_pdaf...'
+  IF (this_is_pdaf_restart .AND. (istep_asml==0)) THEN
+    if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf'
   ELSE
-
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id
 
 

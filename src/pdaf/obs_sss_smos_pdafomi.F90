@@ -228,12 +228,6 @@ CONTAINS
 ! *** Initialize full observation dimension ***
 ! *********************************************
 
-    IF (mype_filter==0) THEN
-       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a)') &
-            'FESOM-PDAF', 'Assimilate SSS observations - OBS_SSS_SMOS at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0, ' h'
-    END IF
-
     ! Store whether to assimilate this observation type
     IF (assim_o_sss) thisobs%doassim = 1
 
@@ -269,6 +263,14 @@ CONTAINS
 
     ! Position to read from file
     iter_file = step / delt_obs_ocn
+    
+    ! Debugging message:
+    IF (mype_filter==0) THEN
+       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
+            'FESOM-PDAF', 'Assimilate SSS observations - OBS_SSS_SMOS at ', &
+            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            ' h; read at ', iter_file
+    END IF
 
     ! Read observation and standard deviation
     

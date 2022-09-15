@@ -174,7 +174,7 @@ CONTAINS
   SUBROUTINE init_dim_obs_prof(step, dim_obs)
 
     USE PDAFomi, &
-         ONLY: PDAFomi_gather_obs
+         ONLY: PDAFomi_gather_obs, PDAFomi_set_debug_flag
     USE mod_assim_pdaf, &
          ONLY: offset, twin_experiment, use_global_obs, id, &
                delt_obs_ocn, mesh_fesom, &
@@ -239,16 +239,9 @@ CONTAINS
     REAL    :: test2
     INTEGER :: my_debug_id_nod2
 
-
 ! *********************************************
 ! *** Initialize full observation dimension ***
 ! *********************************************
-
-    IF (mype_filter == 0) THEN
-       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a)') &
-            'FESOM-PDAF', 'Assimilate EN4 profile observations - OBS_TSPROF_EN4 at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0, ' h'
-    END IF
 
     ! Store whether to assimilate this observation type
     IF (assim_o_en4_t .OR. assim_o_en4_s) thisobs%doassim = 1
@@ -283,6 +276,14 @@ CONTAINS
 
     ! Position to read from file (which day)
     iter_file = step / delt_obs_ocn
+    
+    ! Debugging message:
+    IF (mype_filter == 0) THEN
+       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
+            'FESOM-PDAF', 'Assimilate EN4 profile observations - OBS_TSPROF_EN4 at ', &
+            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            ' h; read at day: ', iter_file
+    END IF
 
     ! Initialize no. of temperature and salinity observations
     cnt_temp = 0
@@ -692,7 +693,8 @@ CONTAINS
   SUBROUTINE obs_op_prof(dim_p, dim_obs, state_p, ostate)
 
     USE PDAFomi, &
-         ONLY: PDAFomi_obs_op_gridavg
+         ONLY: PDAFomi_obs_op_gridavg, &
+               PDAFomi_set_debug_flag
 
     IMPLICIT NONE
 
@@ -701,7 +703,6 @@ CONTAINS
     INTEGER, INTENT(in) :: dim_obs               !< Dimension of full observed state (all observed fields)
     REAL, INTENT(in)    :: state_p(dim_p)        !< PE-local model state
     REAL, INTENT(inout) :: ostate(dim_obs)       !< Full observed state
-
 
 ! ******************************************************
 ! *** Apply observation operator H on a state vector ***
@@ -738,7 +739,8 @@ CONTAINS
   SUBROUTINE init_dim_obs_l_prof(domain_p, step, dim_obs, dim_obs_l)
 
     ! Include PDAFomi function
-    USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l
+    USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l,&
+                       PDAFomi_set_debug_flag
 
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
@@ -751,6 +753,12 @@ CONTAINS
     INTEGER, INTENT(in)  :: dim_obs      !< Full dimension of observation vector
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
 
+! *** OMI-Debug:
+!~   IF (mype_filter==64 .AND. domain_p==776) THEN
+!~     CALL PDAFomi_set_debug_flag(domain_p)
+!~   ELSE
+!~     CALL PDAFomi_set_debug_flag(0)
+!~   ENDIF
 
 ! **********************************************
 ! *** Initialize local observation dimension ***

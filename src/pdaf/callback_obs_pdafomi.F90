@@ -169,12 +169,12 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(in)  :: dim_obs    !< Full dimension of observation vector
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
   
-  ! Debugging:
-  IF (mype_filter==55 .AND. domain_p==669) THEN
-    CALL PDAFomi_set_debug_flag(domain_p)
-  ELSE
-    CALL PDAFomi_set_debug_flag(0)
-  ENDIF
+!~   ! Debugging:
+!~   IF (mype_filter==64 .AND. domain_p==776) THEN
+!~     CALL PDAFomi_set_debug_flag(domain_p)
+!~   ELSE
+!~     CALL PDAFomi_set_debug_flag(0)
+!~   ENDIF
 
 
 ! **********************************************
