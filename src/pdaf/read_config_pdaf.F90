@@ -68,6 +68,7 @@ SUBROUTINE read_config_pdaf()
        ! Salt:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
+       sss_exclude_ice, sss_exclude_diff, &
        ! SSH:
        ASSIM_o_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
        rms_obs_ssh, ssh_fixed_rmse, &

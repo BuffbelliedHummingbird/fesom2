@@ -76,7 +76,7 @@ MODULE obs_sss_smos_pdafomi
   REAL    :: sss_exclude_diff ! Limit difference beyond which observations are excluded (0.0 to deactivate)
   LOGICAL :: sss_fixed_rmse   ! Whether to use a fixed RMS error or the error provided with the data
 
-  REAL, ALLOCATABLE :: mean_ice_p (:)    ! Mean ice concentration for observation exclusion
+!~   REAL, ALLOCATABLE :: mean_ice_p (:)    ! Mean ice concentration for observation exclusion: IMPORT FROM SST obs. module!
   REAL, ALLOCATABLE :: mean_sss_p (:)    ! Mean value for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_sss(:) ! Localization radius array
 
@@ -183,13 +183,13 @@ CONTAINS
     USE mod_parallel_pdaf, &
          ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER
     USE g_parsup, &
-         ONLY: mydim_nod2d
-!~     USE mod_mesh, &
-!~          ONLY: nod2d, coord_nod2d
+         ONLY: mydim_nod2d, myList_nod2d
     USE g_rotate_grid, &
          ONLY: r2g
     USE g_clock, &
          ONLY: month, day_in_month, yearold, timenew
+    USE obs_sst_pdafomi, &
+         ONLY: mean_ice_p
 
     IMPLICIT NONE
 
@@ -220,7 +220,7 @@ CONTAINS
     REAL, ALLOCATABLE :: obs_g(:)           ! Global full observation vector (used in case of limited obs.)
     REAL, ALLOCATABLE :: ivar_obs_g(:)      ! Global full inverse variances (used in case of limited obs.)
     REAL, ALLOCATABLE :: ocoord_g(:,:)      ! Global full observation coordinates (used in case of limited obs.)
-    INTEGER, ALLOCATABLE :: id_obs_p_all(:)        ! State vector index of all observations on process domain (including excluded observations)
+!~     INTEGER, ALLOCATABLE :: id_obs_p_all(:)        ! State vector index of all observations on process domain (including excluded observations)
     INTEGER, ALLOCATABLE :: obs_include_index(:)   ! Index of observed (not excluded!) surface nodes on process domain
 
 
@@ -316,38 +316,42 @@ CONTAINS
 ! *** Exclude observations ***
 ! ****************************
 
-!~     ! *** Exclude observations if mean_ice is not zero and SST>0 ***
+    ! *** Exclude observations if mean_ice is not zero ***
 
-!~     exclude_ice: IF (sst_exclude_ice) THEN
+    exclude_ice: IF (sss_exclude_ice) THEN
 
-!~        cnt_ex_ice_p = 0
-!~        DO i = 1, myDim_nod2D
-!~           IF (mean_ice_p(i) > 0.0 .AND. all_obs_p(i)<999.0 &
-!~                .AND. (all_obs_p(i)>=0.0 .OR. mean_sst_p(i)>=0.0)) THEN
-!~              all_obs_p(i) = 1.0e6
-!~              cnt_ex_ice_p = cnt_ex_ice_p + 1
-!~           END IF
-!~        END DO
+       cnt_ex_ice_p = 0
+       DO i = 1, myDim_nod2D
+          IF ((mean_ice_p(i) > 0.0) &
+             .AND. &
+              (all_obs_p(i)<999.0)) &
+          THEN
+             all_obs_p(i) = 1.0e6
+             cnt_ex_ice_p = cnt_ex_ice_p + 1
+          END IF
+       END DO
+       
+       ! *** Sum PE-local excluded nodes to global number of nodes excluded ***
 
-!~        CALL MPI_Allreduce(cnt_ex_ice_p, cnt_ex_ice, 1, MPI_INTEGER, MPI_SUM, &
-!~             COMM_filter, MPIerr)
+       CALL MPI_Allreduce(cnt_ex_ice_p, cnt_ex_ice, 1, MPI_INTEGER, MPI_SUM, &
+            COMM_filter, MPIerr)
 
-!~        IF (mype_filter == 0) &
-!~             WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
-!~             '--- Observations excluded because of ice', cnt_ex_ice
+       IF (mype_filter == 0) &
+            WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
+            '--- Observations excluded because of ice', cnt_ex_ice
 
-!~        ! *** Set localization radius to zero for grid points with ice ***
+       ! *** Set localization radius to zero for grid points with ice ***
 
-!~        IF (mype_filter == 0) &
-!~             WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
-!~             '--- Set localization radius to zero for points with ice'
-!~        DO i = 1, myDim_nod2D
-!~           IF (mean_ice_p (i) > 0.0) THEN
-!~              loc_radius_sst(i) = 0.0
-!~           END IF
-!~        END DO
+       IF (mype_filter == 0) &
+            WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
+            '--- Set localization radius to zero for points with ice'
+       DO i = 1, myDim_nod2D
+          IF (mean_ice_p (i) > 0.0) THEN
+             loc_radius_sss(i) = 0.0
+          END IF
+       END DO
 
-!~     END IF exclude_ice
+    END IF exclude_ice
 
 
     ! *** Exclude observations if difference from ensemble mean is beyond limit SSS_EXCLUDE_DIFF ***
