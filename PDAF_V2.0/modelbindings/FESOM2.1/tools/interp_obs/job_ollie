@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=intrpEN4
+#SBATCH --qos=short
+#SBATCH -p smp
+#SBATCH --ntasks=2
+#SBATCH --time=00:02:00
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+#SBATCH --mem 3GB
+
+module load intel.compiler intel.mpi netcdf/4.4.0_intel
+module load centoslibs
+
+set -x
+
+ulimit -s unlimited
+
+srun --propagate=STACK,CORE --mpi=pmi2 ./interpolateEN4
+
+#  > "fesom2.0.out"
