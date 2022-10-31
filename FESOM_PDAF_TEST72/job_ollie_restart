@@ -35,7 +35,7 @@ fes_numproc=72    # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2016-01-01"
-run_end_date="${run_start_date} + 12 month"
+run_end_date="${run_start_date} + 6 month"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
@@ -49,7 +49,7 @@ run_num_legs=1
 # Set $force_run_from_scratch to 'true' if you want to remove files
 # from previous test runs from $run_dir.
 # NOTE: If set to 'true', the run directory $run_dir is cleaned!
-force_run_from_scratch=false
+force_run_from_scratch=true
 
 # This file is used to store information about restarts
 ece_info_file="ece.info"
@@ -362,20 +362,38 @@ done # loop over legs
     fi
     mkdir ensemble_means/${leg_number}
     
-    files='ls 02/*.fesom.2016.nc'
-    for file in $files
+    # list of FESOM output files (one file for each variable)
+    files=(02/*.fesom.2016.nc)
+    echo ${files[@]}
+    
+    for file in ${files[@]}
     do
-       # get names of output variables
-       # remove first 3 letters (02/) and last 14 letters (.fesom.2016.nc)
-       var=$(echo $file | sed 's/^...//;s/..............$//')
-       echo $var
-
-       # calculate ensemble mean:
-       cdo ensmean ??/"$var".fesom.2016.nc ensemble_means/${leg_number}/"$var".ensmean.2016.nc
+    # remove first 3 letters ("02/") and last 14 letters (".fesom.2016.nc") from filename
+    # remaining: name of variable
+    vars+=($(echo $file | sed 's/^...//;s/..............$//'))
     done
+    echo ${vars[@]}
+
+    parallel="/home/ollie/frbunsen/bin/parallel-20220922/src/./parallel"
+
+    time1=$SECONDS
+
+    # do in parallel:
+    # 1. use one variable from list of fesom output
+    # 2. calculate ensemble mean using 'cdo ensmean'
+    $parallel \
+    "echo post-processing {} \
+    && srun --exclusive -N1 -n1 --cpus-per-task 36 cdo -P 36 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
+    ::: ${vars[@]}
+
+    duration=$(( $SECONDS - time1 ))
+    echo "Time: $duration"
     
     # Delete output of individual ensembles:
     rm ??/*.fesom.2016.nc
+
+    # Copy the protocol of this leg:
+    cp ../start/fesom2.0.out ensemble_means/${leg_number}/
     
     # Resubmit next job:
 
