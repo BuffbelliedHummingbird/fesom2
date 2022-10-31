@@ -54,6 +54,8 @@ file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'
 rms_obs_sss=0.5
 sss_fixed_rmse=.false.
+sss_exclude_ice=.true.
+sss_exclude_diff=1.5
 
 ASSIM_O_en4_t = .true.
 ASSIM_O_en4_s = .true.

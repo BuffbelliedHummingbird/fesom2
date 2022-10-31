@@ -39,7 +39,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, sst_exclude_ice, sst_exclude_diff, &
-             mean_ice_p, mean_sst_p        
+             mean_ice_p, mean_sst_p
+  USE obs_sss_smos_pdafomi, &
+        ONLY: assim_o_sss, sss_exclude_ice, sss_exclude_diff, &
+              mean_sss_p
   USE g_clock, &
         ONLY: dayold, yearold, check_fleapyr,daynew,yearnew
   USE mod_assim_pdaf, &
@@ -193,7 +196,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! (forecast phase)
 !
      ! sea-ice concentration
-     IF (sst_exclude_ice) THEN 
+     IF (sst_exclude_ice .OR. sss_exclude_ice) THEN 
         IF (ALLOCATED(mean_ice_p)) DEALLOCATE(mean_ice_p)
         ALLOCATE (mean_ice_p(dim_fields(id% a_ice)))
         mean_ice_p = state_p(offset(id% a_ice)+ 1 : &
@@ -207,7 +210,15 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         DO i = 1, myDim_nod2D
           mean_sst_p(i) = state_p(offset(id% temp) + (i-1) * (mesh_fesom%nl-1) + 1)
         END DO
-
+     END IF
+     
+     ! SSS
+     IF (sss_exclude_ice .OR. sss_exclude_diff > 0.0) THEN
+        IF (ALLOCATED(mean_sss_p)) DEALLOCATE(mean_sss_p)
+        ALLOCATE (mean_sss_p(myDim_nod2D))
+        DO i = 1, myDim_nod2D
+          mean_sss_p(i) = state_p(offset(id% salt) + (i-1) * (mesh_fesom%nl-1) + 1)
+        END DO
      END IF
 
   END IF
