@@ -145,7 +145,7 @@ PROGRAM generate_covar
   maxtimes = 72
 
   ! Set do_mv=1 to activate normalization; 0 to run without normalization
-  do_mv = 1   
+  do_mv = 0  
 
   ! Path to and name of file holding model trajectory
   inpath = '/work/ollie/frbunsen/model_runs/fesom2/test_control/'
