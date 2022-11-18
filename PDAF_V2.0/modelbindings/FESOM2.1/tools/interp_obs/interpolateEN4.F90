@@ -205,19 +205,24 @@ DO i = 1,  s-1
 END DO
 END IF ! read FESOM-PDAF output
 
-CALL MPI_SCATTER(dmax0,1,mpi_integer,&
-                 dmax, 1,mpi_integer,0,MPI_COMM_WORLD,ierror)
-CALL MPI_SCATTER(nz0,  1,mpi_integer,&
-                 nz,   1,mpi_integer,0,MPI_COMM_WORLD,ierror)
-WRITE(*,*) 'debug ierror: ', ierror
-WRITE(*,*) 'debug dmax: ', dmax
-WRITE(*,*) 'debug nz: ', nz
+!CALL MPI_SCATTER(dmax0,1,mpi_integer,&
+!                 dmax, 1,mpi_integer,0,MPI_COMM_WORLD,ierror)
+!CALL MPI_SCATTER(nz0,  1,mpi_integer,&
+!                 nz,   1,mpi_integer,0,MPI_COMM_WORLD,ierror)
+CALL MPI_BCAST(dmax, 1, mpi_integer, 0, MPI_COMM_WORLD,ierror)
+CALL MPI_BCAST(nz  , 1, mpi_integer, 0, MPI_COMM_WORLD,ierror)
+
+                 
+WRITE(*,*) 'debug ierror: ', ierror, 'mype', mype
+WRITE(*,*) 'debug dmax: ', dmax, 'mype', mype
+WRITE(*,*) 'debug nz: ', nz, 'mype', mype
 
 
 ! **********************************************************************
 ! *** Read global geographic nodal coordinates:
 ! **********************************************************************
 ! process 0 reads global file
+CALL MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
 IF (myPE==0) THEN
 WRITE(*,*) ''
@@ -225,8 +230,6 @@ WRITE(*,*) '********************************************************************
 WRITE(*,*) '*** Read nodal geo coordinates:'
 WRITE(*,*) '**********************************************************************'
 END IF
-
-CALL MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
 IF (myPE==0) THEN ! read nodal coordinates
 s = 1
@@ -293,7 +296,8 @@ IF (myPE==0) WRITE(*,*) 'debug myList_nod2D(1:5): ',    myList_nod2D(1:5)
 IF (myPE==0) WRITE(*,*) 'debug myList_nod2D(-5:end): ', myList_nod2D(myDim_nod2D-5:myDim_nod2D)
 
 !~ ! Gather number of nodes on process 0:
-IF (myPE==0) ALLOCATE(Nnodes_part(npes))
+!IF (myPE==0)
+ALLOCATE(Nnodes_part(npes))
 CALL MPI_GATHER(myDim_nod2D,1,MPI_INT,&
                 Nnodes_part,1,MPI_INT,&
                 0,MPI_COMM_WORLD,ierror)
@@ -336,6 +340,9 @@ END IF
 
 CALL MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
+WRITE(*,*) 'debug myDim_nod2D: ', myDim_nod2D, 'mype', mype
+WRITE(*,*) 'debug nz: ', nz, 'mype', mype
+WRITE(*,*) 'debug dmax: ', dmax, 'mype', mype
 ! allocate space on every process
 ALLOCATE(t_ana(myDim_nod2D,nz,dmax), &
          t_for(myDim_nod2D,nz,dmax)) !, &
@@ -349,8 +356,7 @@ IF (myPE==0) THEN
 t_ana = t_anaG(nlistpart(1)%nodes,:,:)
 t_for = t_forG(nlistpart(1)%nodes,:,:)
 coordinate_n2d = coordinate_n2dG(nlistpart(1)%nodes,:)
-!!!!!!!!!!! SHOULD BE (i = 1, npes-1) IN THE NEXT LINE BUT THIS GIVES MEMORY ERROR. !!!!!!!!!!!!
-DO i = 1, 1 ! npes-1
+DO i = 1, npes-1
 WRITE(*,*) '1 debug npes-1', npes-1
 WRITE(*,*) '1 debug i: ', i
 WRITE(*,*) '1 debug size(t_anaG(nlistpart(i+1)%nodes,:,:)): ', size(t_anaG(nlistpart(i+1)%nodes,:,:))
@@ -614,8 +620,8 @@ CALL MPI_GATHER(dimobs_temp,         1, MPI_INT,       &
                 MPI_COMM_WORLD, ierror)
 IF (myPE==0) WRITE(*,*) 'debug dimobs_temp_part: ', dimobs_temp_part
 
+ALLOCATE(dimobs_temp_dspl(npes)) ! actually only want it on 0
 IF (myPE==0) THEN
-ALLOCATE(dimobs_temp_dspl(npes))
 dimobs_temp_dspl(1) = 0
 IF (npes>1) THEN
 	DO i=2, npes
@@ -627,7 +633,8 @@ END IF
 
 ! Gather analysis, forecast, observations, day, depth level, lon and lat:
 ! (Gather analysis temperature)
-IF (myPE==0) ALLOCATE(t_ana_nG(dimobs_tempG))
+!IF (myPE==0) 
+ALLOCATE(t_ana_nG(dimobs_tempG))
 WRITE(*,*) 'debug myPE: ', myPE, 't_ana_n(1:4) ', t_ana_n(1:4)
 CALL MPI_GATHERV(t_ana_n,  dimobs_temp,                        MPI_REAL,       &
                  t_ana_nG, dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
@@ -637,7 +644,8 @@ IF (myPE==0) WRITE(*,*) 'debug t_ana_nG(1:4) ', t_ana_nG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug t_ana_nG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', t_ana_nG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather forecast temperature)
-IF (myPE==0)  ALLOCATE(t_for_nG(dimobs_tempG))
+!IF (myPE==0)  
+ALLOCATE(t_for_nG(dimobs_tempG))
 CALL MPI_GATHERV(t_for_n,  dimobs_temp,                        MPI_REAL,       &
                  t_for_nG, dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
                  MPI_COMM_WORLD, ierror)
@@ -646,7 +654,8 @@ IF (myPE==0) WRITE(*,*) 'debug t_for_nG(1:4) ', t_for_nG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug t_for_nG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', t_for_nG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather observations temperature)
-IF (myPE==0)  ALLOCATE(temperatureG(dimobs_tempG))
+! IF (myPE==0)
+ALLOCATE(temperatureG(dimobs_tempG))
 CALL MPI_GATHERV(temperature,  dimobs_temp,                        MPI_REAL,       &
                  temperatureG, dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
                  MPI_COMM_WORLD, ierror)
@@ -655,7 +664,8 @@ IF (myPE==0) WRITE(*,*) 'debug temperatureG(1:4) ', temperatureG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug temperatureG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', temperatureG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather day)
-IF (myPE==0)  ALLOCATE(day_tempG(dimobs_tempG))
+!~ IF (myPE==0)  
+ALLOCATE(day_tempG(dimobs_tempG))
 CALL MPI_GATHERV(day_temp,  dimobs_temp,                        MPI_INT,       &
                  day_tempG, dimobs_temp_part, dimobs_temp_dspl, MPI_INT, 0,    & 
                  MPI_COMM_WORLD, ierror)
@@ -664,7 +674,8 @@ IF (myPE==0) WRITE(*,*) 'debug day_tempG(1:4) ', day_tempG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug day_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', day_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather layer)
-IF (myPE==0)  ALLOCATE(nl1_tempG(dimobs_tempG))
+!~ IF (myPE==0)  
+ALLOCATE(nl1_tempG(dimobs_tempG))
 CALL MPI_GATHERV(nl1_temp,  dimobs_temp,                        MPI_REAL,       &
                  nl1_tempG, dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
                  MPI_COMM_WORLD, ierror)
@@ -673,7 +684,8 @@ IF (myPE==0) WRITE(*,*) 'debug nl1_tempG(1:4) ', nl1_tempG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug nl1_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', nl1_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather longitude)
-IF (myPE==0)  ALLOCATE(lon_tempG(dimobs_tempG))
+!~ IF (myPE==0)  
+ALLOCATE(lon_tempG(dimobs_tempG))
 CALL MPI_GATHERV(coordinate_temp(1,:), dimobs_temp,                        MPI_REAL,       &
                  lon_tempG,            dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
                  MPI_COMM_WORLD, ierror)
@@ -681,7 +693,8 @@ IF (myPE==0) WRITE(*,*) 'debug lon_tempG(1:4) ', lon_tempG(1:4)
 IF (myPE==0) WRITE(*,*) 'debug lon_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4) ', lon_tempG(dimobs_temp_part(1)+1:dimobs_temp_part(1)+4)
 
 ! (Gather latitude)
-IF (myPE==0)  ALLOCATE(lat_tempG(dimobs_tempG))
+!~ IF (myPE==0)  
+ALLOCATE(lat_tempG(dimobs_tempG))
 CALL MPI_GATHERV(coordinate_temp(2,:), dimobs_temp,                        MPI_REAL,       &
                  lat_tempG,            dimobs_temp_part, dimobs_temp_dspl, MPI_REAL, 0,    & 
                  MPI_COMM_WORLD, ierror)

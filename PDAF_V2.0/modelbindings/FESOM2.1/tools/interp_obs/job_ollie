@@ -2,11 +2,11 @@
 #SBATCH --job-name=intrpEN4
 #SBATCH --qos=short
 #SBATCH -p smp
-#SBATCH --ntasks=2
+#SBATCH --ntasks=4
 #SBATCH --time=00:02:00
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
-#SBATCH --mem 3GB
+#SBATCH --mem 7GB
 
 module load intel.compiler intel.mpi netcdf/4.4.0_intel
 module load centoslibs
