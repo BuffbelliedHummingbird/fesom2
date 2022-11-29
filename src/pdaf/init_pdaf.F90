@@ -32,6 +32,7 @@ SUBROUTINE init_pdaf()
        type_trans, type_sqrt, eff_dim_obs, loc_radius, loctype, &
        twin_experiment, dim_obs_max, use_global_obs, mesh_fesom, &
        offset_glob, dim_fields_glob, nfields, id, &
+       path_atm_cov, &
        ! Debugging:
        debug_id_depth, debug_id_nod2, ens_member_debug, &
        ! EN4 profile data processing:

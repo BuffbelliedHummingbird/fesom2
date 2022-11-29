@@ -164,6 +164,8 @@ MODULE mod_assim_pdaf
 
   LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
   LOGICAL :: this_is_pdaf_restart = .false.
+  
+  CHARACTER(len=110) :: path_atm_cov
 
   ! Other variables - NOT available as command line options / in the namelist:
   REAL    :: time      ! model time

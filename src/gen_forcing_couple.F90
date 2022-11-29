@@ -61,6 +61,13 @@ subroutine update_atm_forcing(istep, mesh)
 #endif
   use gen_bulk
   use force_flux_consv_interface
+  
+#ifdef use_PDAF
+! For use with PDAF:
+! Adding stochastic variability to an ensemble of atmospheric forcing fields.
+USE mod_parallel_pdaf, ONLY: mype_model, mype_world
+USE mod_atmos_ens_stochasticity, ONLY: init_atmos_ens_stochasticity, add_atmos_ens_stochasticity
+#endif
 
   implicit none
   type(t_mesh), intent(in) , target :: mesh
@@ -79,6 +86,12 @@ subroutine update_atm_forcing(istep, mesh)
   INTEGER                                          :: my_global_rank, ierror
   INTEGER 					   :: status(MPI_STATUS_SIZE)
 #endif
+
+#ifdef use_PDAF
+CHARACTER(len=4)        :: mype_string
+CHARACTER(len=3)        :: istep_string
+#endif
+
   !character(15)                         :: vari, filevari
   !character(4)                          :: fileyear
   !integer, parameter                    :: nci=192, ncj=94 ! T62 grid
@@ -250,6 +263,52 @@ subroutine update_atm_forcing(istep, mesh)
       end if
 #else
   call sbc_do(mesh)
+
+! ****************************************************************************
+! *** For use with PDAF:                                                   ***
+! *** Adding stochastic variability to an ensemble of atmospheric forcings *** 
+! **************************************************************************** 
+#ifdef use_PDAF
+IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
+write(istep_string,'(i3.3)') istep
+write(mype_string, '(i4.4)') mype_model
+open (mype_world+1, file = 'atmdata_1_'//mype_string//'_'//istep_string//'.out')
+write(mype_world+1,*) atmdata(i_xwind,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_ywind,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_humi ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_qlw  ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_qsr  ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_tair ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_prec ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_snow ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_mslp ,:myDim_nod2D)
+close(mype_world+1)
+ENDIF
+
+IF (istep==1) THEN
+call init_atmos_ens_stochasticity()
+ENDIF
+
+call add_atmos_ens_stochasticity(istep)
+
+IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
+write(istep_string,'(i3.3)') istep
+write(mype_string, '(i4.4)') mype_model
+open (mype_world+1, file = 'atmdata_2_'//mype_string//'_'//istep_string//'.out')
+write(mype_world+1,*) atmdata(i_xwind,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_ywind,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_humi ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_qlw  ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_qsr  ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_tair ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_prec ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_snow ,:myDim_nod2D)
+write(mype_world+1,*) atmdata(i_mslp ,:myDim_nod2D)
+close(mype_world+1)
+ENDIF
+
+#endif
+  
   u_wind    = atmdata(i_xwind,:)
   v_wind    = atmdata(i_ywind,:)
   shum      = atmdata(i_humi ,:)
