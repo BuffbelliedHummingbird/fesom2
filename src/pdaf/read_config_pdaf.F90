@@ -23,6 +23,7 @@ SUBROUTINE read_config_pdaf()
        path_init, file_init, file_inistate, read_inistate, varscale, &
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
+       path_atm_cov, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
@@ -81,7 +82,9 @@ SUBROUTINE read_config_pdaf()
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        rms_obs_S, rms_obs_T, &
        path_obs_rawprof, file_rawprof_prefix, proffiles_o, &
-       start_year_o, end_year_o
+       start_year_o, end_year_o, &
+       ! Atmosphere cov:
+       path_atm_cov
        
 ! ****************************************************
 ! ***   Initialize PDAF parameters from namelist   ***
@@ -195,6 +198,8 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','twin_experiment', twin_experiment
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','this_is_pdaf_restart', this_is_pdaf_restart
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_atm_cov  ', TRIM(path_atm_cov)
+
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'
 
   END IF showconf
