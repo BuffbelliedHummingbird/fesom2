@@ -229,6 +229,7 @@ DEALLOCATE(omega)
 CALL MPI_Bcast(Omega_v, dim_ens-1, MPI_DOUBLE_PRECISION, 0, &
 	 COMM_model, MPIerr)
 
+varscale = 0.5
 fac = varscale * SQRT(REAL(dim_ens-1)) ! varscale: scaling factor for ensemble variance
 perturbation = 0.0
 
@@ -257,6 +258,11 @@ ALLOCATE(perturbation_old(nfields*myDim_nod2D))
 perturbation_old = perturbation
 END IF
 
+! don't mess with shortwave radiation at night:
+WHERE (atmdata(i_qsr,:)==0)
+perturbation(atm_offset(id_atm% qsr)+1:atm_offset(id_atm% qsr)+myDim_nod2D) = 0
+ENDWHERE
+
 atmdata(i_xwind,:) = atmdata(i_xwind,:) + 0.1 * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
 atmdata(i_ywind,:) = atmdata(i_ywind,:) + 0.1 * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
 atmdata(i_humi ,:) = atmdata(i_humi ,:) + 0.1 * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
@@ -266,6 +272,29 @@ atmdata(i_tair ,:) = atmdata(i_tair ,:) + 0.1 * perturbation(atm_offset(id_atm% 
 atmdata(i_prec ,:) = atmdata(i_prec ,:) + 0.1 * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
 atmdata(i_snow ,:) = atmdata(i_snow ,:) + 0.1 * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
 atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + 0.1 * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
+
+! rain must not be negative:
+WHERE(atmdata(i_prec,:) <0 )
+atmdata(i_prec,:)=0
+ENDWHERE
+
+! snow must not be negative:
+WHERE(atmdata(i_snow,:) <0 )
+atmdata(i_snow,:)=0
+ENDWHERE
+
+! humidity must not be negative:
+WHERE(atmdata(i_humi,:) <0 )
+atmdata(i_humi,:)=0
+ENDWHERE
+
+! downwelling shortwave and longwave radiation must not be negative:
+WHERE(atmdata(i_qlw,:) <0 )
+atmdata(i_qlw,:)=0
+ENDWHERE
+WHERE(atmdata(i_qsr,:) <0 )
+atmdata(i_qsr,:)=0
+ENDWHERE
 
 perturbation_old = perturbation
 DEALLOCATE(perturbation,omega_v)
