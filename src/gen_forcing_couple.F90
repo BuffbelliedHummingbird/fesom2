@@ -269,7 +269,7 @@ CHARACTER(len=3)        :: istep_string
 ! *** Adding stochastic variability to an ensemble of atmospheric forcings *** 
 ! **************************************************************************** 
 #ifdef use_PDAF
-IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
+!IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
 write(istep_string,'(i3.3)') istep
 write(mype_string, '(i4.4)') mype_model
 open (mype_world+1, file = 'atmdata_1_'//mype_string//'_'//istep_string//'.out')
@@ -283,7 +283,7 @@ write(mype_world+1,*) atmdata(i_prec ,:myDim_nod2D)
 write(mype_world+1,*) atmdata(i_snow ,:myDim_nod2D)
 write(mype_world+1,*) atmdata(i_mslp ,:myDim_nod2D)
 close(mype_world+1)
-ENDIF
+!ENDIF
 
 IF (istep==1) THEN
 call init_atmos_ens_stochasticity()
@@ -291,21 +291,21 @@ ENDIF
 
 call add_atmos_ens_stochasticity(istep)
 
-IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
-write(istep_string,'(i3.3)') istep
-write(mype_string, '(i4.4)') mype_model
-open (mype_world+1, file = 'atmdata_2_'//mype_string//'_'//istep_string//'.out')
-write(mype_world+1,*) atmdata(i_xwind,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_ywind,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_humi ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_qlw  ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_qsr  ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_tair ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_prec ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_snow ,:myDim_nod2D)
-write(mype_world+1,*) atmdata(i_mslp ,:myDim_nod2D)
-close(mype_world+1)
-ENDIF
+!~ IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
+!~ write(istep_string,'(i3.3)') istep
+!~ write(mype_string, '(i4.4)') mype_model
+!~ open (mype_world+1, file = 'atmdata_2_'//mype_string//'_'//istep_string//'.out')
+!~ write(mype_world+1,*) atmdata(i_xwind,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_ywind,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_humi ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_qlw  ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_qsr  ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_tair ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_prec ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_snow ,:myDim_nod2D)
+!~ write(mype_world+1,*) atmdata(i_mslp ,:myDim_nod2D)
+!~ close(mype_world+1)
+!~ ENDIF
 
 #endif
   
