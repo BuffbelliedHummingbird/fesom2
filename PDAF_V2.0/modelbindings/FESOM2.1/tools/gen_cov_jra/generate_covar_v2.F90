@@ -108,17 +108,7 @@ PROGRAM generate_covar
   INTEGER :: remove_mean  ! (1) Let PDAF_eofcovar compute and subtract the mean state;
                           ! (0) mean already removed from trajectory
   INTEGER :: do_mv        ! (1) to perform multivariate normalization; (0) no normalization
-  
-  
-!~   ncid_in_u = 10
-!~   ncid_in_v = 11
-!~   ncid_in_w = 12 
-!~   ncid_in_s = 13
-!~   ncid_in_z = 14
-!~   ncid_in_t = 15
-!~   ncid_in_i = 16
-  
-!~   ncid_out = 70
+
 
 ! ************************************************
 ! *** Configuration                            ***
