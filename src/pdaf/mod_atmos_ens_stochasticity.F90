@@ -33,6 +33,17 @@ MODULE mod_atmos_ens_stochasticity
   INTEGER,          save  :: nfields                 ! Number of atmospheric forcing fields
   REAL,ALLOCATABLE        :: perturbation(:)         ! Vector containing perturbation field for local ensemble member
   REAL,ALLOCATABLE, save  :: perturbation_old(:)
+  
+  REAL,ALLOCATABLE, save  :: perturbation_humi (:)
+  REAL,ALLOCATABLE, save  :: perturbation_prec (:)
+  REAL,ALLOCATABLE, save  :: perturbation_snow (:)
+  REAL,ALLOCATABLE, save  :: perturbation_mslp (:)
+  REAL,ALLOCATABLE, save  :: perturbation_qlw  (:)
+  REAL,ALLOCATABLE, save  :: perturbation_qsr  (:)
+  REAL,ALLOCATABLE, save  :: perturbation_tair (:)
+  REAL,ALLOCATABLE, save  :: perturbation_xwind(:)
+  REAL,ALLOCATABLE, save  :: perturbation_ywind(:)
+  
   REAL,ALLOCATABLE, save  :: atmdata_debug(:,:)
   
   TYPE field_ids
@@ -256,7 +267,27 @@ close(mype_world+1)
 
 IF (istep==1) THEN
 ALLOCATE(perturbation_old(nfields*myDim_nod2D))
-perturbation_old = 0
+perturbation_old = 0.0
+
+ALLOCATE(perturbation_xwind (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_ywind (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_humi  (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_qlw   (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_qsr   (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_tair  (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
+ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
+
+perturbation_xwind = 0.0
+perturbation_ywind = 0.0
+perturbation_humi  = 0.0
+perturbation_qlw   = 0.0
+perturbation_qsr   = 0.0
+perturbation_tair  = 0.0
+perturbation_prec  = 0.0
+perturbation_snow  = 0.0
+perturbation_mslp  = 0.0
 
 ! debugging output:
 ALLOCATE(atmdata_debug(nfields,myDim_nod2D))
@@ -272,58 +303,75 @@ atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
 
 END IF
 
-! don't mess with shortwave radiation at night:
-WHERE (atmdata(i_qsr,:myDim_nod2D)==0)
-perturbation(atm_offset(id_atm% qsr)+1:atm_offset(id_atm% qsr)+myDim_nod2D) = 0
-ENDWHERE
+! autoregressive: next perturbation from last perturbation and new stochastic element:
+perturbation_xwind ( :myDim_nod2D) = 0.9 * perturbation_xwind ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
+perturbation_ywind ( :myDim_nod2D) = 0.9 * perturbation_ywind ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
+perturbation_humi  ( :myDim_nod2D) = 0.9 * perturbation_humi  ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
+perturbation_qlw   ( :myDim_nod2D) = 0.9 * perturbation_qlw   ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
+perturbation_qsr   ( :myDim_nod2D) = 0.9 * perturbation_qsr   ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
+perturbation_tair  ( :myDim_nod2D) = 0.9 * perturbation_tair  ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
+perturbation_prec  ( :myDim_nod2D) = 0.9 * perturbation_prec  ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
+perturbation_snow  ( :myDim_nod2D) = 0.9 * perturbation_snow  ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
+perturbation_mslp  ( :myDim_nod2D) = 0.9 * perturbation_mslp  ( :myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
 
-atmdata(i_xwind,:myDim_nod2D) = atmdata(i_xwind,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
-atmdata(i_ywind,:myDim_nod2D) = atmdata(i_ywind,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
-atmdata(i_humi ,:myDim_nod2D) = atmdata(i_humi ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
-atmdata(i_qlw  ,:myDim_nod2D) = atmdata(i_qlw  ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
-!WHERE (atmdata(i_qsr,:myDim_nod2D) /= 0)
-	atmdata(i_qsr  ,:myDim_nod2D) = atmdata(i_qsr  ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
-!ENDWHERE
-atmdata(i_tair ,:myDim_nod2D) = atmdata(i_tair ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
-atmdata(i_prec ,:myDim_nod2D) = atmdata(i_prec ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
-atmdata(i_snow ,:myDim_nod2D) = atmdata(i_snow ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
-atmdata(i_mslp ,:myDim_nod2D) = atmdata(i_mslp ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
+! external nodes:
+CALL exchange_nod( perturbation_xwind)
+CALL exchange_nod( perturbation_ywind)
+CALL exchange_nod( perturbation_humi)
+CALL exchange_nod( perturbation_qlw)
+CALL exchange_nod( perturbation_qsr)
+CALL exchange_nod( perturbation_tair)
+CALL exchange_nod( perturbation_prec)
+CALL exchange_nod( perturbation_snow)
+CALL exchange_nod( perturbation_mslp)
 
-! rain must not be negative:
-WHERE(atmdata(i_prec,:myDim_nod2D) <0 )
-atmdata(i_prec,:myDim_nod2D)=0
-ENDWHERE
+!~ atmdata(i_xwind,:myDim_nod2D) = atmdata(i_xwind,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
+!~ atmdata(i_ywind,:myDim_nod2D) = atmdata(i_ywind,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
+!~ atmdata(i_humi ,:myDim_nod2D) = atmdata(i_humi ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
+!~ atmdata(i_qlw  ,:myDim_nod2D) = atmdata(i_qlw  ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
+!~ WHERE (atmdata(i_qsr,:myDim_nod2D) /= 0)
+!~ 	atmdata(i_qsr  ,:myDim_nod2D) = atmdata(i_qsr  ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
+!~ ENDWHERE
+!~ atmdata(i_tair ,:myDim_nod2D) = atmdata(i_tair ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
+!~ atmdata(i_prec ,:myDim_nod2D) = atmdata(i_prec ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
+!~ atmdata(i_snow ,:myDim_nod2D) = atmdata(i_snow ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
+!~ atmdata(i_mslp ,:myDim_nod2D) = atmdata(i_mslp ,:myDim_nod2D) + 0.1 * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D) + 0.9 * perturbation_old(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
 
-! snow must not be negative:
-WHERE(atmdata(i_snow,:myDim_nod2D) <0 )
-atmdata(i_snow,:myDim_nod2D)=0
-ENDWHERE
+!~ ! rain must not be negative:
+!~ WHERE(atmdata(i_prec,:myDim_nod2D) <0 )
+!~ atmdata(i_prec,:myDim_nod2D)=0
+!~ ENDWHERE
 
-! humidity must not be negative:
-WHERE(atmdata(i_humi,:myDim_nod2D) <0 )
-atmdata(i_humi,:myDim_nod2D)=0
-ENDWHERE
+!~ ! snow must not be negative:
+!~ WHERE(atmdata(i_snow,:myDim_nod2D) <0 )
+!~ atmdata(i_snow,:myDim_nod2D)=0
+!~ ENDWHERE
 
-! downwelling shortwave and longwave radiation must not be negative:
-WHERE(atmdata(i_qlw,:myDim_nod2D) <0 )
-atmdata(i_qlw,:myDim_nod2D)=0
-ENDWHERE
-WHERE(atmdata(i_qsr,:myDim_nod2D) <0 )
-atmdata(i_qsr,:myDim_nod2D)=0
-ENDWHERE
+!~ ! humidity must not be negative:
+!~ WHERE(atmdata(i_humi,:myDim_nod2D) <0 )
+!~ atmdata(i_humi,:myDim_nod2D)=0
+!~ ENDWHERE
+
+!~ ! downwelling shortwave and longwave radiation must not be negative:
+!~ WHERE(atmdata(i_qlw,:myDim_nod2D) <0 )
+!~ atmdata(i_qlw,:myDim_nod2D)=0
+!~ ENDWHERE
+!~ WHERE(atmdata(i_qsr,:myDim_nod2D) <0 )
+!~ atmdata(i_qsr,:myDim_nod2D)=0
+!~ ENDWHERE
 
 ! External nodes:
-WRITE(*,*) 'mod_atmos_ens_stochasticity: ', 'myDim_nod2D', myDim_nod2D, 'eDim_nod2D', eDim_nod2D, 'shape(atmdata(i_xwind ,:))', shape(atmdata(i_xwind ,:))
-WRITE(*,*) 'mod_atmos_ens_stochasticity: ', 'myDim_nod2D', myDim_nod2D, 'eDim_nod2D', eDim_nod2D, 'shape(atmdata(i_tair  ,:))', shape(atmdata(i_tair  ,:))
-call exchange_nod(atmdata(i_xwind ,:))
-call exchange_nod(atmdata(i_ywind ,:))
-call exchange_nod(atmdata(i_humi  ,:))
-call exchange_nod(atmdata(i_qlw   ,:))
-call exchange_nod(atmdata(i_qsr   ,:))
-call exchange_nod(atmdata(i_tair  ,:))
-call exchange_nod(atmdata(i_prec  ,:))
-call exchange_nod(atmdata(i_snow  ,:))
-call exchange_nod(atmdata(i_mslp  ,:))
+!~ WRITE(*,*) 'mod_atmos_ens_stochasticity: ', 'myDim_nod2D', myDim_nod2D, 'eDim_nod2D', eDim_nod2D, 'shape(atmdata(i_xwind ,:))', shape(atmdata(i_xwind ,:))
+!~ WRITE(*,*) 'mod_atmos_ens_stochasticity: ', 'myDim_nod2D', myDim_nod2D, 'eDim_nod2D', eDim_nod2D, 'shape(atmdata(i_tair  ,:))', shape(atmdata(i_tair  ,:))
+!~ call exchange_nod(atmdata(i_xwind ,:))
+!~ call exchange_nod(atmdata(i_ywind ,:))
+!~ call exchange_nod(atmdata(i_humi  ,:))
+!~ call exchange_nod(atmdata(i_qlw   ,:))
+!~ call exchange_nod(atmdata(i_qsr   ,:))
+!~ call exchange_nod(atmdata(i_tair  ,:))
+!~ call exchange_nod(atmdata(i_prec  ,:))
+!~ call exchange_nod(atmdata(i_snow  ,:))
+!~ call exchange_nod(atmdata(i_mslp  ,:))
 
 !~ ! don't mess with shortwave radiation at night:
 !~ WHERE (atmdata(i_qsr,:)==0)
@@ -377,7 +425,7 @@ call exchange_nod(atmdata(i_mslp  ,:))
 !~ write(mype_world+1,*) atmdata_debug(id_atm% mslp ,:myDim_nod2D)
 !~ close(mype_world+1)
 
-perturbation_old = perturbation
+!~ perturbation_old = 0.9 * perturbation_old + 0.1 * perturbation
 DEALLOCATE(perturbation,omega_v)
 
 END SUBROUTINE
