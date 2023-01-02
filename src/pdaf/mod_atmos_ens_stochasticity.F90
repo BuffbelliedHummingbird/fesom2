@@ -305,18 +305,18 @@ perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D
 
 
 !~ IF ((ANY( istep == (/ 1,33,65,97,129,161,193,225,257,289 /) ))) THEN
-write(istep_string,'(i3.3)') istep
-open (mype_world+1, file = 'atmdist_'//mype_string//'_'//istep_string//'.out')
-write(mype_world+1,*) perturbation_xwind( :myDim_nod2D)
-write(mype_world+1,*) perturbation_ywind( :myDim_nod2D)
-write(mype_world+1,*) perturbation_humi ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_qlw  ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_qsr  ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_tair ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_prec ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_snow ( :myDim_nod2D)
-write(mype_world+1,*) perturbation_mslp ( :myDim_nod2D)
-close(mype_world+1)
+! write(istep_string,'(i3.3)') istep
+! open (mype_world+1, file = 'atmdist_'//mype_string//'_'//istep_string//'.out')
+! write(mype_world+1,*) perturbation_xwind( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_ywind( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_humi ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_qlw  ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_qsr  ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_tair ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_prec ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_snow ( :myDim_nod2D)
+! write(mype_world+1,*) perturbation_mslp ( :myDim_nod2D)
+! close(mype_world+1)
 !~ ENDIF
 
 ! fill external nodes:
