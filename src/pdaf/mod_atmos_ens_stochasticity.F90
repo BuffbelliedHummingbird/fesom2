@@ -213,7 +213,7 @@ ALLOCATE(omega_v(dim_ens-1))
 ALLOCATE(perturbation(nfields * myDim_nod2D))
 
 ! set parameters:
-varscale = 10
+varscale = 10 ! 10: blowup at early time-step (3)
 arc      = 1/REAL(step_per_day)
 
 ! ****************************************
@@ -254,22 +254,7 @@ perturbation = 0.0
 !    ____           =====   _______    ____
 !    pert = fac * ( eof_p * omega_v) + null
 
-CALL DGEMV('n', nfields*myDim_nod2D, dim_ens-1, fac, eof_p, nfields*myDim_nod2D, omega_v, 1, 1, perturbation, 1) ! dgemv: matrix-vector multiplication
-
-!~ IF ((ANY( istep == (/ 1,33,65,97,129,161,193,225,257,289 /) ))) THEN
-write(istep_string,'(i3.3)') istep
-open (mype_world+1, file = 'atmdist_'//mype_string//'_'//istep_string//'.out')
-write(mype_world+1,*) perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
-write(mype_world+1,*) perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
-close(mype_world+1)
-!~ ENDIF
+CALL DGEMV('n', nfields*myDim_nod2D, dim_ens-1, fac, eof_p, nfields*myDim_nod2D, omega_v, 1, 0, perturbation, 1) ! dgemv: matrix-vector multiplication
 
 IF (istep==1) THEN
 
@@ -308,16 +293,31 @@ perturbation_mslp  = 0.0
 END IF
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
-! multiply with scaling factor
-perturbation_xwind ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D))
-perturbation_ywind ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D))
-perturbation_humi  ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D))
-perturbation_qlw   ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D))
-perturbation_qsr   ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D))
-perturbation_tair  ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D))
-perturbation_prec  ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D))
-perturbation_snow  ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D))
-perturbation_mslp  ( :myDim_nod2D) = varscale * ((1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D))
+perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
+perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
+perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
+perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
+perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
+perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
+perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
+perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
+perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
+
+
+!~ IF ((ANY( istep == (/ 1,33,65,97,129,161,193,225,257,289 /) ))) THEN
+write(istep_string,'(i3.3)') istep
+open (mype_world+1, file = 'atmdist_'//mype_string//'_'//istep_string//'.out')
+write(mype_world+1,*) perturbation_xwind( :myDim_nod2D)
+write(mype_world+1,*) perturbation_ywind( :myDim_nod2D)
+write(mype_world+1,*) perturbation_humi ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_qlw  ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_qsr  ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_tair ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_prec ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_snow ( :myDim_nod2D)
+write(mype_world+1,*) perturbation_mslp ( :myDim_nod2D)
+close(mype_world+1)
+!~ ENDIF
 
 ! fill external nodes:
 CALL exchange_nod( perturbation_xwind)
@@ -354,6 +354,9 @@ atmdata(i_snow,:)=0
 ENDWHERE
 WHERE(atmdata(i_humi,:) <0 )
 atmdata(i_humi,:)=0
+ENDWHERE
+WHERE(atmdata(i_humi,:) >1 )
+atmdata(i_humi,:)=1
 ENDWHERE
 WHERE(atmdata(i_qlw,:) <0 )
 atmdata(i_qlw,:)=0
