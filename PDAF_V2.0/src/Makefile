@@ -13,7 +13,7 @@
 # For available include files see directory make.arch
 # To choose a file, set PDAF_ARCH either here or by an
 # environment variable.
-include ../make.arch/Ollie_mpiifort_impi.h
+include ../make.arch/cray_mpiifort_impi.h
 
 
 ######################################################
