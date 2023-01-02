@@ -20,9 +20,9 @@ twin_experiment=.false.
 step_null=0            ! 0 for restart at first day of the year.
 					   ! Is reset by runscript.
 
-path_init='/work/ollie/frbunsen/model_runs/fesom2/dist_cov72/'
+path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/dist_cov72/'
 file_init='cov_'
-DAoutput_path='/work/ollie/frbunsen/model_runs/fesom2/FESOM_PDAF_TEST72/work/'
+DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_3D_monthly_mean=.false.
 write_ens_snapshot=.false.
 
@@ -33,14 +33,14 @@ this_is_pdaf_restart=.true.
 use_global_obs=.false.
 
 ASSIM_O_ssh = .false.
-path_obs_ssh='/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
+path_obs_ssh='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
 file_ssh_prefix='SSH_track_2016_dist72_'
 file_ssh_suffix ='.nc'
 rms_obs_ssh= 0.25
 ssh_fixed_rmse=.false.
 
 ASSIM_O_sst = .false.
-path_obs_sst='/work/ollie/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
+path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
 file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist72_'
 file_sst_suffix ='.nc'
 rms_obs_sst=0.8
@@ -49,7 +49,7 @@ sst_exclude_ice=.true.
 sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
 ASSIM_O_sss = .false.
-path_obs_sss='/work/ollie/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
+path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
 file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'
 rms_obs_sss=0.5
@@ -59,12 +59,12 @@ sss_exclude_diff=1.5
 
 ASSIM_O_en4_t = .false.
 ASSIM_O_en4_s = .false.
-path_obs_prof='/work/ollie/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
+path_obs_prof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
 file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'
 rms_obs_T=0.8
 rms_obs_S=0.5
-path_obs_rawprof='/work/ollie/frbunsen/data/physics/Temp-Salt-3D/EN4/'
+path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/'
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
 proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
                                                                         ! 1: Processing of EN4 raw profile data to distributed files.
@@ -72,7 +72,7 @@ proffiles_o=0                                                           ! 0: No 
 start_year_o = 2016
 end_year_o   = 2016
 
-path_atm_cov = '/work/ollie/frbunsen/jra_core2/dist72_cov/'
+path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 
 /
 
