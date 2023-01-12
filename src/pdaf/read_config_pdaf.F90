@@ -121,7 +121,7 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','screen      ', screen
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','incremental ', incremental
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','type_forget ', type_forget
-     WRITE (*,'(a,5x,a,f10.2)') 'FESOM-PDAF','forget      ', forget
+     WRITE (*,'(a,5x,a,f10.4)') 'FESOM-PDAF','forget      ', forget
      WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','varscale   ', varscale
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_bias    ', dim_bias
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','type_trans  ', type_trans
