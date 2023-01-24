@@ -1,10 +1,11 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=720 #720 #288 #1440
+#SBATCH --ntasks=1440 #720 #720 #288 #1440
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:07:00 # 7 hours
+#SBATCH --time=07:00:00 # 7 hours
 #SBATCH --hint=nomultithread
+#SBATCH --qos=12h #30min
 
 #SBATCH --job-name=FeRePDAF
 #SBATCH -o slurm-out.out
@@ -20,22 +21,25 @@
 export OMP_NUM_THREADS=1
 source ../env/albedo/shell
 source ./librunscript.sh # librunscript defines some helper functions
+module load cdo
+
+info "Let's get started."
 
 # determine JOBID
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name='FESOM_PDAF_TEST72'
+exp_name='FESOM_PDAF_varatm_control'
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
 
 # Settings:
-NENS=10           # number of ensembles --> namelist.fesom.pdaf
+NENS=20           # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72    # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2016-01-01"
-run_end_date="${run_start_date} + 6 month"
+run_end_date="${run_start_date} + 12 month"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
@@ -142,13 +146,15 @@ do
 	    then
             if ${force_run_from_scratch} 
             then
-                rm -fr ${run_dir}/*
+                info "Bye bye, test data! Removing everything in run directory."
+		rm -fr ${run_dir}/*
             else
                 error "Run directory not empty and \${force_run_from_scratch} not set."
             fi
         fi
 
         # Prepare the run directory
+	    info "Preparing a new run directory."
 	    mkdir -p ${run_dir}/../start
 	    cp -r ${start_dir}/* ${run_dir}/../start
 
@@ -345,16 +351,16 @@ done # loop over legs
     # do in parallel:
     # 1. use one variable from list of fesom output
     # 2. calculate ensemble mean using 'cdo ensmean'
-    $parallel \
+    parallel \
     "echo post-processing {} \
-    && srun --exclusive -N1 -n1 --cpus-per-task 36 cdo -P 36 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
+    && srun --exclusive -N1 -n1 --cpus-per-task 128 cdo -P 128 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
     ::: ${vars[@]}
 
     duration=$(( $SECONDS - time1 ))
     echo "Time: $duration"
     
     # Delete output of individual ensembles:
-    rm ??/*.fesom.2016.nc
+    # rm ??/*.fesom.2016.nc
 
     # Copy the protocol of this leg:
     cp ../start/fesom2.0.out ensemble_means/${leg_number}/
