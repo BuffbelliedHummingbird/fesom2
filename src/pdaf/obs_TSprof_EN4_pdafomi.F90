@@ -63,7 +63,7 @@ MODULE obs_TSprof_EN4_pdafomi
   LOGICAL :: assim_o_en4_s                      !< Whether to assimilate salinity profiles
 
   ! Further variables specific for the EN4 profile observations
-  CHARACTER(len=100) :: path_obs_prof  = ''      !< Path to profile observations
+  CHARACTER(len=110) :: path_obs_prof  = ''      !< Path to profile observations
   CHARACTER(len=110) :: file_prof_prefix  = ''   !< file name prefix for profile observations 
   CHARACTER(len=110) :: file_prof_suffix  = '.nc'!< file name suffix for profile observations 
   CHARACTER(len=110) :: file_syntobs_prof = 'syntobs_en4.nc' !< File name for synthetic observations
