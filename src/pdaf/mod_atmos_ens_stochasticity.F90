@@ -3,6 +3,13 @@ MODULE mod_atmos_ens_stochasticity
 ! Description: Adds stochastic synoptic variability to the atmospheric
 ! forcing fields for an ensemble of atmospheric forcings.
 
+! Routines in this module:
+! --- init_atmos_ens_stochasticity()
+! --- add_atmos_ens_stochasticity(istep)
+! --- init_atmos_stochasticity_output
+! --- write_atmos_stochasticity_output(istep)
+
+
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, mype_model, mype_world, &
              COMM_filter, filterpe, task_id, COMM_model
@@ -62,6 +69,8 @@ MODULE mod_atmos_ens_stochasticity
   ! Type variable holding field IDs in atmospheric state vector
   TYPE(field_ids)    , save :: id_atm
   INTEGER,ALLOCATABLE, save :: atm_offset(:)
+  
+  CHARACTER(len=200) :: fname_atm ! filename to write out atmospheric stochasticity
 
 
 CONTAINS
@@ -125,12 +134,16 @@ filename = TRIM(path_atm_cov)//'cov_'//TRIM(mype_string)//'.nc'
 s = 1
 ncstat(s) = NF_OPEN(trim(filename), NF_NOWRITE, fileid)
 
-DO i = 1,  s
-     IF (ncstat(i) /= NF_NOERR) THEN
-        WRITE(*, *) 'FESOM-PDAF: NetCDF error in opening atm. covariance file, no.', i
-        STOP
-     END IF
-END DO
+IF (mype_world==0) THEN
+WRITE(*,*) 'Reading atm. covariance data from netCDF ', trim(filename)
+END IF
+
+
+IF (ncstat(1) /= NF_NOERR) THEN
+   WRITE(*, *) 'FESOM-PDAF: NetCDF error in opening atm. covariance file, no.', i
+   STOP
+END IF
+
 
 ! Read size of state vector
 s = 1
@@ -376,6 +389,236 @@ ENDWHERE
 !~ mslp  mslp  mslp  mslp 
 
 DEALLOCATE(perturbation,omega_v)
+
+END SUBROUTINE
+
+
+
+! ***************************************
+! ***************************************
+! *** init_atmos_stochasticity_output ***
+! ***************************************
+! ***************************************
+
+SUBROUTINE init_atmos_stochasticity_output
+
+    USE g_config, &
+         ONLY: runid, ResultPath
+    USE g_PARSUP, &
+         ONLY: myDim_nod2D
+    USE mod_assim_pdaf, &
+         ONLY: DAoutput_path
+         
+    IMPLICIT NONE
+
+    INCLUDE 'netcdf.inc'
+    
+    ! Local variables:
+    INTEGER :: s ! auxiliary status counter
+    INTEGER :: i ! counter
+    INTEGER :: fileid ! ID of netCDF file
+    INTEGER :: stat(500)                    ! auxiliary: status array
+    INTEGER :: dimID_n2D ! dimension ID: nodes
+    INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: varID_xwind
+    INTEGER :: varID_ywind
+    INTEGER :: varID_humi 
+    INTEGER :: varID_qlw  
+    INTEGER :: varID_qsr  
+    INTEGER :: varID_tair 
+    INTEGER :: varID_prec 
+    INTEGER :: varID_snow 
+    INTEGER :: varID_mslp
+    INTEGER :: dimarray(2)
+    
+    
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize netCDF file to protocol atmospheric stochasticity'
+END IF
+    
+! --- open file:
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+
+s = 1
+stat(s) = NF_CREATE(TRIM(fname_atm),0,fileid)
+s = s+1
+
+! --- define dimensions:
+stat(s) = NF_DEF_DIM(fileid,'myDim_nod2D', myDim_nod2D, dimID_n2D)
+s = s+1
+stat(s) = NF_DEF_DIM(fileid,'step', NF_UNLIMITED, dimId_step)
+s = s+1
+
+DO i = 1,  s - 1
+     IF (stat(i) /= NF_NOERR) &
+     WRITE(*, *) 'NetCDF error in defining dimensions in atmos. netCDF file, no.', i
+END DO
+
+! --- define variables:
+dimarray(1) = dimID_n2D
+dimarray(2) = dimID_step
+s = 1
+
+stat(s) = NF_DEF_VAR(fileid, 'xwind', NF_DOUBLE, 2, dimarray(1:2), varID_xwind)
+s = s+1                                           
+stat(s) = NF_DEF_VAR(fileid, 'ywind', NF_DOUBLE, 2, dimarray(1:2), varID_ywind)
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'humi' , NF_DOUBLE, 2, dimarray(1:2), varID_humi )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'qlw'  , NF_DOUBLE, 2, dimarray(1:2), varID_qlw  )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'qsr'  , NF_DOUBLE, 2, dimarray(1:2), varID_qsr  )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'tair' , NF_DOUBLE, 2, dimarray(1:2), varID_tair )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'prec' , NF_DOUBLE, 2, dimarray(1:2), varID_prec )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'snow' , NF_DOUBLE, 2, dimarray(1:2), varID_snow )
+s = s+1                                             
+stat(s) = NF_DEF_VAR(fileid, 'mslp' , NF_DOUBLE, 2, dimarray(1:2), varID_mslp )
+s = s+1
+
+DO i = 1,  s - 1
+     IF (stat(i) /= NF_NOERR) THEN
+     WRITE(*,*) 'NetCDF error in defining variables in atmos. netCDF file, no.', i
+     WRITE(*,*)  NF_STRERROR(stat(i))
+     STOP
+     END IF
+END DO
+
+stat(s) = NF_ENDDEF(fileid) 
+s = s + 1
+stat(1) = NF_CLOSE(fileid)
+
+IF (stat(1) /= NF_NOERR) THEN
+   WRITE(*, *) 'NetCDF error in closing atmos. netCDF file'
+END IF
+
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'netCDF file to protocol atmospheric stochasticity has been initialized'
+END IF
+
+END SUBROUTINE
+
+
+
+! ****************************************
+! ****************************************
+! *** write_atmos_stochasticity_output ***
+! ****************************************
+! ****************************************
+
+SUBROUTINE write_atmos_stochasticity_output(istep)
+
+    USE g_config, &
+         ONLY: runid, ResultPath
+    USE g_PARSUP, &
+         ONLY: myDim_nod2D
+    USE mod_assim_pdaf, &
+         ONLY: DAoutput_path
+         
+    IMPLICIT NONE
+
+    INCLUDE 'netcdf.inc'
+    
+    ! Arguments:
+    INTEGER, INTENT(in)    :: istep
+    
+    ! Local variables:
+    INTEGER :: s ! auxiliary status counter
+    INTEGER :: i ! counter
+    INTEGER :: fileid ! ID of netCDF file
+    INTEGER :: stat(500)                    ! auxiliary: status array
+    INTEGER :: dimID_n2D ! dimension ID: nodes
+    INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: varID_xwind
+    INTEGER :: varID_ywind
+    INTEGER :: varID_humi 
+    INTEGER :: varID_qlw  
+    INTEGER :: varID_qsr  
+    INTEGER :: varID_tair 
+    INTEGER :: varID_prec 
+    INTEGER :: varID_snow 
+    INTEGER :: varID_mslp
+    
+    INTEGER :: posvec(2) ! write position in netCDF file
+    INTEGER :: nmbvec(2) ! write dimension in netCDF file
+    
+    
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity to netCDF.'
+END IF
+    
+! --- open file:
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+
+s=1
+stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
+IF (stat(s) /= NF_NOERR) STOP 'error opening atmospheric stochasticity netCDF'
+
+! ----- inquire variable IDs:
+
+s=1
+stat(s) = NF_INQ_VARID( fileid, 'xwind', varID_xwind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'ywind', varID_ywind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'humi' , varID_humi  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'qlw'  , varID_qlw   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'qsr'  , varID_qsr   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'tair' , varID_tair  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'prec' , varID_prec  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'snow' , varID_snow  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'mslp' , varID_mslp  )
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) &
+  WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity variable IDs, no.', i
+END DO
+
+! --- write variables:
+posvec = (/ 1,           istep /)
+nmbvec = (/ myDim_nod2D, 1     /)
+
+s=1
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_xwind, posvec, nmbvec, atmdata(i_xwind,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_ywind, posvec, nmbvec, atmdata(i_ywind,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_humi,  posvec, nmbvec, atmdata(i_humi ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qlw,   posvec, nmbvec, atmdata(i_qlw  ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qsr,   posvec, nmbvec, atmdata(i_qsr  ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_tair,  posvec, nmbvec, atmdata(i_tair ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_prec,  posvec, nmbvec, atmdata(i_prec ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_snow,  posvec, nmbvec, atmdata(i_snow ,:myDim_nod2D))
+s=s+1                                                                              
+stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_mslp,  posvec, nmbvec, atmdata(i_mslp ,:myDim_nod2D))
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) THEN
+  WRITE(*, *) 'NetCDF error writing atmospheric stochasticity variable IDs, no.', i
+  STOP
+  END IF
+END DO
+
+stat(1) = NF_CLOSE(fileid)
+
+  IF (stat(1) /= NF_NOERR) THEN
+     WRITE(*, *) 'NetCDF error in closing NetCDF file'
+  END IF
 
 END SUBROUTINE
 
