@@ -9,7 +9,7 @@ filtertype=7           ! Choose filter algorithm
 locweight=4            ! Set weighting function for localization
 local_range=2.0e5      ! Cut-off radius for localization
 srange=2.0e5           ! Support radius for weighting function
-forget=0.99            ! Set forgetting factor
+forget=0.999           ! Set forgetting factor
 loctype=0
 varscale=1.0
 type_trans=2           ! Type of ensemble transformation in (L)ESTKF/(L)SEIK/(L)ETKF
@@ -24,7 +24,7 @@ path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/dist_cov72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_3D_monthly_mean=.false.
-write_ens_snapshot=.false.
+write_ens_snapshot=.true.
 
 str_daspec='FESOM_PDAF_TEST72'
 
@@ -32,14 +32,14 @@ ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.true.
 use_global_obs=.false.
 
-ASSIM_O_ssh = .false.
+ASSIM_O_ssh = .true.
 path_obs_ssh='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
 file_ssh_prefix='SSH_track_2016_dist72_'
 file_ssh_suffix ='.nc'
 rms_obs_ssh= 0.25
 ssh_fixed_rmse=.false.
 
-ASSIM_O_sst = .false.
+ASSIM_O_sst = .true.
 path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
 file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist72_'
 file_sst_suffix ='.nc'
@@ -48,7 +48,7 @@ sst_fixed_rmse=.false.
 sst_exclude_ice=.true.
 sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
-ASSIM_O_sss = .false.
+ASSIM_O_sss = .true.
 path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
 file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'
@@ -57,8 +57,8 @@ sss_fixed_rmse=.false.
 sss_exclude_ice=.true.
 sss_exclude_diff=1.5
 
-ASSIM_O_en4_t = .false.
-ASSIM_O_en4_s = .false.
+ASSIM_O_en4_t = .true.
+ASSIM_O_en4_s = .true.
 path_obs_prof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
 file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'
@@ -87,3 +87,18 @@ dim_ens=20
 ! ncpus_ocn=4
 ! pairs=.false.
 /
+
+! Namelist for atmosphere stochasticity:
+&atmos_stoch
+
+disturb_xwind=.true.
+disturb_ywind=.true.
+disturb_humi =.true.
+disturb_qlw  =.true.
+disturb_qsr  =.true.
+disturb_tair =.true.
+disturb_prec =.true.
+disturb_snow =.true.
+disturb_mslp =.true.
+/
+

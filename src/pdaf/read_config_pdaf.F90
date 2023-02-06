@@ -43,6 +43,10 @@ SUBROUTINE read_config_pdaf()
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        rms_obs_S, rms_obs_T, &
        file_syntobs_prof, prof_exclude_diff, bias_obs_prof
+  USE mod_atmos_ens_stochasticity, &
+       ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
+       disturb_qlw, disturb_qsr, disturb_tair, &
+       disturb_prec, disturb_snow, disturb_mslp
 
 
   IMPLICIT NONE
@@ -85,6 +89,10 @@ SUBROUTINE read_config_pdaf()
        start_year_o, end_year_o, &
        ! Atmosphere cov:
        path_atm_cov
+
+  NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
+       disturb_qlw, disturb_qsr, disturb_tair, &
+       disturb_prec, disturb_snow, disturb_mslp 
        
 ! ****************************************************
 ! ***   Initialize PDAF parameters from namelist   ***
@@ -98,6 +106,10 @@ SUBROUTINE read_config_pdaf()
   OPEN (20,file=nmlfile)
   READ (20,NML=pdaf)
   CLOSE (20)
+
+  OPEN(30,file=nmlfile)
+  READ(30,NML=atmos_stoch)
+  CLOSE(30)
 
 ! *** Add trailing slash to paths ***
   CALL add_slash(path_obs_sst)
@@ -199,6 +211,16 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','this_is_pdaf_restart', this_is_pdaf_restart
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_atm_cov  ', TRIM(path_atm_cov)
+
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_xwind', disturb_xwind
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_ywind', disturb_ywind
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_humi', disturb_humi
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_qlw', disturb_qlw
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_qsr', disturb_qsr
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_tair', disturb_tair
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_prec', disturb_prec
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_snow', disturb_snow
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_mslp', disturb_mslp
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'
 

@@ -68,7 +68,10 @@ subroutine update_atm_forcing(istep, mesh)
 USE mod_parallel_pdaf, ONLY: mype_model, mype_world
 USE mod_atmos_ens_stochasticity, &
      ONLY: init_atmos_ens_stochasticity, add_atmos_ens_stochasticity, &
-           init_atmos_stochasticity_output, write_atmos_stochasticity_output
+           init_atmos_stochasticity_output, write_atmos_stochasticity_output, &
+           disturb_xwind, disturb_ywind, disturb_humi, &
+           disturb_qlw, disturb_qsr, disturb_tair, &
+           disturb_prec, disturb_snow, disturb_mslp
 #endif
 
   implicit none
@@ -288,6 +291,16 @@ INTEGER                 :: atmstoch_fileid
 ! close(atmstoch_fileid)
 !ENDIF
 
+IF (disturb_humi   .OR. &
+    disturb_mslp   .OR. &
+    disturb_xwind  .OR. &
+    disturb_ywind  .OR. &
+    disturb_qlw    .OR. &
+    disturb_qsr    .OR. &
+    disturb_tair   .OR. &
+    disturb_prec   .OR. &
+    disturb_snow   ) THEN
+
 IF (istep==1) THEN
 call init_atmos_ens_stochasticity()
 call init_atmos_stochasticity_output()
@@ -295,6 +308,8 @@ ENDIF
 
 call add_atmos_ens_stochasticity(istep)
 call write_atmos_stochasticity_output(istep)
+
+ENDIF
 
 !~ !IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
 !~ IF (istep < 1000) THEN
