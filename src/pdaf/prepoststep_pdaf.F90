@@ -412,13 +412,17 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    ELSE IF ((step - step_null) > 0) THEN
       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
           ! *** write assimilated state fields ***
-          CALL write_netcdf_pdaf_ens('a', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~           CALL write_netcdf_pdaf_ens('a', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~           TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
+          CALL write_netcdf_pdaf_ens('a', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
       ENDIF
    ELSE IF ((step - step_null) < 0) THEN
       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
           mon_snapshot_mem = mon_snapshot_mem+1
           ! *** write forecasted state fields ***
-          CALL write_netcdf_pdaf_ens('f', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~           CALL write_netcdf_pdaf_ens('f', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~           TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
+          CALL write_netcdf_pdaf_ens('f', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
       END IF
    ENDIF
 
