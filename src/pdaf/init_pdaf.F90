@@ -52,6 +52,10 @@ SUBROUTINE init_pdaf()
        rms_obs_S, rms_obs_T, &
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        bias_obs_prof, prof_exclude_diff
+  USE mod_atmos_ens_stochasticity, &
+       ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
+       disturb_qlw, disturb_qsr, disturb_tair, &
+       disturb_prec, disturb_snow, disturb_mslp
 
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
@@ -220,6 +224,16 @@ SUBROUTINE init_pdaf()
   file_rawprof_prefix = ''    ! Prefix of file holding rawprofile observations
   file_rawprof_suffix = '.nc' ! Suffix of file holding raw profile observations
 
+! *** Configuration for atmospheric stochaticity:
+disturb_xwind=.true.
+disturb_ywind=.true.
+disturb_humi=.true.
+disturb_qlw=.true.
+disturb_qsr=.true.
+disturb_tair=.true.
+disturb_prec=.true.
+disturb_snow=.true.
+disturb_mslp=.true.
 
 ! *** Read PDAF configuration from namelist ***
   CALL read_config_pdaf()

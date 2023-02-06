@@ -72,6 +72,15 @@ MODULE mod_atmos_ens_stochasticity
   
   CHARACTER(len=200) :: fname_atm ! filename to write out atmospheric stochasticity
 
+LOGICAL :: disturb_xwind
+LOGICAL :: disturb_ywind
+LOGICAL :: disturb_humi
+LOGICAL :: disturb_qlw
+LOGICAL :: disturb_qsr
+LOGICAL :: disturb_tair
+LOGICAL :: disturb_prec
+LOGICAL :: disturb_snow
+LOGICAL :: disturb_mslp
 
 CONTAINS
 
@@ -344,14 +353,14 @@ CALL exchange_nod( perturbation_snow)
 CALL exchange_nod( perturbation_mslp)
 
 ! add perturabtion to atmospheric fields:
-atmdata(i_xwind,:) = atmdata(i_xwind,:) + perturbation_xwind
-atmdata(i_ywind,:) = atmdata(i_ywind,:) + perturbation_ywind
-atmdata(i_humi ,:) = atmdata(i_humi ,:) + perturbation_humi 
-atmdata(i_qlw  ,:) = atmdata(i_qlw  ,:) + perturbation_qlw  
-atmdata(i_tair ,:) = atmdata(i_tair ,:) + perturbation_tair 
-atmdata(i_prec ,:) = atmdata(i_prec ,:) + perturbation_prec 
-atmdata(i_snow ,:) = atmdata(i_snow ,:) + perturbation_snow 
-atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + perturbation_mslp
+IF (disturb_xwind) atmdata(i_xwind,:) = atmdata(i_xwind,:) + perturbation_xwind
+IF (disturb_ywind) atmdata(i_ywind,:) = atmdata(i_ywind,:) + perturbation_ywind
+IF (disturb_humi)  atmdata(i_humi ,:) = atmdata(i_humi ,:) + perturbation_humi 
+IF (disturb_qlw)   atmdata(i_qlw  ,:) = atmdata(i_qlw  ,:) + perturbation_qlw  
+IF (disturb_tair)  atmdata(i_tair ,:) = atmdata(i_tair ,:) + perturbation_tair 
+IF (disturb_prec)  atmdata(i_prec ,:) = atmdata(i_prec ,:) + perturbation_prec 
+IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) + perturbation_snow 
+IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + perturbation_mslp
 
 ! night: shortwave is zero.
 WHERE(atmdata(i_qsr,:) /= 0)
@@ -588,31 +597,41 @@ posvec = (/ 1,           istep /)
 nmbvec = (/ myDim_nod2D, 1     /)
 
 s=1
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_xwind, posvec, nmbvec, atmdata(i_xwind,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_ywind, posvec, nmbvec, atmdata(i_ywind,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_humi,  posvec, nmbvec, atmdata(i_humi ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qlw,   posvec, nmbvec, atmdata(i_qlw  ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qsr,   posvec, nmbvec, atmdata(i_qsr  ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_tair,  posvec, nmbvec, atmdata(i_tair ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_prec,  posvec, nmbvec, atmdata(i_prec ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_snow,  posvec, nmbvec, atmdata(i_snow ,:myDim_nod2D))
-s=s+1                                                                              
-stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_mslp,  posvec, nmbvec, atmdata(i_mslp ,:myDim_nod2D))
-s=s+1
+IF (disturb_xwind) stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_xwind, posvec, nmbvec, atmdata(i_xwind,:myDim_nod2D))
+IF (disturb_xwind) s=s+1                                                                              
+IF (disturb_ywind) stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_ywind, posvec, nmbvec, atmdata(i_ywind,:myDim_nod2D))
+IF (disturb_ywind) s=s+1                                                                              
+IF (disturb_humi)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_humi,  posvec, nmbvec, atmdata(i_humi ,:myDim_nod2D))
+IF (disturb_humi)  s=s+1                                                                              
+IF (disturb_qlw)   stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qlw,   posvec, nmbvec, atmdata(i_qlw  ,:myDim_nod2D))
+IF (disturb_qlw)   s=s+1                                                                              
+IF (disturb_qsr)   stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_qsr,   posvec, nmbvec, atmdata(i_qsr  ,:myDim_nod2D))
+IF (disturb_qsr)   s=s+1                                                                              
+IF (disturb_tair)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_tair,  posvec, nmbvec, atmdata(i_tair ,:myDim_nod2D))
+IF (disturb_tair)  s=s+1                                                                              
+IF (disturb_prec)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_prec,  posvec, nmbvec, atmdata(i_prec ,:myDim_nod2D))
+IF (disturb_prec)  s=s+1                                                                              
+IF (disturb_snow)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_snow,  posvec, nmbvec, atmdata(i_snow ,:myDim_nod2D))
+IF (disturb_snow)  s=s+1                                                                              
+IF (disturb_mslp)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_mslp,  posvec, nmbvec, atmdata(i_mslp ,:myDim_nod2D))
+IF (disturb_mslp)  s=s+1
 
+IF (disturb_humi   .OR. &
+    disturb_mslp   .OR. &
+    disturb_xwind  .OR. &
+    disturb_ywind  .OR. &
+    disturb_qlw    .OR. &
+    disturb_qsr    .OR. &
+    disturb_tair   .OR. &
+    disturb_prec   .OR. &
+    disturb_snow   ) THEN
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
   WRITE(*, *) 'NetCDF error writing atmospheric stochasticity variable IDs, no.', i
   STOP
   END IF
 END DO
+END IF
 
 stat(1) = NF_CLOSE(fileid)
 
