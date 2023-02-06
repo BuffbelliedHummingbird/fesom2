@@ -150,22 +150,22 @@ MODULE mod_assim_pdaf
 
 !    ! File output and input - available as as namelist read-in
   LOGICAL :: read_inistate = .false.            ! Whether to read initial state from separate file
-  CHARACTER(len=100) :: DAoutput_path  = '.'      ! Path of DAoutput
+  CHARACTER(len=120) :: DAoutput_path  = '.'      ! Path of DAoutput
 
-  CHARACTER(len=100) :: path_init = '.'         ! Path to initialization files
-  CHARACTER(len=110) :: file_init = 'covar_'    ! netcdf file holding distributed initial
+  CHARACTER(len=120) :: path_init = '.'         ! Path to initialization files
+  CHARACTER(len=120) :: file_init = 'covar_'    ! netcdf file holding distributed initial
                                                 ! state and covariance matrix (added is _XX.nc)
-  CHARACTER(len=110) :: file_inistate = 'state_ini_' ! netcdf file holding distributed initial
+  CHARACTER(len=120) :: file_inistate = 'state_ini_' ! netcdf file holding distributed initial
                                                 ! state (added is _XX.nc)
-  CHARACTER(len=110) :: file_syntobs = 'syntobs.nc' ! File name for synthetic observations
-  CHARACTER(len=100) :: path_obs_rawprof  = ''      ! Path to profile observations
-  CHARACTER(len=110) :: file_rawprof_prefix  = ''   ! file name prefix for profile observations 
-  CHARACTER(len=110) :: file_rawprof_suffix  = '.nc'! file name suffix for profile observations 
+  CHARACTER(len=120) :: file_syntobs = 'syntobs.nc' ! File name for synthetic observations
+  CHARACTER(len=120) :: path_obs_rawprof  = ''      ! Path to profile observations
+  CHARACTER(len=120) :: file_rawprof_prefix  = ''   ! file name prefix for profile observations 
+  CHARACTER(len=120) :: file_rawprof_suffix  = '.nc'! file name suffix for profile observations 
 
   LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
   LOGICAL :: this_is_pdaf_restart = .false.
   
-  CHARACTER(len=110) :: path_atm_cov
+  CHARACTER(len=120) :: path_atm_cov
 
   ! Other variables - NOT available as command line options / in the namelist:
   REAL    :: time      ! model time
