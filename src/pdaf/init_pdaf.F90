@@ -309,7 +309,7 @@ disturb_mslp=.true.
 
 ! *** Specify offset of fields in global state vector ***
 
-if (mype_world==0) THEN
+! if (mype_world==0) THEN
 
 	ALLOCATE(dim_fields_glob(nfields))
 	dim_fields_glob(1) = mesh_fesom%nod2D                        ! SSH
@@ -331,7 +331,7 @@ if (mype_world==0) THEN
 	
 	dim_state = sum(dim_fields_glob)
 				
-end if
+!end if
 
   
   if (mype_world==0) THEN
