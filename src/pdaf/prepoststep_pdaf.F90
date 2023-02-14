@@ -262,7 +262,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        DO i = 1, dim_fields(j)
           rmse_p(j) = rmse_p(j) + var_p(i + offset(j))
        END DO
-       rmse_p(j) = rmse_p(j) / REAL(dim_fields(j))
+       rmse_p(j) = rmse_p(j) / REAL(dim_fields_glob(j))
   END DO
 
   ! Global sum of RMS errors
