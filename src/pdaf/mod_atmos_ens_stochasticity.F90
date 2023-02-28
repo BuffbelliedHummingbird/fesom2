@@ -82,6 +82,12 @@ LOGICAL :: disturb_prec
 LOGICAL :: disturb_snow
 LOGICAL :: disturb_mslp
 
+LOGICAL :: atmos_stochasticity_ON
+
+REAL :: varscale_wind
+REAL :: varscale_tair
+
+
 CONTAINS
 
 ! ************************************
@@ -219,6 +225,9 @@ END SUBROUTINE
 
 SUBROUTINE add_atmos_ens_stochasticity(istep) ! ens_p?
 
+USE mod_assim_pdaf, &
+    ONLY: this_is_pdaf_restart
+
 IMPLICIT NONE
 
 ! Arguments:
@@ -290,6 +299,12 @@ ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
 ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
 ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
 
+IF (this_is_pdaf_restart) THEN
+
+CALL read_atmos_stochasticity_restart()
+
+ELSE
+
 perturbation_xwind = 0.0
 perturbation_ywind = 0.0
 perturbation_humi  = 0.0
@@ -299,6 +314,9 @@ perturbation_tair  = 0.0
 perturbation_prec  = 0.0
 perturbation_snow  = 0.0
 perturbation_mslp  = 0.0
+
+ENDIF
+
 
 !~ ! debugging output:
 !~ ALLOCATE(atmdata_debug(nfields,myDim_nod2D))
@@ -312,34 +330,19 @@ perturbation_mslp  = 0.0
 !~ atmdata_debug(id_atm% snow ,:) = atmdata(i_snow ,:myDim_nod2D)
 !~ atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
 
+
 END IF
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
-perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
-perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
+perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
+perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
 perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
 perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
 perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
-perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
+perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * varscale_tair * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
 perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
 perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
 perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
-
-
-!~ IF ((ANY( istep == (/ 1,33,65,97,129,161,193,225,257,289 /) ))) THEN
-! write(istep_string,'(i3.3)') istep
-! open (mype_world+1, file = 'atmdist_'//mype_string//'_'//istep_string//'.out')
-! write(mype_world+1,*) perturbation_xwind( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_ywind( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_humi ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_qlw  ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_qsr  ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_tair ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_prec ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_snow ( :myDim_nod2D)
-! write(mype_world+1,*) perturbation_mslp ( :myDim_nod2D)
-! close(mype_world+1)
-!~ ENDIF
 
 ! fill external nodes:
 CALL exchange_nod( perturbation_xwind)
@@ -352,7 +355,7 @@ CALL exchange_nod( perturbation_prec)
 CALL exchange_nod( perturbation_snow)
 CALL exchange_nod( perturbation_mslp)
 
-! add perturabtion to atmospheric fields:
+! add perturbation to atmospheric fields:
 IF (disturb_xwind) atmdata(i_xwind,:) = atmdata(i_xwind,:) + perturbation_xwind
 IF (disturb_ywind) atmdata(i_ywind,:) = atmdata(i_ywind,:) + perturbation_ywind
 IF (disturb_humi)  atmdata(i_humi ,:) = atmdata(i_humi ,:) + perturbation_humi 
@@ -438,6 +441,15 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: varID_prec 
     INTEGER :: varID_snow 
     INTEGER :: varID_mslp
+    INTEGER :: varID_restart_xwind
+    INTEGER :: varID_restart_ywind
+    INTEGER :: varID_restart_humi 
+    INTEGER :: varID_restart_qlw  
+    INTEGER :: varID_restart_qsr  
+    INTEGER :: varID_restart_tair 
+    INTEGER :: varID_restart_prec 
+    INTEGER :: varID_restart_snow 
+    INTEGER :: varID_restart_mslp
     INTEGER :: dimarray(2)
     
     
@@ -468,6 +480,7 @@ dimarray(1) = dimID_n2D
 dimarray(2) = dimID_step
 s = 1
 
+! perturbed atmospheric forcing fields
 stat(s) = NF_DEF_VAR(fileid, 'xwind', NF_DOUBLE, 2, dimarray(1:2), varID_xwind)
 s = s+1                                           
 stat(s) = NF_DEF_VAR(fileid, 'ywind', NF_DOUBLE, 2, dimarray(1:2), varID_ywind)
@@ -485,6 +498,26 @@ s = s+1
 stat(s) = NF_DEF_VAR(fileid, 'snow' , NF_DOUBLE, 2, dimarray(1:2), varID_snow )
 s = s+1                                             
 stat(s) = NF_DEF_VAR(fileid, 'mslp' , NF_DOUBLE, 2, dimarray(1:2), varID_mslp )
+s = s+1
+
+! perturbation for restart:
+stat(s) = NF_DEF_VAR(fileid, 'restart_xwind', NF_DOUBLE, 1, dimID_n2D, varID_restart_xwind)
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_ywind', NF_DOUBLE, 1, dimID_n2D, varID_restart_ywind)
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_humi' , NF_DOUBLE, 1, dimID_n2D, varID_restart_humi )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_qlw'  , NF_DOUBLE, 1, dimID_n2D, varID_restart_qlw  )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_qsr'  , NF_DOUBLE, 1, dimID_n2D, varID_restart_qsr  )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_tair' , NF_DOUBLE, 1, dimID_n2D, varID_restart_tair )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_prec' , NF_DOUBLE, 1, dimID_n2D, varID_restart_prec )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_snow' , NF_DOUBLE, 1, dimID_n2D, varID_restart_snow )
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_mslp' , NF_DOUBLE, 1, dimID_n2D, varID_restart_mslp )
 s = s+1
 
 DO i = 1,  s - 1
@@ -524,7 +557,7 @@ SUBROUTINE write_atmos_stochasticity_output(istep)
     USE g_PARSUP, &
          ONLY: myDim_nod2D
     USE mod_assim_pdaf, &
-         ONLY: DAoutput_path
+         ONLY: DAoutput_path, step_null
          
     IMPLICIT NONE
 
@@ -593,8 +626,8 @@ DO i = 1, s - 1
 END DO
 
 ! --- write variables:
-posvec = (/ 1,           istep /)
-nmbvec = (/ myDim_nod2D, 1     /)
+posvec = (/ 1,           istep+step_null /)
+nmbvec = (/ myDim_nod2D, 1               /)
 
 s=1
 IF (disturb_xwind) stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_xwind, posvec, nmbvec, atmdata(i_xwind,:myDim_nod2D))
@@ -616,27 +649,236 @@ IF (disturb_snow)  s=s+1
 IF (disturb_mslp)  stat(s) = NF_PUT_VARA_DOUBLE( fileid, varid_mslp,  posvec, nmbvec, atmdata(i_mslp ,:myDim_nod2D))
 IF (disturb_mslp)  s=s+1
 
-IF (disturb_humi   .OR. &
-    disturb_mslp   .OR. &
-    disturb_xwind  .OR. &
-    disturb_ywind  .OR. &
-    disturb_qlw    .OR. &
-    disturb_qsr    .OR. &
-    disturb_tair   .OR. &
-    disturb_prec   .OR. &
-    disturb_snow   ) THEN
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
   WRITE(*, *) 'NetCDF error writing atmospheric stochasticity variable IDs, no.', i
   STOP
   END IF
 END DO
-END IF
 
 stat(1) = NF_CLOSE(fileid)
 
   IF (stat(1) /= NF_NOERR) THEN
      WRITE(*, *) 'NetCDF error in closing NetCDF file'
+  END IF
+
+END SUBROUTINE
+
+
+! *****************************************
+! *****************************************
+! *** write_atmos_stochasticity_restart ***
+! *****************************************
+! *****************************************
+
+SUBROUTINE write_atmos_stochasticity_restart()
+
+    USE g_config, &
+         ONLY: runid, ResultPath
+    USE g_PARSUP, &
+         ONLY: myDim_nod2D
+    USE mod_assim_pdaf, &
+         ONLY: DAoutput_path
+         
+    IMPLICIT NONE
+
+    INCLUDE 'netcdf.inc'
+    
+    ! Local variables:
+    INTEGER :: s ! auxiliary status counter
+    INTEGER :: i ! counter
+    INTEGER :: fileid ! ID of netCDF file
+    INTEGER :: stat(500)  ! auxiliary: status array
+    INTEGER :: dimID_n2D  ! dimension ID: nodes
+    INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: varID_restart_xwind
+    INTEGER :: varID_restart_ywind
+    INTEGER :: varID_restart_humi 
+    INTEGER :: varID_restart_qlw  
+    INTEGER :: varID_restart_qsr  
+    INTEGER :: varID_restart_tair 
+    INTEGER :: varID_restart_prec 
+    INTEGER :: varID_restart_snow 
+    INTEGER :: varID_restart_mslp
+    
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart to netCDF at the end.'
+END IF
+    
+! --- open file:
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+
+s=1
+stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
+IF (stat(s) /= NF_NOERR) STOP 'error opening atmospheric stochasticity netCDF at the end'
+
+! ----- inquire variable IDs:
+
+s=1
+stat(s) = NF_INQ_VARID( fileid, 'restart_xwind', varID_restart_xwind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_ywind', varID_restart_ywind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_humi' , varID_restart_humi  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_qlw'  , varID_restart_qlw   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_qsr'  , varID_restart_qsr   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_tair' , varID_restart_tair  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_prec' , varID_restart_prec  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_snow' , varID_restart_snow  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_mslp' , varID_restart_mslp  )
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) &
+  WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity restart variable IDs at the end, no.', i
+END DO
+
+s=1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_xwind, perturbation_xwind(:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_ywind, perturbation_ywind(:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_humi,  perturbation_humi (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_qlw,   perturbation_qlw  (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_qsr,   perturbation_qsr  (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_tair,  perturbation_tair (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_prec,  perturbation_prec (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_snow,  perturbation_snow (:myDim_nod2D))
+s=s+1
+stat(s) = NF_PUT_VAR_DOUBLE( fileid, varid_restart_mslp,  perturbation_mslp (:myDim_nod2D))
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) THEN
+  WRITE(*, *) 'NetCDF error writing atmospheric stochasticity restart variable IDs at the end, no.', i
+  STOP
+  END IF
+END DO
+
+stat(1) = NF_CLOSE(fileid)
+
+  IF (stat(1) /= NF_NOERR) THEN
+     WRITE(*, *) 'NetCDF error in closing atmospheric stochasticity NetCDF file at the end'
+  END IF
+
+END SUBROUTINE
+
+! ****************************************
+! ****************************************
+! *** read_atmos_stochasticity_restart ***
+! ****************************************
+! ****************************************
+
+SUBROUTINE read_atmos_stochasticity_restart()
+
+    USE g_config, &
+         ONLY: runid, ResultPath
+    USE g_PARSUP, &
+         ONLY: myDim_nod2D
+    USE mod_assim_pdaf, &
+         ONLY: DAoutput_path
+         
+    IMPLICIT NONE
+
+    INCLUDE 'netcdf.inc'
+    
+    ! Local variables:
+    INTEGER :: s ! auxiliary status counter
+    INTEGER :: i ! counter
+    INTEGER :: fileid ! ID of netCDF file
+    INTEGER :: stat(500)  ! auxiliary: status array
+    INTEGER :: dimID_n2D  ! dimension ID: nodes
+    INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: varID_restart_xwind
+    INTEGER :: varID_restart_ywind
+    INTEGER :: varID_restart_humi 
+    INTEGER :: varID_restart_qlw  
+    INTEGER :: varID_restart_qsr  
+    INTEGER :: varID_restart_tair 
+    INTEGER :: varID_restart_prec 
+    INTEGER :: varID_restart_snow 
+    INTEGER :: varID_restart_mslp
+    
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric stochasticity at restart from netCDF.'
+END IF
+    
+! --- open file:
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+
+s=1
+stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
+IF (stat(s) /= NF_NOERR) STOP 'error opening atmospheric stochasticity netCDF at restart'
+
+! ----- inquire variable IDs:
+
+s=1
+stat(s) = NF_INQ_VARID( fileid, 'restart_xwind', varID_restart_xwind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_ywind', varID_restart_ywind )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_humi' , varID_restart_humi  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_qlw'  , varID_restart_qlw   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_qsr'  , varID_restart_qsr   )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_tair' , varID_restart_tair  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_prec' , varID_restart_prec  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_snow' , varID_restart_snow  )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_mslp' , varID_restart_mslp  )
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) &
+  WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity restart variable IDs at restart, no.', i
+END DO
+
+s=1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_xwind, perturbation_xwind(:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_ywind, perturbation_ywind(:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_humi,  perturbation_humi (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_qlw,   perturbation_qlw  (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_qsr,   perturbation_qsr  (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_tair,  perturbation_tair (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_prec,  perturbation_prec (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_snow,  perturbation_snow (:myDim_nod2D))
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_mslp,  perturbation_mslp (:myDim_nod2D))
+s=s+1
+
+DO i = 1, s - 1
+  IF (stat(i) /= NF_NOERR) THEN
+  WRITE(*, *) 'NetCDF error reading atmospheric stochasticity restart variables at restart, no.', i
+  STOP
+  END IF
+END DO
+
+stat(1) = NF_CLOSE(fileid)
+
+  IF (stat(1) /= NF_NOERR) THEN
+     WRITE(*, *) 'NetCDF error in closing atmospheric stochasticity NetCDF file at restart'
   END IF
 
 END SUBROUTINE

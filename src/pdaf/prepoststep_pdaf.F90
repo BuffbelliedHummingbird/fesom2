@@ -84,8 +84,21 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   LOGICAL :: now_to_write_monthly, flag_print
   INTEGER :: month_iter, whichmonth,fleap,kk,row,nod
   REAL :: tmp_a, tmp_f
+  INTEGER, allocatable :: count_lim_salt0_g(:) , count_lim_salt0_p(:)       ! Count how many excessively large updates are limited to treshold
+  INTEGER, allocatable :: count_lim_absvel_g(:), count_lim_absvel_p(:)      ! Count how many excessively large updates are limited to treshold
+  INTEGER, allocatable :: count_lim_ssh_g(:)   , count_lim_ssh_p(:)         ! Count how many excessively large updates are limited to treshold
+  INTEGER, allocatable :: count_lim_tempM2_g(:), count_lim_tempM2_p(:)      ! Count how many excessively large updates are limited to treshold
+  
+  character(len=100) :: fmt ! format specifier
   
   INTEGER :: myDebug_id(1)
+  
+  ! generate the format specifier
+  ! fmt = '(a,5x,a,'
+  ! do i = 1, dim_ens
+  ! fmt = trim(fmt) // 'i7,1x'
+  ! end do
+  ! fmt = trim(fmt) // ')'
 
 ! **********************
 ! *** INITIALIZATION ***
@@ -106,13 +119,23 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Analyze forecast state ensemble'
         WRITE (typestr,'(a1)') 'f'
      END IF
-  END IF
+  END IF ! IF (mype_filter==0)
 
   IF (.not. ALLOCATED(var_p)) ALLOCATE(var_p(dim_p))
   IF (.not. ALLOCATED(state_fcst)) ALLOCATE(state_fcst(dim_p,dim_ens))
   IF (.not. ALLOCATED(std_p)) ALLOCATE(std_p(dim_p))
-  IF (.not. ALLOCATED(monthly_state_a)) ALLOCATE(monthly_state_a(dim_p))
-  IF (.not. ALLOCATED(monthly_state_f)) ALLOCATE(monthly_state_f(dim_p))
+  
+  IF (.not. ALLOCATED(monthly_state_a))    ALLOCATE(monthly_state_a(dim_p))
+  IF (.not. ALLOCATED(monthly_state_f))    ALLOCATE(monthly_state_f(dim_p))
+  
+  IF (.not. ALLOCATED(count_lim_salt0_g))  ALLOCATE(count_lim_salt0_g  (dim_ens))
+  IF (.not. ALLOCATED(count_lim_salt0_p))  ALLOCATE(count_lim_salt0_p  (dim_ens))
+  IF (.not. ALLOCATED(count_lim_absvel_g)) ALLOCATE(count_lim_absvel_g (dim_ens))
+  IF (.not. ALLOCATED(count_lim_absvel_p)) ALLOCATE(count_lim_absvel_p (dim_ens))
+  IF (.not. ALLOCATED(count_lim_ssh_g))    ALLOCATE(count_lim_ssh_g    (dim_ens))
+  IF (.not. ALLOCATED(count_lim_ssh_p))    ALLOCATE(count_lim_ssh_p    (dim_ens))
+  IF (.not. ALLOCATED(count_lim_tempM2_g)) ALLOCATE(count_lim_tempM2_g (dim_ens))
+  IF (.not. ALLOCATED(count_lim_tempM2_p)) ALLOCATE(count_lim_tempM2_p (dim_ens))
 
   ! Initialize numbers
   rmse_p = 0.0
@@ -136,15 +159,26 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    ! *** correcting assimilated state fields ***
    
    ! *** salinity must be > 0 ***
+   count_lim_salt0_p = 0
+   
    DO member = 1, dim_ens
       DO i = 1, dim_fields(id% salt)
            IF (ens_p(i+ offset(id% salt),member) < 0.0D0) THEN
                ens_p(i+ offset(id% salt),member) = 0.0D0
+               
+               count_lim_salt0_p(member) = count_lim_salt0_p(member)+1
            END IF
       END DO
    END DO
    
+   CALL MPI_Allreduce(count_lim_salt0_p, count_lim_salt0_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+   !IF (mype_filter == 0) &
+   !         WRITE(*, fmt) 'FESOM-PDAF', &
+   !         '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
+     
    ! *** Analysed horizontal velocities must be less than a doubling of forecast velocity ***
+   count_lim_absvel_p = 0
+   
    DO member = 1, dim_ens
    DO i = 1, dim_fields(id% u)
    
@@ -158,19 +192,55 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       IF (tmp_a > 4.0*tmp_f) THEN
          ens_p(i+ offset(id% u),member) = state_fcst(i+ offset(id% u),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
          ens_p(i+ offset(id% v),member) = state_fcst(i+ offset(id% v),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
+         
+         count_lim_absvel_p(member) = count_lim_absvel_p(member)+1
+         
       END IF
    END DO
    END DO
    
+   CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+   !IF (mype_filter == 0) &
+   !         WRITE(*, fmt) 'FESOM-PDAF', &
+   !         '--- Velocity updates limited to doubling: ', (count_lim_absvel_g(member), member = 1, dim_ens)
+   
    ! *** SSH state update must be <= 2*sigma
+   count_lim_ssh_p = 0
+   
    DO member = 1, dim_ens
    DO i = offset(id% SSH)+1, offset(id% SSH)+dim_fields(id% SSH)
        diffm = ens_p(i,member) - state_fcst(i,member)
        IF (ABS(diffm) > 2.0*std_p(i)) THEN
            ens_p(i,member) = state_fcst(i,member) + SIGN(2.0*std_p(i),diffm)
+           
+           count_lim_ssh_p(member) = count_lim_ssh_p(member)+1
        END IF
    END DO
    END DO
+   
+   CALL MPI_Allreduce(count_lim_ssh_p, count_lim_ssh_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+   !IF (mype_filter == 0) &
+   !         WRITE(*, fmt) 'FESOM-PDAF', &
+   !         '--- SSH updates limited to 2x standard deviation: ', (count_lim_ssh_g(member), member = 1, dim_ens)
+
+
+   ! *** temperature must be > -2 degC ***
+   count_lim_tempM2_p = 0
+   
+   DO member = 1, dim_ens
+      DO i = 1, dim_fields(id% salt)
+           IF (ens_p(i+ offset(id% temp),member) < -2.0) THEN
+               ens_p(i+ offset(id% temp),member) = -2.0
+               
+               count_lim_tempM2_p(member) = count_lim_tempM2_p(member)+1
+           END IF
+      END DO
+   END DO
+   
+   CALL MPI_Allreduce(count_lim_tempM2_p, count_lim_tempM2_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+   !IF (mype_filter == 0) &
+   !         WRITE(*, fmt) 'FESOM-PDAF', &
+   !         '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
 
    END IF ! Corrections
 
@@ -192,7 +262,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Store ensemble mean values for observation exclusion criteria ***
 ! *********************************************************************
 
-  IF (assim_o_sst .AND. step<0) THEN
+  IF ((assim_o_sst .OR. assim_o_sss) .AND. step<0) THEN
 ! (forecast phase)
 !
      ! sea-ice concentration
@@ -385,10 +455,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
   output: IF (write_da) THEN
   
+   ! *** write ensemble MEAN: ***  
    IF ((step - step_null)==0) THEN
     IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
-      CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
+      ! CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
     END IF
    ELSE IF ((step - step_null) > 0) THEN
       ! *** write assimilated state fields ***  
@@ -397,9 +468,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       ! *** write forecasted state fields ***
       CALL write_netcdf_pdaf('f', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_f, whichmonth, now_to_write_monthly)
    END IF
-     
+
+   ! *** write ensemble MEMBERS: *** 
+   
    ! NOTE:
-   !       write_ens_snapshot    == .true. means writing forecast and analysis ensemble (!) ocean states
+   !       write_ens_snapshot    == .true. means writing forecast and analysis ensemble (!) states
    !       now_to_write_monthly
    !                        |_ is set .true. once per month (for snapshot), if write_3D_monthly_mean==.true.
    !                        |_ is set .true. daily                        , if write_3D_monthly_mean==.false.
@@ -407,7 +480,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF ((step - step_null)==0) THEN
      IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
-      CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+      ! CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
      END IF
    ELSE IF ((step - step_null) > 0) THEN
       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
