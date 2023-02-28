@@ -352,7 +352,7 @@ CONTAINS
 
        cnt_ex_diff_p = 0
        DO i = 1, myDim_nod2D
-          IF (ABS(mean_ssh_p(i) - all_obs_p(i)) > ssh_exclude_diff .AND. all_obs_p(i)<=999.0) THEN
+          IF (ABS(mean_ssh_p(i) - all_obs_p(i)) > ssh_exclude_diff .AND. all_obs_p(i)<999.0) THEN
              all_obs_p(i) = 1.0e6
              cnt_ex_diff_p = cnt_ex_diff_p+1
           END IF
@@ -392,10 +392,10 @@ CONTAINS
           
           !index for state vector
           thisobs%id_obs_p(1, i_obs) = &
-          (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% SSH)
+          i +  offset(id% SSH)
           
           !index for all_obs_p and surface nod2d vector, respectively
-          obs_include_index(i_obs) = 1 
+          obs_include_index(i_obs) = i 
        END IF
     ENDDO
 

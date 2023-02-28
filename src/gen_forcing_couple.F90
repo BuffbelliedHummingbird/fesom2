@@ -65,13 +65,17 @@ subroutine update_atm_forcing(istep, mesh)
 #ifdef use_PDAF
 ! For use with PDAF:
 ! Adding stochastic variability to an ensemble of atmospheric forcing fields.
-USE mod_parallel_pdaf, ONLY: mype_model, mype_world
+USE mod_parallel_pdaf, &
+     ONLY: mype_model, mype_world
 USE mod_atmos_ens_stochasticity, &
      ONLY: init_atmos_ens_stochasticity, add_atmos_ens_stochasticity, &
            init_atmos_stochasticity_output, write_atmos_stochasticity_output, &
            disturb_xwind, disturb_ywind, disturb_humi, &
            disturb_qlw, disturb_qsr, disturb_tair, &
-           disturb_prec, disturb_snow, disturb_mslp
+           disturb_prec, disturb_snow, disturb_mslp, &
+           atmos_stochasticity_ON
+USE mod_assim_pdaf, &
+     ONLY: step_null
 #endif
 
   implicit none
@@ -275,60 +279,19 @@ INTEGER                 :: atmstoch_fileid
 ! *** Adding stochastic variability to an ensemble of atmospheric forcings *** 
 ! **************************************************************************** 
 #ifdef use_PDAF
-!~ !IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
-! write(istep_string,'(i3.3)') istep
-! write(mype_string, '(i4.4)') mype_model
-! open (atmstoch_fileid, file = 'atmdata_1_'//mype_string//'_'//istep_string//'.out')
-! write(atmstoch_fileid,*) atmdata(i_xwind,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_ywind,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_humi ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_qlw  ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_qsr  ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_tair ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_prec ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_snow ,:myDim_nod2D)
-! write(atmstoch_fileid,*) atmdata(i_mslp ,:myDim_nod2D)
-! close(atmstoch_fileid)
-!ENDIF
+IF (atmos_stochasticity_ON) THEN
 
-IF (disturb_humi   .OR. &
-    disturb_mslp   .OR. &
-    disturb_xwind  .OR. &
-    disturb_ywind  .OR. &
-    disturb_qlw    .OR. &
-    disturb_qsr    .OR. &
-    disturb_tair   .OR. &
-    disturb_prec   .OR. &
-    disturb_snow   ) THEN
-
-IF (istep==1) THEN
+IF (istep==1) THEN      ! initialize atmospheric stochasticity at (re)start
 call init_atmos_ens_stochasticity()
+IF (step_null==0) THEN  ! create stochasticity file (not for restarts)
 call init_atmos_stochasticity_output()
+ENDIF
 ENDIF
 
 call add_atmos_ens_stochasticity(istep)
 call write_atmos_stochasticity_output(istep)
 
-ENDIF
-
-!~ !IF ((ANY( istep == (/1,33,65,97,129,161,193,225,257,289/) ))) THEN
-!~ IF (istep < 1000) THEN
-!~ write(istep_string,'(i4.4)') istep
-!~ write(mype_string, '(i4.4)') mype_model
-!~ open (atmstoch_fileid, file = 'atmdata_2_'//mype_string//'_'//istep_string//'.out')
-!~ write(atmstoch_fileid,*) atmdata(i_xwind,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_ywind,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_humi ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_qlw  ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_qsr  ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_tair ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_prec ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_snow ,:myDim_nod2D)
-!~ write(atmstoch_fileid,*) atmdata(i_mslp ,:myDim_nod2D)
-!~ close(atmstoch_fileid)
-!~ END IF
-!~ !ENDIF
-
+ENDIF ! atmos_stochasticity_ON
 #endif
   
   u_wind    = atmdata(i_xwind,:)

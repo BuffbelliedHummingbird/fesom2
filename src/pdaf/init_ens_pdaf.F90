@@ -263,8 +263,10 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
    ! *** Treshold values ***
    DO col= 1,dim_ens
       Do i= 1,myDim_nod2D
-          ! SSH: set to +/- 1m where larger than that
-          ens_p(i+offset(1),col)=min(max(ens_p(i+offset(1),col),-1.),1.)
+          ! SSH: set to +/- 1.5m where larger than that
+          ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.
+          ! but larger spread seems unstable)
+          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.5),1.5)
           ! SIC: set to null where negative
           !      set to 1 where larger than that
           ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)
@@ -273,9 +275,9 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 
       DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
           ! temp: set to -1.895 Celsius where smaller than that
-          ens_p(i+offset(5),col)= max(ens_p(i+offset(5),col),-1.895D0)
+          ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)
           ! salt: set to null where negative
-          ens_p(i+offset(6),col)= max(ens_p(i+offset(6),col),0.)
+          ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)
       END DO
 
    END DO
