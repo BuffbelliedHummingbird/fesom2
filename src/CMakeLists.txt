@@ -31,7 +31,7 @@ if(ALBEDO_INTELMPI_WORKAROUNDS)
 add_compile_options(-DENABLE_ALBEDO_INTELMPI_WORKAROUNDS)
 endif() 
 
-option(DISABLE_MULTITHREADING "disable asynchronous operations" OFF)
+option(DISABLE_MULTITHREADING "disable asynchronous operations" ON)
 
 # get our source files
 set(src_home ${CMAKE_CURRENT_LIST_DIR}) # path to src directory starting from the dir containing our CMakeLists.txt
