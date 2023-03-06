@@ -42,8 +42,7 @@ use cpl_driver
 
 #ifdef use_PDAF
  use timer, only: timeit, time_tot
-! use mod_parallel_pdaf, only: abort_parallel
- use mod_assim_pdaf, only: mesh_fesom                                                                                          
+ use mod_assim_pdaf, only: mesh_fesom
 #endif
 
 IMPLICIT NONE
@@ -319,8 +318,10 @@ type(t_mesh),   save,  target  :: mesh
 #endif
 
         !___prepare output______________________________________________________
+#ifndef use_PDAF
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call output (n)'//achar(27)//'[0m'
         call output (n, mesh)
+#endif
         t5 = MPI_Wtime()
         call restart(n, .false., .false., mesh)
         t6 = MPI_Wtime()
@@ -335,11 +336,6 @@ type(t_mesh),   save,  target  :: mesh
         rtime_write_restart = rtime_write_restart + t6 - t5
         rtime_read_forcing  = rtime_read_forcing  + t1_frc - t0_frc
 
-!#ifdef use_PDAF
-!        CALL timeit(7, 'new')
-!        CALL assimilate_PDAF(mstep)
-!        CALL timeit(7, 'old')
-!#endif
     end do
     
 #ifdef use_PDAF
