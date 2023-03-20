@@ -139,7 +139,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! *********************************
 
   call exchange_nod(eta_n)            ! SSH
-!~ !  call exchange_elem(UV(:,:,:))       ! u and v (element-wise)
+  call exchange_elem(UV(:,:,:))       ! u and v (element-wise)
   call exchange_nod(wvel)             ! w
   call exchange_nod(tr_arr(:,:,1))    ! Temp
   call exchange_nod(tr_arr(:,:,2))    ! Salt
