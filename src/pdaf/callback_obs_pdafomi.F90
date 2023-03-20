@@ -132,9 +132,9 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
 
   ! The order of the calls determines how the different observations
   ! are ordered in the full state vector
-  CALL obs_op_ssh(dim_p, dim_obs, state_p, ostate)
   CALL obs_op_sst(dim_p, dim_obs, state_p, ostate)
   CALL obs_op_sss(dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_ssh(dim_p, dim_obs, state_p, ostate)
   CALL obs_op_prof(dim_p, dim_obs, state_p, ostate)
 
 END SUBROUTINE obs_op_pdafomi
@@ -169,12 +169,12 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(in)  :: dim_obs    !< Full dimension of observation vector
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
   
-!~   ! Debugging:
-!~   IF (mype_filter==64 .AND. domain_p==776) THEN
-!~     CALL PDAFomi_set_debug_flag(domain_p)
-!~   ELSE
-!~     CALL PDAFomi_set_debug_flag(0)
-!~   ENDIF
+   ! Debugging:
+   IF (mype_filter==46 .AND. domain_p==1633) THEN
+     CALL PDAFomi_set_debug_flag(domain_p)
+   ELSE
+     CALL PDAFomi_set_debug_flag(0)
+   ENDIF
 
 
 ! **********************************************

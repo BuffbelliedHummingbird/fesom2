@@ -263,10 +263,9 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
    ! *** Treshold values ***
    DO col= 1,dim_ens
       Do i= 1,myDim_nod2D
-          ! SSH: set to +/- 1.5m where larger than that
-          ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.
-          ! but larger spread seems unstable)
-          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.5),1.5)
+          ! SSH: set to +/- 1.7m where larger than that
+          ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.)
+          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)
           ! SIC: set to null where negative
           !      set to 1 where larger than that
           ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)
