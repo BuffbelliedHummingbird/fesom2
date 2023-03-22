@@ -177,13 +177,13 @@ SUBROUTINE init_pdaf()
 
 ! *** specifications for observations ***
   ! This error is the standard deviation for the Gaussian distribution 
-  rms_obs_sst = 0.5 ! error for satellite SST observations
-  rms_obs_sss = 0.05 ! error for satellite SSS observations
-  rms_obs_ssh = 0.25 ! error for satellite SSH observations
-  rms_obs_T = 0.5    ! error for temperature profile observations
-  rms_obs_S = 0.05    ! error for salinity profile observations
+  rms_obs_sst = 0.8 ! error for satellite SST observations
+  rms_obs_sss = 0.5 ! error for satellite SSS observations
+  rms_obs_ssh = 0.05 ! error for satellite SSH observations
+  rms_obs_T = 0.8    ! error for temperature profile observations
+  rms_obs_S = 0.5    ! error for salinity profile observations
   peak_obs_error = 0.0  ! This is the peak value used for define the observation error  
-  bias_obs_sst = 0.0    ! observation bias  
+  bias_obs_ssh = 0.0    ! observation bias  
   bias_obs_prof = 0.0   ! observation bias  
   sst_exclude_ice = .true.  ! Exclude SST observations at point with sea ice and T>0
   sst_exclude_diff = 0.0     ! Exclude SST observations if difference from ensemble mean is >sst_exclude_diff
