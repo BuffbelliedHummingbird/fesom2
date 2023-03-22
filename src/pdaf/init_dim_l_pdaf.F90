@@ -72,7 +72,8 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   dim_fields_l (id%SSH)    = 1
   dim_fields_l (id%u)      = nlay
   dim_fields_l (id%v)      = nlay
-  dim_fields_l (id%w)      = nlay
+!  dim_fields_l (id%w)      = nlay
+  dim_fields_l (id%w)      = 0
   dim_fields_l (id%temp)   = nlay
   dim_fields_l (id%salt)   = nlay
   dim_fields_l (id%a_ice)  = 0
@@ -129,11 +130,13 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
         = offset(id%v) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%v))/)
+        
   ! W
-  id_lstate_in_pstate (offset_l(id%w)+1 : offset_l(id%w+1)) &
-        = offset(id%w) &
-        + (domain_p-1)*(mesh_fesom%nl) &
-        + (/(i, i=1,dim_fields_l(id%w))/)
+  ! id_lstate_in_pstate (offset_l(id%w)+1 : offset_l(id%w+1)) &
+  !      = offset(id%w) &
+  !      + (domain_p-1)*(mesh_fesom%nl) &
+  !      + (/(i, i=1,dim_fields_l(id%w))/)
+  
   ! Temp
   id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp+1))&
          = offset(id%temp) &
