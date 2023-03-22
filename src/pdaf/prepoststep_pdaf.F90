@@ -177,27 +177,27 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    !         '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
      
    ! *** Analysed horizontal velocities must be less than a doubling of forecast velocity ***
-   count_lim_absvel_p = 0
+!~    count_lim_absvel_p = 0
    
-   DO member = 1, dim_ens
-   DO i = 1, dim_fields(id% u)
+!~    DO member = 1, dim_ens
+!~    DO i = 1, dim_fields(id% u)
    
-      ! absolute velocities
-      tmp_a =   ens_p(i+ offset(id% u),member) * ens_p(i+ offset(id% u),member) &
-              + ens_p(i+ offset(id% v),member) * ens_p(i+ offset(id% v),member)
+!~       ! absolute velocities
+!~       tmp_a =   ens_p(i+ offset(id% u),member) * ens_p(i+ offset(id% u),member) &
+!~               + ens_p(i+ offset(id% v),member) * ens_p(i+ offset(id% v),member)
                     
-      tmp_f =   state_fcst(i+ offset(id% u),member) * state_fcst(i+ offset(id% u),member) &
-              + state_fcst(i+ offset(id% v),member) * state_fcst(i+ offset(id% v),member)
+!~       tmp_f =   state_fcst(i+ offset(id% u),member) * state_fcst(i+ offset(id% u),member) &
+!~               + state_fcst(i+ offset(id% v),member) * state_fcst(i+ offset(id% v),member)
                     
-      IF (tmp_a > 4.0*tmp_f) THEN
-         ens_p(i+ offset(id% u),member) = state_fcst(i+ offset(id% u),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
-         ens_p(i+ offset(id% v),member) = state_fcst(i+ offset(id% v),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
+!~       IF (tmp_a > 4.0*tmp_f) THEN
+!~          !ens_p(i+ offset(id% u),member) = state_fcst(i+ offset(id% u),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
+!~          !ens_p(i+ offset(id% v),member) = state_fcst(i+ offset(id% v),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
          
-         count_lim_absvel_p(member) = count_lim_absvel_p(member)+1
+!~          !count_lim_absvel_p(member) = count_lim_absvel_p(member)+1
          
-      END IF
-   END DO
-   END DO
+!~       END IF
+!~    END DO
+!~    END DO
    
    CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
    !IF (mype_filter == 0) &
@@ -459,7 +459,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF ((step - step_null)==0) THEN
     IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
-      ! CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
+      CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
     END IF
    ELSE IF ((step - step_null) > 0) THEN
       ! *** write assimilated state fields ***  
@@ -480,7 +480,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF ((step - step_null)==0) THEN
      IF (.not.(this_is_pdaf_restart)) THEN
       ! *** write initial state fields ***
-      ! CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+      CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
      END IF
    ELSE IF ((step - step_null) > 0) THEN
       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
