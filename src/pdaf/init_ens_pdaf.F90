@@ -160,6 +160,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
         s = s + 1
         stat(s) = NF_GET_VAR_DOUBLE(fileid, id_state, state_p)
      ELSE
+        CALL compute_vel_nodes(mesh_fesom)
         CALL collect_state_PDAF(dim_p, state_p)
      END IF
 
