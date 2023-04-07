@@ -239,9 +239,9 @@ CONTAINS
     ! Initialize flag for type of full observations
     thisobs%use_global_obs = use_global_obs
 
-    ! set localization radius
-    lradius_ssh = local_range
-    sradius_ssh = srange
+    ! set localization radius (if not specified explicitly in namelist)
+    IF (lradius_ssh==0) lradius_ssh = local_range
+    sradius_ssh = lradius_ssh
     IF (.NOT.ALLOCATED(loc_radius_ssh)) ALLOCATE(loc_radius_ssh(mydim_nod2d))
     loc_radius_ssh(:) = lradius_ssh
 
