@@ -403,7 +403,7 @@ CONTAINS
           (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% salt)
           
           ! index for all_obs_p and surface nod2d vector, respectively. 
-          obs_include_index = i
+          obs_include_index(i_obs) = i
        ENDIF
     ENDDO
 
