@@ -16,13 +16,13 @@ contains
     integer rank
     
     result = next_io_rank_helper(communicator, rank_use_count)
-!    if(rank_use_count > 1) then
+    if(rank_use_count > 1) then
       if(mype == SEQUENTIAL_IO_RANK) print *,"rejecting additional async NetCDF for process:",result, "use count:", rank_use_count, "falling back to sequential I/O on process ",SEQUENTIAL_IO_RANK
       result = SEQUENTIAL_IO_RANK
       async_netcdf_allowed = .false.
-!    else
-!      async_netcdf_allowed = .true.
-!    end if    
+    else
+      async_netcdf_allowed = .true.
+    end if    
   end function
 
 

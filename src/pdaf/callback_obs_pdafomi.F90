@@ -170,7 +170,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
   
    ! Debugging:
-   IF (mype_filter==46 .AND. domain_p==1633) THEN
+   IF (mype_filter==28 .AND. domain_p==1171) THEN
      CALL PDAFomi_set_debug_flag(domain_p)
    ELSE
      CALL PDAFomi_set_debug_flag(0)

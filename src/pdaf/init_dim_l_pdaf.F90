@@ -143,7 +143,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
          + (domain_p-1)*(mesh_fesom%nl-1) &
          + (/(i, i=1,dim_fields_l(id%temp))/)
   ! Salt
-  id_lstate_in_pstate (offset_l(id%salt)+1 : dim_l) &
+  id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt+1)) &
         = offset(id%salt) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%salt))/)
