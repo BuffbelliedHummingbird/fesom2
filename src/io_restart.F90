@@ -13,6 +13,10 @@ MODULE io_RESTART
   use recom_config
   use REcoM_ciso
 #endif
+#ifdef use_PDAF
+  use mod_atmos_ens_stochasticity, only: write_atmos_stochasticity_restart, atmos_stochasticity_ON
+#endif                                                                                         
+
   implicit none
 #include "netcdf.inc"
 !
@@ -355,7 +359,11 @@ if(mype==0)  write(*,*) 'REcoM_restart= ',REcoM_restart
      call assoc_ids(bid);                  call was_error(bid)
      call write_restart(bid, istep, mesh); call was_error(bid)
    end if
-#endif     
+#endif
+#ifdef use_PDAF
+   IF (atmos_stochasticity_ON) CALL write_atmos_stochasticity_restart()
+#endif
+
   ! actualize clock file to latest restart point
   if (mype==0) then
 		write(*,*) ' --> actualize clock file to latest restart point'
