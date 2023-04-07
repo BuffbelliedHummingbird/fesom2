@@ -35,6 +35,8 @@ MODULE output_pdaf
   INTEGER :: write_pos_da_ens
   LOGICAL :: write_da = .true.                 ! Whether to write output file from assimilation
   LOGICAL :: write_ens_snapshot = .true.
+  
+  LOGICAL :: write_a = .true.    ! whether to write sea-ice concentration output
 
 
   !Private variables
@@ -71,9 +73,19 @@ CONTAINS
 
   END SUBROUTINE init_output_pdaf
   
-!----------------------------------------------------------------------------
 
- !init_ncfile_oce_pdaf - Initialize NetCDf output file for ocean fields
+  
+!-----------------------------------------------------------------------
+! ********************************
+! ***                          ***
+! ***   init_ncfile_oce_pdaf   ***
+! ***                          ***
+! ********************************
+
+! Initialize NetCDf output file for ocean fields.
+ 
+ 
+
  SUBROUTINE init_ncfile_oce_pdaf(dim_lag, writepe)
 
     !USES:
@@ -129,6 +141,10 @@ CONTAINS
     INTEGER :: dimarray(3)                  ! auxiliary: array dimension
     INTEGER :: stat(500)                    ! auxiliary: status array
     CHARACTER(200)            :: filename   ! Full name of output file
+    
+    INTEGER :: VarId_a                      ! variable: sea-ice concentration ("a", not updated)
+    INTEGER :: VarId_rmsa                   ! variable: RMS errors sea-ice concentration ("a", not updated)
+
 
     
     pe0: IF (writepe) THEN
@@ -195,38 +211,48 @@ CONTAINS
 
        !- scalar variables
 
+       !--- SURFACE FIELDS
        dimarray(1) = DimId_n2D
        dimarray(2) = DimId_iter
 
+       ! SSH
        stat(s) = NF_DEF_VAR(fileid, 'ssh_a', nf_prec, 2, dimarray(1:2), VarId_ssha); 
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'ssh_f', nf_prec, 2, dimarray(1:2), VarId_sshf); 
        s = s + 1
        
+       ! sea-ice
+!~        stat(s) = NF_DEF_VAR(fileid, 'a', nf_prec, 2, dimarry(1:2), VarID_a)
+!~        s = s + 1
+       
+       !- surface fields: initial fields
        dimarray(2) = dim1
+       
        stat(s) = NF_DEF_VAR(fileid, 'ssh_ini', nf_prec, 2, dimarray(1:2), VarId_sshi); 
        s = s + 1
 
+       !--- 3D FIELDS
        dimarray(1) = DimId_n2D
        dimarray(2) = DimId_nz1
        dimarray(3) = DimId_iter
 
+       ! temperature
        stat(s) = NF_DEF_VAR(fileid, 'temp_a', nf_prec, 3, dimarray(1:3), VarId_tempa)
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'temp_f', nf_prec, 3, dimarray(1:3), VarId_tempf)
        s = s + 1
-
-       dimarray(3) = dim1
-       stat(s) = NF_DEF_VAR(fileid, 'temp_ini', nf_prec, 3, dimarray(1:3), VarId_tempi)
-       s = s + 1
-
-       dimarray(3) = DimId_iter
+       
+       ! salinity
        stat(s) = NF_DEF_VAR(fileid, 'salt_a', nf_prec, 3, dimarray(1:3), VarId_salta)
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'salt_f', nf_prec, 3, dimarray(1:3), VarId_saltf)
        s = s + 1
-
+       
+       !- 3D fields: initial fields
        dimarray(3) = dim1
+       
+       stat(s) = NF_DEF_VAR(fileid, 'temp_ini', nf_prec, 3, dimarray(1:3), VarId_tempi)
+       s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'salt_ini', nf_prec, 3, dimarray(1:3), VarId_salti)
        s = s + 1
 
@@ -234,27 +260,27 @@ CONTAINS
 
       !- horizontal velocities
 
-      dimarray(1) = DimId_n2D !DimId_elem
+      dimarray(1) = DimId_n2D
       dimarray(2) = DimId_nz1
       dimarray(3) = DimId_iter
 
-      stat(s) = NF_DEF_VAR(fileid, 'u_a', nf_prec, 2, dimarray(1:3), VarId_ua)
+      stat(s) = NF_DEF_VAR(fileid, 'u_a', nf_prec, 3, dimarray(1:3), VarId_ua)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'u_f', nf_prec, 2, dimarray(1:3), VarId_uf)
+      stat(s) = NF_DEF_VAR(fileid, 'u_f', nf_prec, 3, dimarray(1:3), VarId_uf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'u_ini', nf_prec, 2, dimarray(1:3), VarId_ui)
+      stat(s) = NF_DEF_VAR(fileid, 'u_ini', nf_prec, 3, dimarray(1:3), VarId_ui)
       s = s + 1
 
       dimarray(3) = DimId_iter
-      stat(s) = NF_DEF_VAR(fileid, 'v_a', nf_prec, 2, dimarray(1:3), VarId_va)
+      stat(s) = NF_DEF_VAR(fileid, 'v_a', nf_prec, 3, dimarray(1:3), VarId_va)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'v_f', nf_prec, 2, dimarray(1:3), VarId_vf)
+      stat(s) = NF_DEF_VAR(fileid, 'v_f', nf_prec, 3, dimarray(1:3), VarId_vf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'v_ini', nf_prec, 2, dimarray(1:3), VarId_vi)
+      stat(s) = NF_DEF_VAR(fileid, 'v_ini', nf_prec, 3, dimarray(1:3), VarId_vi)
       s = s + 1
 
       !- vertical velocity
@@ -263,13 +289,13 @@ CONTAINS
       dimarray(2) = DimId_nz
       dimarray(3) = DimId_iter
       
-      stat(s) = NF_DEF_VAR(fileid, 'w_a', nf_prec, 2, dimarray(1:3), VarId_wa)
+      stat(s) = NF_DEF_VAR(fileid, 'w_a', nf_prec, 3, dimarray(1:3), VarId_wa)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'w_f', nf_prec, 2, dimarray(1:3), VarId_wf)
+      stat(s) = NF_DEF_VAR(fileid, 'w_f', nf_prec, 3, dimarray(1:3), VarId_wf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'w_ini', nf_prec, 2, dimarray(1:3), VarId_wi)
+      stat(s) = NF_DEF_VAR(fileid, 'w_ini', nf_prec, 3, dimarray(1:3), VarId_wi)
       s = s + 1
 
 
@@ -392,6 +418,7 @@ CONTAINS
        END DO
 
 ! ----- DEFINE ATTRIBUTES -----------------------------------------
+       ! How to count length: echo -n 'sea-ice concentration' | wc -m
 
        s = 1
        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_time,     'long_name',    4, 'time'); 
@@ -436,8 +463,11 @@ CONTAINS
        s = s + 1
        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshi,      'connections', 20, 'triangles, triangles') 
        s = s + 1
-       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshi,      'positions',   17, 'surface_locations') 
+       stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshi,      'positions',   17, 'surface_locations')
        s = s + 1
+       
+       ! sea-ice
+!~        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_a,         'long_name',   21, 'sea-ice concentration')
        
        ! u-velocity
        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshf,      'long_name',   25, 'zonal velocity - forecast') 
@@ -574,10 +604,14 @@ CONTAINS
   END SUBROUTINE init_ncfile_oce_pdaf
   
 !----------------------------------------------------------------------------
-!
-! ROUTINE: init_ncfile_oce_pdaf_ens - Initialize NetCDf output file for ocean fields for each ensemble member
-!
-! INTERFACE: 
+! ************************************
+! ***                              ***
+! ***   init_ncfile_oce_pdaf_ENS   ***
+! ***                              ***
+! ************************************
+
+! Initialize NetCDf output file for ocean fields for each ensemble member.
+
 
   SUBROUTINE init_ncfile_oce_pdaf_ens(dim_lag, writepe, dim_ens)
    !USES:
@@ -635,6 +669,8 @@ CONTAINS
     INTEGER :: dimarray(3)                  ! auxiliary: array dimension
     INTEGER :: stat(500)                    ! auxiliary: status array
     CHARACTER(200)            :: filename   ! Full name of output file
+    
+    INTEGER :: VarId_a                      ! sea-ice (not updated)
 
 
     pe0: IF (writepe) THEN
@@ -700,39 +736,46 @@ CONTAINS
 ! ----- F I E L D S 
 
        !- scalar variables
-
+       
+       !--- SURFACE fields
        dimarray(1) = DimId_n2D
        dimarray(2) = DimId_iter
 
+       ! SSH
        stat(s) = NF_DEF_VAR(fileid, 'ssh_a', nf_prec, 2, dimarray(1:2), VarId_ssha); 
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'ssh_f', nf_prec, 2, dimarray(1:2), VarId_sshf); 
        s = s + 1
+       ! Sea-ice
+!~        stat(s) = NF_DEF_VAR(fileid, 'a'    , nf_prec, 2, dimarray(1:2), VarId_a); 
+!~        s = s + 1
        
+       !- Surface fields: Initial
        dimarray(2) = dim1
        stat(s) = NF_DEF_VAR(fileid, 'ssh_ini', nf_prec, 2, dimarray(1:2), VarId_sshi); 
        s = s + 1
 
+       !--- 3D fields
        dimarray(1) = DimId_n2D
        dimarray(2) = DimId_nz1
        dimarray(3) = DimId_iter
 
+       ! Temperature
        stat(s) = NF_DEF_VAR(fileid, 'temp_a', nf_prec, 3, dimarray(1:3), VarId_tempa)
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'temp_f', nf_prec, 3, dimarray(1:3), VarId_tempf)
        s = s + 1
-
-       dimarray(3) = dim1
-       stat(s) = NF_DEF_VAR(fileid, 'temp_ini', nf_prec, 3, dimarray(1:3), VarId_tempi)
-       s = s + 1
-
-       dimarray(3) = DimId_iter
+       ! Salinity
        stat(s) = NF_DEF_VAR(fileid, 'salt_a', nf_prec, 3, dimarray(1:3), VarId_salta)
        s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'salt_f', nf_prec, 3, dimarray(1:3), VarId_saltf)
        s = s + 1
 
+       !- 3D fields: initial
        dimarray(3) = dim1
+       
+       stat(s) = NF_DEF_VAR(fileid, 'temp_ini', nf_prec, 3, dimarray(1:3), VarId_tempi)
+       s = s + 1
        stat(s) = NF_DEF_VAR(fileid, 'salt_ini', nf_prec, 3, dimarray(1:3), VarId_salti)
        s = s + 1
 
@@ -743,23 +786,23 @@ CONTAINS
       dimarray(2) = DimId_nz1
       dimarray(3) = DimId_iter
 
-      stat(s) = NF_DEF_VAR(fileid, 'u_a', nf_prec, 2, dimarray(1:3), VarId_ua)
+      stat(s) = NF_DEF_VAR(fileid, 'u_a', nf_prec, 3, dimarray(1:3), VarId_ua)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'u_f', nf_prec, 2, dimarray(1:3), VarId_uf)
+      stat(s) = NF_DEF_VAR(fileid, 'u_f', nf_prec, 3, dimarray(1:3), VarId_uf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'u_ini', nf_prec, 2, dimarray(1:3), VarId_ui)
+      stat(s) = NF_DEF_VAR(fileid, 'u_ini', nf_prec, 3, dimarray(1:3), VarId_ui)
       s = s + 1
 
       dimarray(3) = DimId_iter
-      stat(s) = NF_DEF_VAR(fileid, 'v_a', nf_prec, 2, dimarray(1:3), VarId_va)
+      stat(s) = NF_DEF_VAR(fileid, 'v_a', nf_prec, 3, dimarray(1:3), VarId_va)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'v_f', nf_prec, 2, dimarray(1:3), VarId_vf)
+      stat(s) = NF_DEF_VAR(fileid, 'v_f', nf_prec, 3, dimarray(1:3), VarId_vf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'v_ini', nf_prec, 2, dimarray(1:3), VarId_vi)
+      stat(s) = NF_DEF_VAR(fileid, 'v_ini', nf_prec, 3, dimarray(1:3), VarId_vi)
       s = s + 1
 
       !- vertical velocity
@@ -768,13 +811,13 @@ CONTAINS
       dimarray(2) = DimId_nz
       dimarray(3) = DimId_iter
       
-      stat(s) = NF_DEF_VAR(fileid, 'w_a', nf_prec, 2, dimarray(1:3), VarId_wa)
+      stat(s) = NF_DEF_VAR(fileid, 'w_a', nf_prec, 3, dimarray(1:3), VarId_wa)
       s = s + 1
-      stat(s) = NF_DEF_VAR(fileid, 'w_f', nf_prec, 2, dimarray(1:3), VarId_wf)
+      stat(s) = NF_DEF_VAR(fileid, 'w_f', nf_prec, 3, dimarray(1:3), VarId_wf)
       s = s + 1
 
       dimarray(3) = dim1
-      stat(s) = NF_DEF_VAR(fileid, 'w_ini', nf_prec, 2, dimarray(1:3), VarId_wi)
+      stat(s) = NF_DEF_VAR(fileid, 'w_ini', nf_prec, 3, dimarray(1:3), VarId_wi)
       s = s + 1
 
 
@@ -944,6 +987,9 @@ CONTAINS
        s = s + 1
        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshi,      'positions',   17, 'surface_locations') 
        s = s + 1
+       
+       ! sea-ice
+!~        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_a   ,      'long_name',   21, 'sea-ice concentration')
        
        ! u-velocity
        stat(s) = NF_PUT_ATT_TEXT(fileid, VarId_sshf,      'long_name',   25, 'zonal velocity - forecast') 
@@ -1151,13 +1197,21 @@ CONTAINS
 
   END SUBROUTINE write_netcdf_pdaf_ens
 
+
+
 !----------------------------------------------------------------------------
+
+! ************************************
+! ***                              ***
+! ***       write_nc_oce_pdaf      ***
+! ***                              ***
+! ************************************
 !
-! ROUTINE: write_nc_oce_pdaf - Write global ocean fields into NetCDF file
-!
-! INTERFACE: 
-  SUBROUTINE write_nc_oce_pdaf(writetype, write_pos_da, iteration, dim, state_l, &
-  nfields, rmse, writepe)
+! Write global ocean fields into NetCDF file.
+
+
+SUBROUTINE write_nc_oce_pdaf(writetype, write_pos_da, iteration, dim, state_l, &
+nfields, rmse, writepe)
 
 ! USES:
 USE g_config, &
@@ -1166,7 +1220,7 @@ USE g_clock
 USE g_PARSUP, &
     ONLY: myDim_nod2D, myDim_elem2D
 USE mod_assim_pdaf, &
-    ONLY: offset, istep_asml, eff_dim_obs, loc_radius, DAoutput_path, mesh_fesom
+    ONLY: id, offset, istep_asml, eff_dim_obs, loc_radius, DAoutput_path, mesh_fesom
 USE g_comm_auto_pdaf
 USE mod_parallel_pdaf, &
     ONLY: mype_world, mype_model, mype_filter
@@ -1195,7 +1249,7 @@ INTEGER :: pos1vec3(3), nmbvec3(3)   ! Position index arrays for writing
 INTEGER :: VarId_iter, VarId_time    ! Id numbers
 INTEGER :: VarId_asmlstep            ! Number of assimilation step
 INTEGER :: VarId                     ! Ids for fields
-INTEGER :: VarId_ssh                 ! Ids for fields: ssh
+INTEGER :: VarId_ssh, VarId_a        ! Ids for fields: ssh
 INTEGER :: VarId_temp, VarId_salt    ! Ids for fields: temperature, salt
 INTEGER :: VarId_u, VarId_v, VarId_w ! Ids for fields: velocity components
 INTEGER :: VarId_effdimobs, VarId_locradius      ! Variables: observation dim and loc. radius
@@ -1212,6 +1266,9 @@ REAL, ALLOCATABLE :: ssh_temp_g(:)   ! Temporary array for global 2D (SSH, locra
 REAL, ALLOCATABLE :: uv_temp_g(:,:)  ! Temporary array for global velocity fields
 REAL, ALLOCATABLE :: w_temp_g(:,:)   ! Temporary array for global vertical velocity fields
 REAL, ALLOCATABLE :: ts_temp_g(:,:)  ! Temporary array for global tracer fields (temp, salt)
+
+INTEGER :: id_2d_fields(2) ! State vector ids for 2D fields
+INTEGER :: id_3d_fields(2) ! State vector ids for 3D fields
 
 real(kind=8)              :: sec_in_year
 CHARACTER(200)            :: filename
@@ -1320,6 +1377,8 @@ pe0: IF (writepe) THEN
      s = s + 1
      stat(s) = NF_INQ_VARID(fileid, "salt_a",      VarId_salt) 
      s = s + 1
+!~      stat(s) = NF_INQ_VARID(fileid, "a",      VarId_a) 
+!~      s = s + 1
 
      stat(s) = NF_INQ_VARID(fileid, "rms_ssh_a",       VarId_rmsssh) 
      s = s + 1
@@ -1448,11 +1507,19 @@ END IF pe0
 
 
 
+
 !----- 2D FIELDS
-!----- sea surface height (1)
+
+id_2d_fields = [id% ssh, id% ssh]
+
+fields_2D: DO n = 1, size(id_2d_fields)
+
+    IF ( id_2d_fields(n)==id% ssh)                        VarId = VarID_ssh
+!~     IF ((id_2d_fields(n)==id% a_ice) .AND.  write_a)      VarID = VarID_a
+!~     IF ((id_2d_fields(n)==id% a_ice) .AND. .not. write_a) CYCLE
 
 DO i = 1, myDim_nod2D
-   my_ssh_temp(i) = state_l(i + offset(1))
+   my_ssh_temp(i) = state_l(i + offset(id_2d_fields(n)))
 END DO
 
 CALL gather_nod_pdaf(my_ssh_temp, ssh_temp_g)
@@ -1479,6 +1546,9 @@ pe0a: IF (writepe) THEN
    END IF
    s = s + 1
 END IF pe0a
+
+END DO fields_2D
+
 
 !----- Effective observation dimension and localization radius
 IF (writetype=='a') THEN ! analysis
@@ -1769,9 +1839,13 @@ END SUBROUTINE write_nc_oce_pdaf
 
 
 !-----------------------------------------------------------------------
+! ***************************************
+! ***                                 ***
+! ***      write_nc_oce_pdaf_ens      ***
+! ***                                 ***
+! ***************************************
 !
-!
-! ROUTINE: write_nc_oce_pdaf_ens - Write global ocean fields into NetCDF file
+! Write global ocean fields into NetCDF file.
 !
 ! INTERFACE: 
   SUBROUTINE write_nc_oce_pdaf_ens(writetype, write_pos_da, iteration, dim, state_l, &

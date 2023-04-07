@@ -28,7 +28,8 @@ SUBROUTINE read_config_pdaf()
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
   USE output_pdaf, &
-       ONLY: write_da, write_ens_snapshot, str_daspec
+       ONLY: write_da, write_ens_snapshot, str_daspec, &
+       write_a
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
@@ -37,7 +38,7 @@ SUBROUTINE read_config_pdaf()
        sss_exclude_ice, sss_exclude_diff, bias_obs_sss, sss_fixed_rmse
   USE obs_ssh_cmems_pdafomi, &
        ONLY: assim_o_ssh, rms_obs_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
-       ssh_exclude_ice, ssh_exclude_diff, bias_obs_ssh, ssh_fixed_rmse
+       ssh_exclude_ice, ssh_exclude_diff, bias_obs_ssh, ssh_fixed_rmse, lradius_ssh
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: ASSIM_O_en4_t, ASSIM_O_en4_s, & 
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
@@ -46,7 +47,9 @@ SUBROUTINE read_config_pdaf()
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
-       disturb_prec, disturb_snow, disturb_mslp
+       disturb_prec, disturb_snow, disturb_mslp, &
+       atmos_stochasticity_ON, &
+       varscale_wind, varscale_tair
 
 
   IMPLICIT NONE
@@ -76,7 +79,7 @@ SUBROUTINE read_config_pdaf()
        sss_exclude_ice, sss_exclude_diff, &
        ! SSH:
        ASSIM_o_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
-       rms_obs_ssh, ssh_fixed_rmse, &
+       rms_obs_ssh, ssh_fixed_rmse, bias_obs_ssh, lradius_ssh, &
        ! SST:
        ASSIM_o_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        rms_obs_sst, sst_fixed_rmse, &
@@ -92,7 +95,10 @@ SUBROUTINE read_config_pdaf()
 
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
-       disturb_prec, disturb_snow, disturb_mslp 
+       disturb_prec, disturb_snow, disturb_mslp, &
+       varscale_wind, varscale_tair
+       
+  NAMELIST /pdaf_output/ write_a
        
 ! ****************************************************
 ! ***   Initialize PDAF parameters from namelist   ***
@@ -110,14 +116,36 @@ SUBROUTINE read_config_pdaf()
   OPEN(30,file=nmlfile)
   READ(30,NML=atmos_stoch)
   CLOSE(30)
+  
+  OPEN(40,file=nmlfile)
+  READ(40,NML=pdaf_output)
+  CLOSE(40)
 
 ! *** Add trailing slash to paths ***
   CALL add_slash(path_obs_sst)
   CALL add_slash(path_obs_sss)
   CALL add_slash(path_obs_ssh)
   
-!~   CALL add_slash(path_obs_prof)
+  CALL add_slash(path_obs_prof)
   CALL add_slash(path_init)
+  
+! *** Is atmospheric stochasticity used at all?
+IF (disturb_humi   .OR. &
+    disturb_mslp   .OR. &
+    disturb_xwind  .OR. &
+    disturb_ywind  .OR. &
+    disturb_qlw    .OR. &
+    disturb_qsr    .OR. &
+    disturb_tair   .OR. &
+    disturb_prec   .OR. &
+    disturb_snow   ) THEN
+    
+    atmos_stochasticity_ON = .TRUE.
+ELSE
+    atmos_stochasticity_ON = .FALSE.
+ENDIF
+  
+  
 
 ! *** Print configuration variables ***
   showconf: IF (printconfig .AND. mype_model==0 .AND. task_id==1) THEN
@@ -141,6 +169,7 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','locweight   ', locweight
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','loctype     ', loctype
      WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','srange      ', srange
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','lradius_ssh ', lradius_ssh
      WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','loc_ratio   ', loc_ratio
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','proffiles_o  ', proffiles_o
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','start_year_o ', start_year_o
@@ -182,6 +211,7 @@ SUBROUTINE read_config_pdaf()
 !~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_siv ', rms_obs_siv
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_T   ', rms_obs_T
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_S   ', rms_obs_S
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','bias_obs_ssh', bias_obs_ssh
 !~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sic_fixed_rmse', sic_fixed_rmse
 !~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sit_fixed_rmse', sit_fixed_rmse
 !~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','siu_fixed_rmse', siu_fixed_rmse
@@ -206,6 +236,8 @@ SUBROUTINE read_config_pdaf()
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_da    ', write_da
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_ens_snapshot   ', write_ens_snapshot
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_3D_monthly_mean', write_3D_monthly_mean
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_a', write_a
+     
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','str_daspec  ',TRIM(str_daspec)
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','twin_experiment', twin_experiment
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
@@ -221,6 +253,9 @@ WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_tair', disturb_tair
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_prec', disturb_prec
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_snow', disturb_snow
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_mslp', disturb_mslp
+WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_wind ', varscale_wind
+WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_tair ', varscale_tair
+
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'
 
