@@ -27,11 +27,11 @@ SUBROUTINE read_config_pdaf()
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
-  USE output_pdaf, &
-       ONLY: write_da, str_daspec, &
-       write_a ! write_ens_snapshot,
+!~   USE output_pdaf, &
+!~        ONLY: write_da, str_daspec, &
+!~        write_a ! write_ens_snapshot,
   USE mod_nc_out_variables, &
-       ONLY: write_ens_snapshot
+       ONLY: write_ens
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
@@ -67,8 +67,8 @@ SUBROUTINE read_config_pdaf()
        local_range, locweight, srange, DA_couple_type, &
        n_modeltasks, peak_obs_error, use_global_obs, &
        path_init, file_init, step_null, printconfig, &
-       file_inistate, read_inistate, write_da, write_ens_snapshot, varscale, &
-       str_daspec, type_trans, type_sqrt, dim_lag, bias_obs_sst, &
+       file_inistate, read_inistate, write_ens, varscale, &
+       type_trans, type_sqrt, dim_lag, bias_obs_sst, &
        loctype, loc_ratio, delt_obs_ocn, &     
        dim_obs_max, &
        twin_experiment, &
@@ -100,7 +100,7 @@ SUBROUTINE read_config_pdaf()
        disturb_prec, disturb_snow, disturb_mslp, &
        varscale_wind, varscale_tair
        
-  NAMELIST /pdaf_output/ write_a
+!~   NAMELIST /pdaf_output/
        
 ! ****************************************************
 ! ***   Initialize PDAF parameters from namelist   ***
@@ -119,9 +119,9 @@ SUBROUTINE read_config_pdaf()
   READ(30,NML=atmos_stoch)
   CLOSE(30)
   
-  OPEN(40,file=nmlfile)
-  READ(40,NML=pdaf_output)
-  CLOSE(40)
+!~   OPEN(40,file=nmlfile)
+!~   READ(40,NML=pdaf_output)
+!~   CLOSE(40)
 
 ! *** Add trailing slash to paths ***
   CALL add_slash(path_obs_sst)
@@ -235,12 +235,9 @@ ENDIF
      IF (read_inistate) THEN
         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_inistate ', TRIM(file_inistate)
      ENDIF
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_da    ', write_da
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_ens_snapshot   ', write_ens_snapshot
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_ens            ', write_ens
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_3D_monthly_mean', write_3D_monthly_mean
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_a', write_a
      
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','str_daspec  ',TRIM(str_daspec)
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','twin_experiment', twin_experiment
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','this_is_pdaf_restart', this_is_pdaf_restart

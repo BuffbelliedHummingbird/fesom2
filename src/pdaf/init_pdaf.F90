@@ -74,7 +74,7 @@ SUBROUTINE init_pdaf()
   USE mod_nc_out_routines, &
        ONLY: netCDF_init
   USE mod_nc_out_variables, &
-       ONLY: write_ens_snapshot, init_sfields
+       ONLY: write_ens, init_sfields
 
   IMPLICIT NONE
 
@@ -175,7 +175,7 @@ SUBROUTINE init_pdaf()
   assim_o_sss   = .false.
   assim_o_ssh   = .false.
 
-  write_ens_snapshot = .false.
+  write_ens = .false.
   
   step_null = 0
 
@@ -404,13 +404,10 @@ disturb_mslp=.true.
   IF (filterpe) THEN
      IF (mype_filter==0) writepe = .TRUE.
   ENDIF
-  IF (write_da) THEN
-     ! Initialize Netcdf output
-     CALL  init_output_pdaf(dim_lag, writepe)
-     CALL netCDF_init('mean')
-     write_ens_snapshot = .true. ! TO-DO
-     IF (write_ens_snapshot) CALL netCDF_init('memb')
-  END IF
+  ! Initialize Netcdf output
+!~      CALL  init_output_pdaf(dim_lag, writepe)
+  CALL netCDF_init('mean')
+  IF (write_ens) CALL netCDF_init('memb')
 
 
 ! ******************************'***

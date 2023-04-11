@@ -252,7 +252,7 @@ DO member=0, dim_ens
     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.nc'
     state_ptr => state_p
   ELSE ! ensemble member state
-    IF (.not. (write_ens_snapshot)) EXIT
+    IF (.not. (write_ens)) EXIT
     WRITE(memberstr,'(i2.2)') member
     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
     state_ptr => ens_p(:,member)
