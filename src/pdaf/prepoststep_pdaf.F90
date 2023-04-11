@@ -35,6 +35,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE output_pdaf, &
        ONLY: write_da, write_netcdf_pdaf, write_netcdf_pdaf_ens, &
        write_pos_da, write_ens_snapshot, write_pos_da_ens
+  USE mod_nc_out_routines, &
+       ONLY: netCDF_out
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
@@ -308,11 +310,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   END IF
 
 
-! ********************************************************
-! *** Compute estimate RMS errors for different fields ***
-! ********************************************************
+! *****************************************************************
+! *** Compute estimate RMS ensemble spread for different fields ***
+! *****************************************************************
 
-  ! *** Compute local sampled variances of state vector ***
+  ! *** Compute local sampled variances of ensemble state vector ***
 
   var_p(:) = 0.0D0
   DO member = 1, dim_ens
@@ -326,7 +328,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! IF ((step - step_null) < 0) ! if analysis: compute STD
   std_p = SQRT(var_p)     
 
-  ! *** Compute RMS errors ***
+  ! *** Compute RMS ensemble spread ***
 
   DO j = 1, nfields
        DO i = 1, dim_fields(j)
@@ -396,19 +398,18 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
              'FESOM-PDAF', 'avg. effective observation dimension:       ', avg_eff_dim_obs_g
      END IF
   END IF
-  
 
 
-
-! **************************
-! *** Write output files ***
-! **************************
+! *****************************
+! *** Compute monthly means ***
+! *****************************
 
   IF (write_3D_monthly_mean) THEN
   
       now_to_write_monthly = .FALSE.
       call check_fleapyr(yearold, fleap)
       
+      ! set "now_to_write_monthly" at last day of month
       find_month: DO month_iter=1,12
         if (dayold <= endday_of_month_in_year(fleap,month_iter)) THEN
             whichmonth = month_iter
@@ -419,6 +420,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         endif
       ENDDO find_month
 
+      ! reset monthly_state to zero at first day of month
       monthly_state_p_0: DO month_iter=1,12
         if (dayold == startday_of_month_in_year(fleap,month_iter)) THEN
           IF ((step - step_null) > 0) THEN
@@ -431,7 +433,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
           exit monthly_state_p_0
         endif
       ENDDO monthly_state_p_0
-
+      
+      ! include daily state into monthly mean
       IF ((step - step_null) > 0) THEN
       ! *** analyzed state fields ***
         monthly_state_a = monthly_state_a + state_p/num_day_in_month(fleap,whichmonth)
@@ -443,6 +446,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       now_to_write_monthly = .TRUE.
    ENDIF
    
+! **************************
+! *** Write output files ***
+! **************************
 
   write_pos_da = daynew
   write_pos_da_ens = write_pos_da
@@ -501,7 +507,22 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
  ENDIF output
 
+! *** NEW NETCDF
 
+write_pos_da = daynew
+
+IF ((step - step_null)==0) THEN
+      ! *** write initial state fields ***
+      CALL netCDF_out('i',daynew,step,state_p,ens_p,rmse)
+ELSE IF ((step - step_null) < 0) THEN
+      ! *** write forecast state fields ***
+      CALL netCDF_out('f',daynew,step,state_p,ens_p,rmse)
+ELSE IF ((step - step_null) > 0) THEN
+      ! *** write analysis state fields ***
+      CALL netCDF_out('a',daynew,step,state_p,ens_p,rmse)
+END IF
+! CALL netCDF_out('i',daynew,step, )
+! state_p and ens_p 
 
 ! **********************************************
 ! *** Compute RMS errors for smoothed states ***

@@ -28,8 +28,10 @@ SUBROUTINE read_config_pdaf()
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
   USE output_pdaf, &
-       ONLY: write_da, write_ens_snapshot, str_daspec, &
-       write_a
+       ONLY: write_da, str_daspec, &
+       write_a ! write_ens_snapshot,
+  USE mod_nc_out_variables, &
+       ONLY: write_ens_snapshot
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
