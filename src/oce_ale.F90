@@ -1026,11 +1026,6 @@ subroutine restart_thickness_ale(mesh)
             nzmax = nlevels_nod2D(n)-1
             
             !___________________________________________________________________
-            ! if there is a cavity layer thickness is not updated, its 
-            ! kept fixed 
-            if (nzmin > 1) cycle
-            
-            !___________________________________________________________________
             ! be sure that bottom layerthickness uses partial cell layer thickness
             ! in case its activated, especially when you make a restart from a non 
             ! partiall cell runs towards a simulation with partial cells
@@ -1049,11 +1044,6 @@ subroutine restart_thickness_ale(mesh)
         do elem=1, myDim_elem2D
             nzmin = ulevels(elem)
             nzmax = nlevels(elem)-1
-            
-            !___________________________________________________________________
-            ! if there is a cavity layer thickness is not updated, its 
-            ! kept fixed 
-            if (nzmin > 1) cycle
             
             !___________________________________________________________________
             elnodes=elem2D_nodes(:, elem)
@@ -2555,10 +2545,10 @@ subroutine oce_timestep_ale(n, mesh)
 
     t0=MPI_Wtime()
     
-!!PS     water_flux = 0.0_WP
-!!PS     heat_flux  = 0.0_WP
-!!PS     stress_surf= 0.0_WP
-!!PS     stress_node_surf= 0.0_WP
+!     water_flux = 0.0_WP
+!     heat_flux  = 0.0_WP
+!     stress_surf= 0.0_WP
+!     stress_node_surf= 0.0_WP
     
     !___________________________________________________________________________
     ! calculate equation of state, density, pressure and mixed layer depths
@@ -2719,20 +2709,27 @@ subroutine oce_timestep_ale(n, mesh)
     call compute_hbar_ale(mesh)
     
     !___________________________________________________________________________
-    ! Current dynamic elevation alpha*hbar(n+1/2)+(1-alpha)*hbar(n-1/2)
-    ! equation (14) Danlov et.al "the finite volume sea ice ocean model FESOM2
-    ! ...if we do it here we don't need to write hbar_old into a restart file...
+    ! - Current dynamic elevation alpha*hbar(n+1/2)+(1-alpha)*hbar(n-1/2)
+    !   equation (14) Danlov et.al "the finite volume sea ice ocean model FESOM2
+    !   ...if we do it here we don't need to write hbar_old into a restart file...
+    ! - where(ulevels_nod2D==1) is used here because of the rigid lid 
+    !   approximation under the cavity 
+    ! - at points in the cavity the time derivative term in ssh matrix will be 
+    !   omitted; and (14) will not be applied at cavity points. Additionally,
+    !   since there is no real elevation, but only surface pressure, there is 
+    !   no layer motion under the cavity. In this case the ice sheet acts as a 
+    !   rigid lid.
     where(ulevels_nod2D==1) eta_n=alpha*hbar+(1.0_WP-alpha)*hbar_old
-
     ! --> eta_(n)
     ! call zero_dynamics !DS, zeros several dynamical variables; to be used for testing new implementations!
     t5=MPI_Wtime() 
     
+    !___________________________________________________________________________
+    ! Do horizontal and vertical scaling of GM/Redi  diffusivity 
     if (Fer_GM .or. Redi) then
         call init_Redi_GM(mesh)
     end if
     
-    !___________________________________________________________________________
     ! Implementation of Gent & McWiliams parameterization after R. Ferrari et al., 2010
     ! does not belong directly to ALE formalism
     if (Fer_GM) then

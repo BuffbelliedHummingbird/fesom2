@@ -355,7 +355,7 @@ CONTAINS
       call check_nferr(iost,flf%file_name)
       
       ! digg for calendar attribute in time axis variable
-      if (mype==0) then
+      if (mype==0 .and. use_flpyrcheck) then
          iost = nf_inq_attlen(ncid, id_time,'calendar',aux_len)
          iost = nf_get_att(ncid, id_time,'calendar',aux_calendar)
          aux_calendar = aux_calendar(1:aux_len)
@@ -1100,15 +1100,13 @@ CONTAINS
       !==========================================================================
 
       ! prepare a flag which checks whether to update monthly data (SSS, river runoff)
-      !update_monthly_flag=((day_in_month==num_day_in_month(fleapyear,month) .and. timenew==86400._WP))
-      update_monthly_flag=( (day_in_month==num_day_in_month(fleapyear,month) .AND. timenew==86400._WP) .OR. mstep==1  )
 
+      update_monthly_flag=( (day_in_month==num_day_in_month(fleapyear,month) .AND. timenew==86400._WP) .OR. mstep==1  )
 
       ! read in SSS for applying SSS restoring
       if (surf_relax_S > 0._WP) then
          if (sss_data_source=='CORE1' .or. sss_data_source=='CORE2') then
             if (update_monthly_flag) then
-               !i=month+1
                i=month
                if (mstep > 1) i=i+1 
                if (i > 12) i=1
@@ -1124,7 +1122,6 @@ CONTAINS
        if(update_monthly_flag) then
          if(runoff_climatology) then
            !climatology monthly mean
-           !i=month+1
            i=month
            if (mstep > 1) i=i+1 
            if (i > 12) i=1
@@ -1137,8 +1134,6 @@ CONTAINS
 
          else
            !monthly data
-
-           !i=month+1
            i=month
            if (mstep > 1) i=i+1 
            if (i > 12) i=1
