@@ -9,8 +9,8 @@ IMPLICIT NONE
 character(len=200) :: filename_phy = ''       ! Full name of output file
 character(len=200) :: filename_bio = ''       ! Full name of output file
 
-! TO-DO: INITIALIZE THIS FROM NAMELIST!
-LOGICAL :: write_ens_snapshot = .true. ! Whether to write ensemble states
+LOGICAL :: write_ens    = .true.          ! Whether to write ensemble states
+INTEGER :: write_pos_da = 1
 
 
 ! Field description:

@@ -32,11 +32,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
        myList_edge2D, myDim_edge2D, myList_nod2D
   USE o_ARRAYS, ONLY: hnode_new
-  USE output_pdaf, &
-       ONLY: write_da, write_netcdf_pdaf, write_netcdf_pdaf_ens, &
-       write_pos_da, write_ens_snapshot, write_pos_da_ens
+!~   USE output_pdaf, &
+!~        ONLY: write_da, write_netcdf_pdaf, write_netcdf_pdaf_ens, &
+!~        write_pos_da, write_ens_snapshot, write_pos_da_ens
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
+  USE mod_nc_out_variables, &
+       ONLY: write_pos_da
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
@@ -442,74 +444,75 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       ! *** forecasted state fields ***
         monthly_state_f = monthly_state_f + state_p/num_day_in_month(fleap,whichmonth)
       END IF
-   else
-      now_to_write_monthly = .TRUE.
+!~    else
+!~       now_to_write_monthly = .TRUE.
    ENDIF
    
 ! **************************
 ! *** Write output files ***
 ! **************************
 
-  write_pos_da = daynew
-  write_pos_da_ens = write_pos_da
-  IF (yearold/=yearnew) mon_snapshot_mem = 0
+!~   write_pos_da = daynew
+!~   write_pos_da_ens = write_pos_da
+!~   IF (yearold/=yearnew) mon_snapshot_mem = 0
   
-! NOTE:
-!       write_3D_monthly_mean ==.TRUE.   -> write monthly mean ocean state analysis
-!       write_3D_monthly_mean ==.FALSE.  -> write daily ocean state analysis
+!~ ! NOTE:
+!~ !       write_3D_monthly_mean ==.TRUE.   -> write monthly mean ocean state analysis
+!~ !       write_3D_monthly_mean ==.FALSE.  -> write daily ocean state analysis
 
 
-  output: IF (write_da) THEN
+!~   output: IF (write_da) THEN
   
-   ! *** write ensemble MEAN: ***  
-   IF ((step - step_null)==0) THEN
-    IF (.not.(this_is_pdaf_restart)) THEN
-      ! *** write initial state fields ***
-      CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
-    END IF
-   ELSE IF ((step - step_null) > 0) THEN
-      ! *** write assimilated state fields ***  
-      CALL write_netcdf_pdaf('a', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_a, whichmonth, now_to_write_monthly)
-   ELSE IF ((step - step_null) < 0) THEN
-      ! *** write forecasted state fields ***
-      CALL write_netcdf_pdaf('f', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_f, whichmonth, now_to_write_monthly)
-   END IF
+!~    ! *** write ensemble MEAN: ***  
+!~    IF ((step - step_null)==0) THEN
+!~     IF (.not.(this_is_pdaf_restart)) THEN
+!~       ! *** write initial state fields ***
+!~       CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
+!~     END IF
+!~    ELSE IF ((step - step_null) > 0) THEN
+!~       ! *** write assimilated state fields ***  
+!~       CALL write_netcdf_pdaf('a', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_a, whichmonth, now_to_write_monthly)
+!~    ELSE IF ((step - step_null) < 0) THEN
+!~       ! *** write forecasted state fields ***
+!~       CALL write_netcdf_pdaf('f', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_f, whichmonth, now_to_write_monthly)
+!~    END IF
 
-   ! *** write ensemble MEMBERS: *** 
+!~    ! *** write ensemble MEMBERS: *** 
    
-   ! NOTE:
-   !       write_ens_snapshot    == .true. means writing forecast and analysis ensemble (!) states
-   !       now_to_write_monthly
-   !                        |_ is set .true. once per month (for snapshot), if write_3D_monthly_mean==.true.
-   !                        |_ is set .true. daily                        , if write_3D_monthly_mean==.false.
+!~    ! NOTE:
+!~    !       write_ens_snapshot    == .true. means writing forecast and analysis ensemble (!) states
+!~    !       now_to_write_monthly
+!~    !                        |_ is set .true. once per month (for snapshot), if write_3D_monthly_mean==.true.
+!~    !                        |_ is set .true. daily                        , if write_3D_monthly_mean==.false.
 
-   IF ((step - step_null)==0) THEN
-     IF (.not.(this_is_pdaf_restart)) THEN
-      ! *** write initial state fields ***
-      CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-     END IF
-   ELSE IF ((step - step_null) > 0) THEN
-      IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
-          ! *** write assimilated state fields ***
-          CALL write_netcdf_pdaf_ens('a', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~           TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
-          CALL write_netcdf_pdaf_ens('a', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-      ENDIF
-   ELSE IF ((step - step_null) < 0) THEN
-      IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
-          mon_snapshot_mem = mon_snapshot_mem+1
-          ! *** write forecasted state fields ***
-          CALL write_netcdf_pdaf_ens('f', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~           TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
-          CALL write_netcdf_pdaf_ens('f', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-      END IF
-   ENDIF
+!~    IF ((step - step_null)==0) THEN
+!~      IF (.not.(this_is_pdaf_restart)) THEN
+!~       ! *** write initial state fields ***
+!~       CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~      END IF
+!~    ELSE IF ((step - step_null) > 0) THEN
+!~       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
+!~           ! *** write assimilated state fields ***
+!~           CALL write_netcdf_pdaf_ens('a', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~  !         TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
+!~           CALL write_netcdf_pdaf_ens('a', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~       ENDIF
+!~    ELSE IF ((step - step_null) < 0) THEN
+!~       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
+!~           mon_snapshot_mem = mon_snapshot_mem+1
+!~           ! *** write forecasted state fields ***
+!~           CALL write_netcdf_pdaf_ens('f', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~      !     TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
+!~           CALL write_netcdf_pdaf_ens('f', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
+!~       END IF
+!~    ENDIF
 
- ENDIF output
+!~  ENDIF output
 
 ! *** NEW NETCDF
 
 write_pos_da = daynew
+! write_pos_da = whichmonth
 
 IF ((step - step_null)==0) THEN
       ! *** write initial state fields ***
@@ -521,16 +524,6 @@ ELSE IF ((step - step_null) > 0) THEN
       ! *** write analysis state fields ***
       CALL netCDF_out('a',daynew,step,state_p,ens_p,rmse)
 END IF
-! CALL netCDF_out('i',daynew,step, )
-! state_p and ens_p 
-
-! **********************************************
-! *** Compute RMS errors for smoothed states ***
-! **********************************************
-!
-!  IF (dim_lag > 0 .AND. step > 0) THEN
-!     CALL compute_rms_smoother_pdaf(step, dim_lag, dim_p, dim_ens, state_p, var_p)
-!  END IF
 
 ! ********************
 ! *** finishing up ***
