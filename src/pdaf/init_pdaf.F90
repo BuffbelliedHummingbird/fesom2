@@ -60,7 +60,7 @@ SUBROUTINE init_pdaf()
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
   USE output_pdaf, &
-       ONLY: write_da, write_ens_snapshot, init_output_pdaf
+       ONLY: write_da, init_output_pdaf ! , write_ens_snapshot
   USE g_PARSUP, &
        ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D
   USE MOD_MESH
@@ -71,6 +71,10 @@ SUBROUTINE init_pdaf()
   USE timer, only: timeit
   USE PDAFomi, &
        ONLY: PDAFomi_get_domain_limits_unstr
+  USE mod_nc_out_routines, &
+       ONLY: netCDF_init
+  USE mod_nc_out_variables, &
+       ONLY: write_ens_snapshot, init_sfields
 
   IMPLICIT NONE
 
@@ -333,6 +337,8 @@ disturb_mslp=.true.
 				
 !end if
 
+  CALL init_sfields()
+
   
   if (mype_world==0) THEN
       WRITE(*,*) 'init_pdaf - myDim_elem2D:      ', myDim_elem2D
@@ -401,6 +407,9 @@ disturb_mslp=.true.
   IF (write_da) THEN
      ! Initialize Netcdf output
      CALL  init_output_pdaf(dim_lag, writepe)
+     CALL netCDF_init('mean')
+     write_ens_snapshot = .true. ! TO-DO
+     IF (write_ens_snapshot) CALL netCDF_init('memb')
   END IF
 
 
