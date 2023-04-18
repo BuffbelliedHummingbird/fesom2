@@ -26,7 +26,7 @@ PROGRAM distribute_covar
 
 
   ! Local variables
-  INTEGER :: i, s, iter, pe, irank, n                                   ! counters
+  INTEGER :: i, s, iter, pe, irank, n, b                                ! counters
   INTEGER :: j, k                                                       ! counters
   CHARACTER(len=120) :: inpath, outpath, dist_mesh_dir
   CHARACTER(len=120) :: infile, outfile, partfile, mylistfile
@@ -48,13 +48,10 @@ PROGRAM distribute_covar
   INTEGER :: id_u, id_v, id_w, id_z, id_t, id_s, id_i, id_out
   INTEGER :: startpos
   INTEGER :: rank, dim_state, nfields
-  INTEGER :: dim_fields(7)                                              ! Field dimensions for SSH, u, v, w, temp, salt
-  INTEGER :: offsets(7)                                                 ! Field offsets in state vector
   INTEGER :: nlevels                                                    ! Number of vertical levels
   INTEGER :: nod2D, elem2D
   INTEGER :: stat(100)
   INTEGER :: dim_state_l                                                ! length of pe-local state vector
-  INTEGER :: dim_fields_l(7)                                            ! dimensions of pe-local fields
   INTEGER :: countv(2), startv(2)
   INTEGER :: dimids(2)
   INTEGER :: npes                                                       ! number of model processes
@@ -72,6 +69,13 @@ PROGRAM distribute_covar
   INTEGER, ALLOCATABLE :: myList_nod2D(:), myList_elem2D(:)             ! (dummy) arrays to read from myList files
   INTEGER, ALLOCATABLE :: my_nodlist_2D(:), my_nodlist_uv(:)            ! pe-local node lists (repeated lists for 3D variables)
   INTEGER, ALLOCATABLE :: my_nodlist_w(:)  , my_nodlist_ts(:)           ! pe-local node lists (repeated lists for 3D variables)
+  
+  INTEGER, ALLOCATABLE :: dim_fields(:)                                              ! Field dimensions for SSH, u, v, w, temp, salt
+  INTEGER, ALLOCATABLE :: offsets(:)                                                 ! Field offsets in state vector
+  INTEGER, ALLOCATABLE :: dim_fields_l(:)                                            ! dimensions of pe-local fields
+  
+  INTEGER :: biomin, biomax ! Start and end indices of biogeochemistry fields in state vector
+  
   ! Declare Fortran type holding the indices of model fields in the state vector
   TYPE field_ids
      INTEGER :: ssh
@@ -81,35 +85,67 @@ PROGRAM distribute_covar
      INTEGER :: temp 
      INTEGER :: salt
      INTEGER :: a_ice
+     INTEGER :: MLD1
+     INTEGER :: PhyChl
   END TYPE field_ids
   ! Type variable holding field IDs in state vector
   TYPE(field_ids) :: ids
+  
+  ! Declare Fortran type holding model field-specific variabels
+  type state_field
+   integer :: ndims = 0                   ! Number of field dimensions (1 or 2)
+   character(len= 10) :: variable = ''    ! Name of field
+   integer :: fid = 0                     ! Field ID (in/output file)
+   integer :: mid = 0                     ! Mean field ID (output file)
+   integer :: sid = 0                     ! Singular vector ID
+  end type state_field
+
+  type(state_field), allocatable :: biofields(:) ! Type variable holding the
+                                                 ! definitions of model fields
 
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
 
   ! Path to and name of file holding global covariance matrix
-  inpath = '/work/ollie/frbunsen/model_runs/fesom2/test_control/cov/'
+  ! inpath = '/work/ollie/frbunsen/model_runs/fesom2/test_control/cov/'
+  inpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/'
   infile = 'cov.nc'
 
   ! Path to mesh
-  dist_mesh_dir = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_144/'
+  ! dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
+  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
   partfile      = 'rpart.out'
   mylistfile    = 'my_list'
 
   ! Path to and name stub of output files
-  outpath = '/work/ollie/frbunsen/model_runs/fesom2/dist_cov144/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist128/'
   outfile = 'cov'
   
   ! Composition of state vector:
-  ids% ssh   = 1
-  ids% u     = 2
-  ids% v     = 3
-  ids% w     = 4
-  ids% temp  = 5
-  ids% salt  = 6
-  ids% a_ice = 7
+  nfields = 9
+  
+  ids% ssh    = 1
+  ids% u      = 2
+  ids% v      = 3
+  ids% w      = 4
+  ids% temp   = 5
+  ids% salt   = 6
+  ids% a_ice  = 7
+  ids% MLD1   = 8
+  ids% PhyChl = 9
+  
+  biomin = 8
+  biomax = 9
+  
+  ! Field-specific variables:
+  allocate(biofields(nfields))
+  
+  biofields (ids% MLD1) % ndims = 1
+  biofields (ids% MLD1) % variable = 'MLD1'
+
+  biofields (ids% PhyChl) % ndims = 2 
+  biofields (ids% PhyChl) % variable = 'PhyChl'
 
 ! ************************************************
 ! *** Init                                     ***
@@ -136,6 +172,15 @@ PROGRAM distribute_covar
 
   ! Get dimensions
   s = s + 1
+  stat(s) = NF_INQ_DIMID(ncid_in, 'nfields', id_dim)
+  s = s + 1
+  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, nfields)
+  
+  allocate(dim_fields(nfields))
+  allocate(offsets(nfields))
+  allocate(dim_fields_l(nfields))
+  
+  s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'rank', id_dim)
   s = s + 1
   stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, rank)
@@ -155,10 +200,6 @@ PROGRAM distribute_covar
   stat(s) = NF_INQ_DIMID(ncid_in, 'dim_state', id_dim)
   s = s + 1
   stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_state)
-  s = s + 1
-  stat(s) = NF_INQ_DIMID(ncid_in, 'nfields', id_dim)
-  s = s + 1
-  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, nfields)
   
   ! dimensions of u, v and salt are like temp (5)
   dim_fields(2) = dim_fields(5) ! u
@@ -166,6 +207,12 @@ PROGRAM distribute_covar
   dim_fields(6) = dim_fields(5) ! salt
   ! dimensions of SIC are like SSH
   dim_fields(ids% a_ice) = dim_fields(ids% SSH)
+  
+  ! dimensions of biogeochemistry fields
+  do b=biomin, biomax
+    if (biofields(b)% ndims == 1) dim_fields(b) = dim_fields(ids% SSH)  ! surface fields
+    if (biofields(b)% ndims == 2) dim_fields(b) = dim_fields(ids% temp) ! 3D fields
+  enddo
 
   DO i = 1,  s
      IF (stat(i) /= NF_NOERR) &
@@ -178,14 +225,19 @@ PROGRAM distribute_covar
   
   ! Write dimensions
   WRITE (*,'(/1x,a)') 'Global dimensions of experiment:'
-  WRITE (*,'(10x,1x,a25,i12)') 'dim_fields 1,7  (SSH, SIC)    ', dim_fields(1)
-  WRITE (*,'(10x,1x,a25,i12)') 'dim_fields 2,3  (u, v)        ', dim_fields(2)
-  WRITE (*,'(10x,1x,a25,i12)') 'dim_fields 4    (w)           ', dim_fields(4)
-  WRITE (*,'(10x,1x,a25,i12)') 'dim_fields 5,6  (temp, salt)  ', dim_fields(5)
-  WRITE (*,'(10x,1x,a25,i12)') 'nlevels                       ', nlevels
-  WRITE (*,'(10x,1x,a25,i12)') 'rank                          ', rank
-  WRITE (*,'(10x,1x,a25,i12)') 'dim_state                     ', dim_state
-  WRITE (*,'(10x,1x,a25,i12)') 'nfields                       ', nfields
+  WRITE (*,'(10x,1x,a30,i12)') 'dim_fields 1,7  (SSH, SIC)    ', dim_fields(1)
+  WRITE (*,'(10x,1x,a30,i12)') 'dim_fields 2,3  (u, v)        ', dim_fields(2)
+  WRITE (*,'(10x,1x,a30,i12)') 'dim_fields 4    (w)           ', dim_fields(4)
+  WRITE (*,'(10x,1x,a30,i12)') 'dim_fields 5,6  (temp, salt)  ', dim_fields(5)
+  
+  do b=biomin, biomax
+    WRITE (*,'(10x,1x,a30,i12)') 'dim_fields '//trim(biofields(b)% variable), dim_fields(b)
+  enddo
+  
+  WRITE (*,'(10x,1x,a30,i12)') 'nlevels                       ', nlevels
+  WRITE (*,'(10x,1x,a30,i12)') 'rank                          ', rank
+  WRITE (*,'(10x,1x,a30,i12)') 'dim_state                     ', dim_state
+  WRITE (*,'(10x,1x,a30,i12)') 'nfields                       ', nfields
   
   IF (dim_fields(1)*nlevels /= dim_fields(5)) THEN
 	WRITE (*,*) 'Number of vertical levels and horizontal nodes not consistent with 3D nodes!'
@@ -301,6 +353,11 @@ PROGRAM distribute_covar
      dim_fields_l(5)          = nod2D_part(pe+1) * nlevels      ! temp
      dim_fields_l(6)          = nod2D_part(pe+1) * nlevels      ! salt
      dim_fields_l(ids% a_ice) = nod2D_part(pe+1)
+     
+     do b=biomin,biomax
+       if (biofields(b)% ndims == 1) dim_fields_l(b) = nod2D_part(pe+1)
+       if (biofields(b)% ndims == 2) dim_fields_l(b) = nod2D_part(pe+1) * nlevels
+     enddo
 
      dim_state_l = SUM(dim_fields_l)
      
@@ -402,6 +459,11 @@ PROGRAM distribute_covar
      dim_fields_l(5)          = nod2D_part(pe+1) * nlevels      ! temp
      dim_fields_l(6)          = nod2D_part(pe+1) * nlevels      ! salt
      dim_fields_l(ids% a_ice) = nod2D_part(pe+1)
+     
+     do b=biomin,biomax
+       if (biofields(b)% ndims == 1) dim_fields_l(b) = nod2D_part(pe+1)
+       if (biofields(b)% ndims == 2) dim_fields_l(b) = nod2D_part(pe+1) * nlevels
+     enddo
 
 	 ! Size of local state vector
      dim_state_l = SUM(dim_fields_l)
@@ -422,6 +484,10 @@ PROGRAM distribute_covar
      offsets (5)          = offsets(4) + dim_fields_l(4) ! offset of field t
      offsets (6)          = offsets(5) + dim_fields_l(5) ! offset of field s
      offsets (ids% a_ice) = offsets(6) + dim_fields_l(6)
+     
+     do b=biomin,biomax
+       offsets(b) = offsets(b-1) + dim_fields_l(b-1)
+     enddo
 
     ! Read my_listXXXXX files
     WRITE (*,'(1x,a)') '*** Read my_listXXXXX files ***'
@@ -527,6 +593,11 @@ PROGRAM distribute_covar
      s = s + 1
      stat(s) = NF_INQ_VARID(ncid_in, 'a_ice_mean', id_mi)
      
+     do b=biomin,biomax
+       s = s + 1
+       stat(s) = NF_INQ_VARID(ncid_in, trim(biofields(b)%variable)//'_mean', biofields(b)% mid)
+     enddo
+     
      s = s + 1
      stat(s) = NF_INQ_VARID(ncid_in, 'ssh_svd', id_svdz)
      s = s + 1
@@ -541,6 +612,11 @@ PROGRAM distribute_covar
      stat(s) = NF_INQ_VARID(ncid_in, 'salt_svd', id_svds)
      s = s + 1
      stat(s) = NF_INQ_VARID(ncid_in, 'a_ice_svd', id_svdi)
+     
+     do b=biomin,biomax
+       s = s + 1
+       stat(s) = NF_INQ_VARID(ncid_in, trim(biofields(b)%variable)//'_svd', biofields(b)% sid)
+     enddo
 
      DO i = 1,  s
         IF (stat(i) /= NF_NOERR) &
@@ -560,6 +636,10 @@ PROGRAM distribute_covar
            id_t = id_mt
            id_s = id_ms
            id_i = id_mi
+           
+           do b=biomin,biomax
+             biofields(b)% fid = biofields(b)% mid
+           enddo
 
            ! Id for output
            id_out = id_mean
@@ -578,6 +658,10 @@ PROGRAM distribute_covar
            id_t = id_svdt
            id_s = id_svds
            id_i = id_svdi
+           
+           do b=biomin,biomax
+             biofields(b)% fid = biofields(b)% sid
+           enddo
 
            ! Id for output
            id_out = id_svec
@@ -654,17 +738,41 @@ PROGRAM distribute_covar
         END DO
         
         ! Read global SIC
-        startv(2) = startpos
-        countv(2) = 1
-        startv(1) = 1
         countv(1) = dim_fields(ids% a_ice)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_i, startv, countv, field_2D)
 
         ! Initialize local nodes of pe-local state vector
         DO i = 1, dim_fields_l(ids% a_ice)
-              state_l(i + offsets(ids% a_ice)) = field_2D(my_nodlist_2D(i))
+              state_l(i + offsets(ids% a_ice)) = REAL(field_2D(my_nodlist_2D(i)),8)
         END DO
+        
+        ! Read global biogeochemistry
+        do b=biomin,biomax
+        
+          countv(1) = dim_fields(b)
+          
+          if (biofields(b)% ndims==1) then
+            ! surface fields
+            ! read global field
+            s = s + 1
+            stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_2D)
+            ! fill local state vector:
+             do i = 1, dim_fields_l(b)
+              state_l(i + offsets(b)) = REAL(field_2D(my_nodlist_2D(i)),8)
+             enddo
+             
+          elseif (biofields(b)% ndims==2) then
+            ! 3D-fields
+            ! read global field
+            s = s + 1
+            stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_ts)
+            ! fill local state vector:
+            do i = 1, dim_fields_l(b)
+              state_l(i + offsets(b)) = REAL(field_ts(my_nodlist_ts(i)),8)
+            enddo
+          endif
+        enddo
 
         ! Write local state vector
         startv(2) = startpos

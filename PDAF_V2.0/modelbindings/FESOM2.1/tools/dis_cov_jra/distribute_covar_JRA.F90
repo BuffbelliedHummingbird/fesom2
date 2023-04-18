@@ -50,7 +50,7 @@ PROGRAM distribute_covar
   INTEGER :: startpos, id_out
   INTEGER :: rank, dim_state, nfields
   INTEGER :: dim_fields                                                 ! Field dimensions (all fields equal)
-  INTEGER :: offsets(7)                                                 ! Field offsets in state vector
+  INTEGER :: offsets(9)                                                 ! Field offsets in state vector
   INTEGER :: nlevels                                                    ! Number of vertical levels
   INTEGER :: nod2D, elem2D
   INTEGER :: stat(100)
@@ -89,16 +89,19 @@ PROGRAM distribute_covar
 ! ************************************************
 
   ! Path to and name of file holding global covariance matrix
-  inpath = '/work/ollie/frbunsen/jra_core2/cov/'
+  ! inpath = '/work/ollie/frbunsen/jra_core2/cov/'
+  inpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/cov/'
   infile = 'cov.nc'
 
   ! Path to mesh
-  dist_mesh_dir = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_72/'
+  ! dist_mesh_dir = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_72/'
+  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
   partfile      = 'rpart.out'
   mylistfile    = 'my_list'
 
   ! Path to and name stub of output files
-  outpath = '/work/ollie/frbunsen/jra_core2/dist72_cov/'
+  ! outpath = '/work/ollie/frbunsen/jra_core2/dist72_cov/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist128_cov/'
   outfile = 'cov'
   
   ! Composition of state vector:

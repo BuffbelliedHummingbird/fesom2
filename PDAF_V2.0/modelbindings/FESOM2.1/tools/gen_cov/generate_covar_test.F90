@@ -18,11 +18,11 @@ PROGRAM generate_covar
 ! of the perturbation matrix of a long state trajectory
 ! about its long time mean.
 !
-! 1) the state vector is structured (z, u, v, w, T, S, a_ice, MLD1, [biogeochemistry])^T;
+! In this version:
+! 1) the state vector is structured (z, u, v, w, T, S, a_ice)^T;
 ! 2) u and v structure is according to u and v being interpolated from elements onto nodes
 ! 3) output frequency is every day;
 ! 4) only one output file, including the running mean, singular values and singular vectors
-! 5) MLD is filled with null (model diagnostic)
 !
 ! !NOTES:
 ! Type "ulimit -s unlimited" before executing in case of segmentation
@@ -51,7 +51,7 @@ PROGRAM generate_covar
   CHARACTER(len=150) :: ncfile_out                               ! File name including path
   CHARACTER(len=150) :: attstr                          ! Attribute string for NC (NetCDF) output
   
-  INTEGER :: i, j, k, s, iter, maxtimes, rank, b        ! Counters
+  INTEGER :: i, j, k, s, iter, maxtimes, rank           ! Counters
   INTEGER :: ncid_in_u, ncid_in_v, ncid_in_w            ! NC file IDs
   INTEGER :: ncid_in_s, ncid_in_z, ncid_in_t            ! NC file IDs
   INTEGER :: ncid_in_i                                  ! NC file IDs
@@ -77,15 +77,14 @@ PROGRAM generate_covar
   INTEGER :: countv2(2), startv2(2)                     ! Vectors for NC operations (2D)
   INTEGER :: countv3(3), startv3(3)                     ! Vectors for NC operations (3D)
   INTEGER :: dimids(2)                                  ! Vector for NC operations 
+  INTEGER :: dim_fields(7)                              ! Size of field
   INTEGER :: nfields                                    ! Number of fields
+  INTEGER :: offsets(7)                                 ! Offset of fields
   INTEGER :: id_field                                   ! Field
   INTEGER :: hwindow                                    ! Half time window
   INTEGER :: ostep                                      ! Time step                             
+  INTEGER :: stddev(7)                                  ! STDDEV of field
   INTEGER :: status                                     ! Status Flag for PDAF routine
-  
-  INTEGER, ALLOCATABLE :: dim_fields(:)                              ! Size of field
-  REAL, ALLOCATABLE    :: stddev(:)                                  ! STDDEV of field
-  INTEGER, ALLOCATABLE :: offsets(:)                                 ! Offset of fields
   
   REAL :: limit                                         ! Lower limit for singular values
   
@@ -121,55 +120,26 @@ PROGRAM generate_covar
                           fID_elem_area, &
                           fID_nlevels, &
                           fID_nlevels_nod2D
-                          
-! --------------------
-! For biogeochemistry:
-! --------------------
-                          
-  integer :: biomin, biomax
-  
-  TYPE field_ids
-     INTEGER :: MLD1
-     INTEGER :: PhyChl
-  END TYPE field_ids
-  
-  TYPE(field_ids) :: idbio                ! Type variable holding field IDs in state vector
-                          
-  type state_field
-   integer :: ndims = 0                   ! Number of field dimensions (1 or 2)
-   character(len= 10) :: variable = ''    ! Name of field
-   character(len=200) :: filename = ''    ! File name input incl. path
-   integer :: ncid = 0                    ! ID nc-file input
-   integer :: fid = 0                     ! Field ID (in/output file)
-   integer :: mid = 0                     ! Mean field ID (output file)
-   integer :: sid = 0                     ! Singular vector ID
-  end type state_field
-
-  type(state_field), allocatable :: biofields(:) ! Type variable holding the
-                                                 ! definitions of model fields
 
   ! File IDs:
-  ! fID_nod_in_elem   = 90
-  ! fID_elem_area     = 91
-  ! fID_nlevels       = 92
-  ! fID_nlevels_nod2D = 93
+  fID_nod_in_elem   = 90
+  fID_elem_area     = 91
+  fID_nlevels       = 92
+  fID_nlevels_nod2D = 93
   
-  ! ncid_in_u = 10
-  ! ncid_in_v = 11
-  ! ncid_in_w = 12 
-  ! ncid_in_s = 13
-  ! ncid_in_z = 14
-  ! ncid_in_t = 15
-  ! ncid_in_i = 16
+  ncid_in_u = 10
+  ncid_in_v = 11
+  ncid_in_w = 12 
+  ncid_in_s = 13
+  ncid_in_z = 14
+  ncid_in_t = 15
+  ncid_in_i = 16
   
-  ! ncid_out = 70
+  ncid_out = 70
 
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
-
-  ! Number of fields in state vector
-  nfields = 9
 
   ! Maximum number of time slices to consider
   maxtimes = 72
@@ -177,7 +147,7 @@ PROGRAM generate_covar
   ! Set do_mv=1 to activate normalization; 0 to run without normalization
   do_mv = 0  
 
-  ! Path to and name of file holding model trajectory
+! Path to and name of file holding model trajectory
   ! inpath = '/work/ollie/frbunsen/model_runs/fesom2/test_control/'
   inpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/yr2016/'
   infile_z = 'ssh.fesom.2016.nc'         ! sea surface elevation (2D)
@@ -196,8 +166,11 @@ PROGRAM generate_covar
   ! Lower limit for eigenvalue
   limit = 1.0e-12
 
+  ! Number of fields in state vector
+  nfields = 7
+
   ! Half time window for running mean (2*irange+1)
-  hwindow = 3 ! 6 days
+  hwindow = 3 ! 6
   
   ! Time step (only consider every x-th value of model output)
   ostep = 5  ! every 5th day in daily output
@@ -207,37 +180,11 @@ PROGRAM generate_covar
   
   ! Maximum number of elements sharing a vertex in CORE2 mesh
   nod_in_elem2D_max = 9
-  
-  ! ************************************************
-  ! *** Configuration biogeochemistry            ***
-  ! ************************************************
-  
-  ! Number of biogeochemistry fields and their indeces in state vector
-  biomin = 8
-  biomax = 9
-  allocate(biofields(nfields))
-  
-  idbio% MLD1   = 8
-  idbio% PhyChl = 9
 
-  biofields(idbio% MLD1) % ndims = 1
-  biofields(idbio% MLD1) % variable = 'MLD1'
-  
-  biofields(idbio% PhyChl) % ndims = 2
-  biofields(idbio% PhyChl) % variable = 'PhyChl'
-  
-  do b=biomin, biomax
-    biofields(b) % filename = trim(inpath)//trim(biofields(b) % variable)//'.fesom.2016.nc'
-  enddo
 
 ! ************************************************
 ! *** Init                                     ***
 ! ************************************************
-
-  allocate(dim_fields(nfields))
-  allocate(stddev(nfields)) 
-  allocate(offsets(nfields))
-
 
   WRITE (*,'(10x,a)')  '*******************************************'
   WRITE (*,'(10x,a)')  '*             GENERATE_COVAR              *'
@@ -264,10 +211,6 @@ PROGRAM generate_covar
   WRITE (*,*) 'Read salinity trajectory from file: ',TRIM(ncfile_in_s)
   ncfile_in_i = TRIM(inpath)//TRIM(infile_i)
   WRITE (*,*) 'Read sea-ice concentration trajectory from file: ',TRIM(ncfile_in_i)
-  
-  do b=biomin, biomax
-    write(*,*) 'Read ',trim(biofields(b) % variable),' trajectory from file: ',trim(biofields(b) % filename)
-  enddo
 
   ncfile_out = TRIM(outpath)//TRIM(outfile)
   WRITE (*,*) 'Write output to file: ',TRIM(ncfile_out)
@@ -461,22 +404,7 @@ PROGRAM generate_covar
      IF (stat(i) /= NF_NOERR) &
           WRITE(*, *) 'NetCDF error in reading dimensions of ocean temperature file, no.', i
   END DO
-  
-! ******************************************************************
-! ***  Open ocean biogeochemisty file                            ***
-! ******************************************************************
 
-  s = 1
-  do b=biomin, biomax
-  
-    stat(s) = NF_OPEN(biofields(b)% filename, NF_NOWRITE, biofields(b)% ncid)
-    IF (stat(s) /= NF_NOERR) WRITE(*, *) 'NetCDF error in reading biogeochemistry file, no.', s, ' (', biofields(b)% variable, ')'
-    
-    stat(s) = NF_INQ_VARID(biofields(b)% ncid, biofields(b)% variable, biofields(b)% fid)
-    IF (stat(s) /= NF_NOERR) WRITE(*, *) 'NetCDF error in reading biogeochemistry field ID, no.', s, ' (', biofields(b)% variable, ')'
-    s = s+1
-          
-  enddo
 
   ! Write dimensions
   WRITE (*,'(/1x,a)') 'Dimensions of model output:'
@@ -488,7 +416,7 @@ PROGRAM generate_covar
   WRITE (*,'(10x,1x,a25,i10)') 'time steps               ', steps
 
   IF (steps < ((maxtimes-1)*ostep+1)) THEN
-     WRITE (*,'(1x,a)') '!! Number of available time slices is smaller than maxtimes - resetting !!'
+     WRITE (*,'(1x,a)') '!! Number of available time slices is smaller than maxtimes - resetting!'
      maxtimes = steps/ostep
   END IF
   WRITE (*,'(13x,a8,i10)') 'maxtimes', maxtimes
@@ -505,19 +433,9 @@ PROGRAM generate_covar
   dim_fields (5) = nod2*nz      ! Size of field temp
   dim_fields (6) = nod2*nz      ! Size of field salt
   dim_fields (7) = nod2         ! Size of field SIC
-  
-  ! Debug dimensions
-  write(*,*) 'dim_fields(1) ', dim_fields(1)
-  write(*,*) 'dim_fields(4) ', dim_fields(4)
-  write(*,*) 'dim_fields(5) ', dim_fields(5)
-  
-  ! Biogeochemistry
-  do b=biomin, biomax
-     if (biofields(b) % ndims == 2) dim_fields(b) = nod2*nz
-     if (biofields(b) % ndims == 1) dim_fields(b) = nod2
-  enddo
 
- ! Define state dimension (physics)
+
+ ! Define state dimension
   dim_state =    nod2 &
                  ! SSH
               +  nod2 * nz &
@@ -532,9 +450,6 @@ PROGRAM generate_covar
                  ! salt
               +  nod2
                  ! SIC
-                 
-  ! Define state dimension (physics + biogeochemistry)
-  dim_state = sum(dim_fields)
 
   WRITE (*,'(5x,a,i12)') 'dim_state', dim_state
 
@@ -546,11 +461,7 @@ PROGRAM generate_covar
   offsets (5) = offsets(4) + nod2*(nz+1) ! offset of field temp
   offsets (6) = offsets(5) + nod2*nz     ! offset of field salt
   offsets (7) = offsets(6) + nod2*nz     ! offset of field SIC
-  
-  ! Biogeochemistry
-  do b=biomin, biomax
-     offsets(b) = offsets(b-1) + dim_fields(b-1)
-  enddo
+
 
 ! ****************************
 ! *** Read trajectory data ***
@@ -631,7 +542,7 @@ PROGRAM generate_covar
 
   ! Read w (dim: nz+1, nod2, time)
   IF (iter==1) THEN
-  WRITE (*,*) '- Read w at step 1'
+  WRITE (*,'(/1x,a)') '- Read w at step 1'
   END IF
   
   startv3(1) = 1     
@@ -682,43 +593,6 @@ PROGRAM generate_covar
   IF (stat(1) /= NF_NOERR) &
       WRITE(*, *) 'NetCDF error in reading SIC'
       
-  ! Read biogeochemistry
-  ! surface fields
-  startv2(1) = 1     
-  countv2(1) = nod2  ! get nod2 (i.e. all) value starting from 1
-  startv2(2) = iter
-  countv2(2) = 1     ! get one value at time step "iter"
-  
-  ! 3D-fields
-  startv3(1) = 1     
-  countv3(1) = nz    ! get nz (i.e. all) values starting from 1
-  startv3(2) = 1
-  countv3(2) = nod2  ! get nod2 (i.e. all) values starting from 1
-  startv3(3) = iter
-  countv3(3) = 1     ! get one element at time step "iter"
-       
-  s=1
-  do b=biomin, biomax
-  
-     IF (iter==1) WRITE(*,*) '- Read biogeochem. (',biofields(b)% variable,') at step 1'
-  
-     if (biofields(b)% ndims == 1) then
-       ! surface fields
-       stat(s) = NF_GET_VARA_DOUBLE(biofields(b)% ncid, biofields(b)% fid, startv2, countv2, &
-       states(offsets(b)+1 : offsets(b)+dim_fields(b), iter/ostep+1))
-     
-     elseif (biofields(b)% ndims == 2) then
-       ! 3D-fields       
-       stat(s) = NF_GET_VARA_DOUBLE(biofields(b)% ncid, biofields(b)% fid, startv3, countv3, &
-       states(offsets(b)+1 : offsets(b)+dim_fields(b), iter/ostep+1))
-       
-     endif ! surface / 3D-fields
-     
-     IF (stat(s) /= NF_NOERR) WRITE(*, *) 'NetCDF error in reading biogeochemistry, no. ', s, ' (', biofields(b)% variable, ')'
-     s = s+1
-     
-  enddo ! biomin, biomax
-      
   END DO read_in
 
   ! Close trajectory file
@@ -750,16 +624,6 @@ PROGRAM generate_covar
   stat(1) = nf_close(ncid_in_i)
   IF (stat(1) /= NF_NOERR) &
   WRITE(*, *) 'NetCDF error in closing SIC trajectory file'
-  
-  s=1
-  do b=biomin, biomax
-    
-    stat(s) = NF_CLOSE(biofields(b)% ncid)
-    
-    IF (stat(s) /= NF_NOERR) WRITE(*, *) 'NetCDF error in closing biogeochemistry file, no. ', s, ' (', biofields(b)% variable, ')'
-    s = s+1
-     
-  enddo ! biomin, biomax
 
 
 
@@ -835,10 +699,16 @@ PROGRAM generate_covar
   WRITE(*, *) 'Allocate svdU'
   ALLOCATE(svdU(dim_state, maxtimes))
   
+  write(*,*) 'dim_fields(:) ', dim_fields(:)
+
   WRITE(*, *) 'Call routine generating matrix decomposition'
   ! Call routine generating matrix decomposition
   CALL PDAF_eofcovar(dim_state, maxtimes, nfields, dim_fields, offsets, &
        remove_mean, do_mv, states, stddev, svals, svdU, meanstate, 1, status)
+       
+  write(*,*) 'dim_fields(:) ', dim_fields(:)
+
+
  
 ! *********************************************************
 ! *** Write mean state and decomposed covariance matrix ***
@@ -881,42 +751,44 @@ PROGRAM generate_covar
      attstr = 'Running mean state, singular vectors and values of decomposed covariance matrix for FESOM2.1'
   END IF
 
-  s = s + 1 ! 2
+  s = s + 1
   stat(s) = NF_PUT_ATT_TEXT(ncid_out, NF_GLOBAL, 'title', LEN_TRIM(attstr), &
        TRIM(attstr))
 
-  attstr = 'SSH, U, V, W, T, S, SIC, biogeochemistry'
-  s = s + 1 ! 3
+  attstr = 'SSH, U, V, W, T, S, SIC'
+  s = s + 1
   stat(s) = NF_PUT_ATT_TEXT(ncid_out, NF_GLOBAL, 'state_fields', LEN_TRIM(attstr), &
        TRIM(attstr))
-  
-  s = s + 1 ! 4
+       
+
+  ! Define dimensions
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'rank',  rank, dimid_rank)
-  s = s + 1 ! 5
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'nod2', dim_fields(1), dimid_2D) ! dim for SSH, SIC
-  s = s + 1 ! 6
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'nz1_x_nod2', dim_fields(4), dimid_w) ! dim for w
-  s = s + 1 ! 7
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'nz_x_nod2', dim_fields(5), dimid_tracer3D) ! dim for temp, salt and interpolated u and v velocities
-  s = s + 1 ! 8
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'dim_state', dim_state, dimid_state)
-  s = s + 1 ! 9
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'one',  1, dimid_one)
-  s = s + 1 ! 10
+  s = s + 1
   stat(s) = NF_DEF_DIM(ncid_out, 'nfields',  nfields, dimid_nfields)
 
   ! Define variables
   ! singular values
-  s = s + 1 ! 11
+  s = s + 1
   stat(s) = NF_DEF_VAR(ncid_out, 'sigma', NF_DOUBLE, 1, dimid_rank, Id_sigma)
  
   ! mean state
   
   dimids(1) = dimid_2D
   dimids(2) = dimid_one
-  s = s + 1 ! 12
+  s = s + 1
   stat(s) = NF_DEF_VAR(ncid_out, 'ssh_mean', NF_REAL, 2, dimids, Id_mz)
-  s = s + 1 ! 13
+  s = s + 1
   stat(s) = NF_DEF_VAR(ncid_out, 'a_ice_mean', NF_REAL, 2, dimids, Id_mi)
 
   dimids(1) = dimid_tracer3D
@@ -934,17 +806,7 @@ PROGRAM generate_covar
   stat(s) = NF_DEF_VAR(ncid_out, 'temp_mean', NF_REAL, 2, dimids, Id_mt)
   s = s + 1
   stat(s) = NF_DEF_VAR(ncid_out, 'salt_mean', NF_REAL, 2, dimids, Id_ms)
-  s = s + 1
-  
-  ! mean states biogeochemistry
-  do b=biomin, biomax
-  
-    if (biofields(b)% ndims==1) dimids(1) = dimid_2D
-    if (biofields(b)% ndims==2) dimids(1) = dimid_tracer3D
-    
-    stat(s) = NF_DEF_VAR(ncid_out, TRIM(biofields(b)% variable)//'_mean', NF_REAL, 2, dimids, biofields(b)% mid)
-    s = s + 1
-  enddo
+
 
   ! singular vectors
   dimids(1) = dimid_2D
@@ -970,24 +832,14 @@ PROGRAM generate_covar
   s = s + 1
   stat(s) = NF_DEF_VAR(ncid_out, 'salt_svd', NF_REAL, 2, dimids, Id_svds)
 
-  ! singular vectors biogeochemistry
-  do b=biomin, biomax
-  
-    if (biofields(b)% ndims==1) dimids(1) = dimid_2D
-    if (biofields(b)% ndims==2) dimids(1) = dimid_tracer3D
-    
-    stat(s) = NF_DEF_VAR(ncid_out, TRIM(biofields(b)% variable)//'_svd', NF_REAL, 2, dimids, biofields(b)% sid)
-    s = s + 1
-  enddo
 
   ! End Define mode
+  s = s + 1
   stat(s) = NF_ENDDEF(ncid_out)
 
   DO i = 1,  s
-     IF (stat(i) /= NF_NOERR) THEN
+     IF (stat(i) /= NF_NOERR) &
           WRITE(*, *) 'NetCDF error in init of output file, no.', i
-          WRITE(*, *) NF_STRERROR(stat(i))
-     ENDIF
   END DO
 
   ! Write singular values
@@ -1038,14 +890,6 @@ PROGRAM generate_covar
   s = s + 1
   stat(s) = NF_PUT_VARA_REAL(ncid_out, id_mi, startv2, countv2, &
           REAL(run_meanstate(1+offsets(7) : offsets(7)+dim_fields(7), maxtimes), 4))
-          
-  ! Write biogeochemistry part
-  do b = biomin, biomax
-       countv2(1) = dim_fields(b)
-       s = s + 1
-       stat(s) = NF_PUT_VARA_REAL(ncid_out, biofields(b)% mid, startv2, countv2, &
-            REAL(run_meanstate(1+offsets(b) : offsets(b)+dim_fields(b), maxtimes), 4))
-  enddo
 
   DO i = 1,  s
      IF (stat(i) /= NF_NOERR) &
@@ -1101,14 +945,6 @@ PROGRAM generate_covar
      s = s + 1
      stat(s) = NF_PUT_VARA_REAL(ncid_out, id_svdi, startv2, countv2, &
           REAL(svdU(1+offsets(7) : offsets(7)+dim_fields(7), i), 4))
-          
-     ! Write biogeochemistry part
-     do b = biomin, biomax
-       countv2(1) = dim_fields(b)
-       s = s + 1
-       stat(s) = NF_PUT_VARA_REAL(ncid_out, biofields(b)% sid, startv2, countv2, &
-            REAL(svdU(1+offsets(b) : offsets(b)+dim_fields(b), i),4))
-     enddo
 
      DO k = 1,  s
         IF (stat(k) /= NF_NOERR) &

@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --account=biogeo.p_recompdaf
+#SBATCH --partition=smp
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=200GB
+#SBATCH --time=00:30:00
+#SBATCH --hint=nomultithread
+#SBATCH --qos=30min
+#SBATCH --job-name=gencov
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+
+ulimit -s unlimited
+srun generate_covar
