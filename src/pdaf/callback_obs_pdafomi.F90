@@ -77,7 +77,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   ! The routines are independent, so it is not relevant
   ! in which order they are called
   
-  CALL PDAFomi_set_debug_flag(1)
+!~   CALL PDAFomi_set_debug_flag(1)
   
   IF (assim_o_sst) CALL init_dim_obs_sst(step, dim_obs_sst)
   IF (assim_o_sss) CALL init_dim_obs_sss(step, dim_obs_sss)
@@ -181,7 +181,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
    !  CALL PDAFomi_set_debug_flag(0)
    ! ENDIF
    
-   CALL PDAFomi_set_debug_flag(1)
+!~    CALL PDAFomi_set_debug_flag(1)
 
 
 ! **********************************************
