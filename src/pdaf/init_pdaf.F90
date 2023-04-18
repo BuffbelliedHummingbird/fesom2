@@ -32,6 +32,7 @@ SUBROUTINE init_pdaf()
        type_trans, type_sqrt, eff_dim_obs, loc_radius, loctype, &
        twin_experiment, dim_obs_max, use_global_obs, mesh_fesom, &
        offset_glob, dim_fields_glob, nfields, id, &
+       phymin, phymax, bgcmin, bgcmax, &
        path_atm_cov, &
        ! Debugging:
        debug_id_depth, debug_id_nod2, ens_member_debug, &
@@ -87,7 +88,7 @@ SUBROUTINE init_pdaf()
 !EOP
 
 ! Local variables
-  INTEGER :: i                 ! Counter
+  INTEGER :: i,b               ! Counter
   INTEGER :: filter_param_i(7) ! Integer parameter array for filter
   REAL    :: filter_param_r(2) ! Real parameter array for filter
   INTEGER :: status_pdaf       ! PDAF status flag
@@ -192,7 +193,8 @@ SUBROUTINE init_pdaf()
   sst_exclude_ice = .true.  ! Exclude SST observations at point with sea ice and T>0
   sst_exclude_diff = 0.0     ! Exclude SST observations if difference from ensemble mean is >sst_exclude_diff
   prof_exclude_diff = 0.0    ! Exclude profile T observations if difference from ensemble mean is >prof_exclude_diff
-  use_global_obs = .true.    ! Use global full obs. or full obs. limited to process domains
+!~   use_global_obs = .true.    ! Use global full obs. or full obs. limited to process domains
+  use_global_obs = 1
   twin_experiment = .false.  ! Whether to run a twin experiment assimilating synthetic observations
   dim_obs_max = 80000        ! Expected maximum number of observations for synthetic obs.
 
@@ -272,42 +274,52 @@ disturb_mslp=.true.
 ! ***************************
 ! *** Define state vector ***
 ! ***************************
-
-  nfields = 7 ! 1 SSH
-              ! 2 u
-              ! 3 v
-              ! 4 w
-              ! 5 temp
-              ! 6 salt
-              ! 7 a_ice (sea-ice concentration)
               
-  id%ssh   = 1
-  id%u     = 2
-  id%v     = 3
-  id%w     = 4
-  id%temp  = 5
-  id%salt  = 6
-  id%a_ice = 7
+  id% ssh    = 1 ! sea surface height
+  id% u      = 2 ! zonal velocity
+  id% v      = 3 ! meridional velocity
+  id% w      = 4 ! vertical velocity
+  id% temp   = 5 ! temperature
+  id% salt   = 6 ! salinity
+  id% a_ice  = 7 ! sea-ice concentration
+  id% MLD1   = 8 ! mixed layer depth (criterion after Large et al., 1997)
+  id% PhyChl = 9 ! chlorophyll-a small phytoplankton
+  
+  nfields = 9
+
+  phymin = 1
+  phymax = 8
+  
+  bgcmin = 9
+  bgcmax = 9
 
 ! *** Specify offset of fields in pe-local state vector ***
 
   ALLOCATE(dim_fields(nfields))
-  dim_fields(1)   = myDim_nod2D                     ! 1 SSH
-  dim_fields(2)   = myDim_nod2D*(mesh_fesom%nl-1)   ! 2 u (interpolated on nodes)
-  dim_fields(3)   = myDim_nod2D*(mesh_fesom%nl-1)   ! 3 v (interpolated on nodes)
-  dim_fields(4)   = myDim_nod2D*mesh_fesom%nl       ! 4 w
-  dim_fields(5)   = myDim_nod2D*(mesh_fesom%nl-1)   ! 5 temp
-  dim_fields(6)   = myDim_nod2D*(mesh_fesom%nl-1)   ! 6 salt
-  dim_fields(7)   = myDim_nod2D                     ! 7 a_ice
+  dim_fields(id% ssh   )   = myDim_nod2D                     ! 1 SSH
+  dim_fields(id% u     )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 2 u (interpolated on nodes)
+  dim_fields(id% v     )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 3 v (interpolated on nodes)
+  dim_fields(id% w     )   = myDim_nod2D* mesh_fesom%nl      ! 4 w
+  dim_fields(id% temp  )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 5 temp
+  dim_fields(id% salt  )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 6 salt
+  dim_fields(id% a_ice )   = myDim_nod2D                     ! 7 a_ice
+  dim_fields(id% MLD1  )   = myDim_nod2D
+  dim_fields(id% PhyChl)   = myDim_nod2D*(mesh_fesom%nl-1)
 
   ALLOCATE(offset(nfields))
-  offset(1)   = 0                          ! 1 SSH
-  offset(2)   = dim_fields(1)              ! 2 u
-  offset(3)   = offset(2) + dim_fields(2)  ! 3 v
-  offset(4)   = offset(3) + dim_fields(3)  ! 4 w
-  offset(5)   = offset(4) + dim_fields(4)  ! 5 temp
-  offset(6)   = offset(5) + dim_fields(5)  ! 6 salt
-  offset(7)   = offset(6) + dim_fields(6)  ! 7 a_ice
+  offset(id% ssh   )   = 0                                                ! 1 SSH
+  offset(id% u     )   = offset(id% u     -1) + dim_fields(id% u     -1)  ! 2 u
+  offset(id% v     )   = offset(id% v     -1) + dim_fields(id% v     -1)  ! 3 v
+  offset(id% w     )   = offset(id% w     -1) + dim_fields(id% w     -1)  ! 4 w
+  offset(id% temp  )   = offset(id% temp  -1) + dim_fields(id% temp  -1)  ! 5 temp
+  offset(id% salt  )   = offset(id% salt  -1) + dim_fields(id% salt  -1)  ! 6 salt
+  offset(id% a_ice )   = offset(id% a_ice -1) + dim_fields(id% a_ice -1)  ! 7 a_ice
+  offset(id% MLD1  )   = offset(id% MLD1  -1) + dim_fields(id% MLD1  -1)
+  
+  ! offset biogeochemistry
+  do b=bgcmin,bgcmax
+	offset(b)   = offset(b-1) + dim_fields(b-1)
+  enddo
   
   dim_state_p = sum(dim_fields)
 
@@ -316,22 +328,30 @@ disturb_mslp=.true.
 ! if (mype_world==0) THEN
 
 	ALLOCATE(dim_fields_glob(nfields))
-	dim_fields_glob(1) = mesh_fesom%nod2D                        ! SSH
-	dim_fields_glob(2) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! u (interpolated on nodes)
-	dim_fields_glob(3) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! v (interpolated on nodes)
-	dim_fields_glob(4) = mesh_fesom%nod2D * mesh_fesom%nl        ! w
-	dim_fields_glob(5) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! temp
-	dim_fields_glob(6) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! salt
-	dim_fields_glob(7) = mesh_fesom%nod2D                        ! a_ice
+	dim_fields_glob(id% ssh   ) = mesh_fesom%nod2D                        ! SSH
+	dim_fields_glob(id% u     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! u (interpolated on nodes)
+	dim_fields_glob(id% v     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! v (interpolated on nodes)
+	dim_fields_glob(id% w     ) = mesh_fesom%nod2D * mesh_fesom%nl        ! w
+	dim_fields_glob(id% temp  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! temp
+	dim_fields_glob(id% salt  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! salt
+	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D                        ! a_ice
+	dim_fields_glob(id% MLD1  ) = mesh_fesom%nod2D
+	dim_fields_glob(id% PhyChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
 	
 	ALLOCATE(offset_glob(nfields))
-	offset_glob(1) = 0                                           ! SSH
-	offset_glob(2) = offset_glob(1) + dim_fields_glob(1)         ! u
-	offset_glob(3) = offset_glob(2) + dim_fields_glob(2)         ! v
-	offset_glob(4) = offset_glob(3) + dim_fields_glob(3)         ! w
-	offset_glob(5) = offset_glob(4) + dim_fields_glob(4)         ! temp
-	offset_glob(6) = offset_glob(5) + dim_fields_glob(5)         ! salt
-	offset_glob(7) = offset_glob(6) + dim_fields_glob(6)         ! a_ice
+	offset_glob(id% ssh   ) = 0                                                                 ! SSH
+	offset_glob(id% u     ) = offset_glob(id% u     -1) + dim_fields_glob(id% u     -1)         ! u
+	offset_glob(id% v     ) = offset_glob(id% v     -1) + dim_fields_glob(id% v     -1)         ! v
+	offset_glob(id% w     ) = offset_glob(id% w     -1) + dim_fields_glob(id% w     -1)         ! w
+	offset_glob(id% temp  ) = offset_glob(id% temp  -1) + dim_fields_glob(id% temp  -1)         ! temp
+	offset_glob(id% salt  ) = offset_glob(id% salt  -1) + dim_fields_glob(id% salt  -1)         ! salt
+	offset_glob(id% a_ice ) = offset_glob(id% a_ice -1) + dim_fields_glob(id% a_ice -1)         ! a_ice
+	offset_glob(id% MLD1  ) = offset_glob(id% MLD1  -1) + dim_fields_glob(id% MLD1  -1)
+	
+	! offset_glob biogeochemistry
+    do b=bgcmin,bgcmax
+	  offset_glob(b)   = offset_glob(b-1) + dim_fields_glob(b-1)
+    enddo
 	
 	dim_state = sum(dim_fields_glob)
 				

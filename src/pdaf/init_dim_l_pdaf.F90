@@ -60,8 +60,10 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   INTEGER :: offset_l(nfields)                 ! Field offsets for current domain
   INTEGER :: i                                 ! Counters
   
-  integer :: myDebug_id(1)
-  myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
+  ! integer :: myDebug_id(1)
+  ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
+  
+  if (mype_filter==0) write(*,*) 'init_dim_l_pdaf: domain_p', domain_p
 
 ! ****************************************
 ! *** Initialize local state dimension ***
@@ -72,11 +74,12 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   dim_fields_l (id%SSH)    = 1
   dim_fields_l (id%u)      = nlay
   dim_fields_l (id%v)      = nlay
-!  dim_fields_l (id%w)      = nlay
-  dim_fields_l (id%w)      = 0
+  dim_fields_l (id%w)      = 0 ! nlay
   dim_fields_l (id%temp)   = nlay
   dim_fields_l (id%salt)   = nlay
   dim_fields_l (id%a_ice)  = 0
+  dim_fields_l (id%MLD1)   = 0
+  dim_fields_l (id%PhyChl) = 0
 
   offset_l(1) = 0
   DO i = 2,nfields
@@ -121,12 +124,12 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   id_lstate_in_pstate (offset_l(id%ssh)+1) &
         = offset(id%ssh) + domain_p
   ! U
-  id_lstate_in_pstate (offset_l(id%u)+1 : offset_l(id%u+1)) &
+  id_lstate_in_pstate (offset_l(id%u)+1 : offset_l(id%u)+dim_fields_l(id%u)) &
         = offset(id%u) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%u))/)
   ! V
-  id_lstate_in_pstate (offset_l(id%v)+1 : offset_l(id%v+1)) &
+  id_lstate_in_pstate (offset_l(id%v)+1 : offset_l(id%v)+dim_fields_l(id%v)) &
         = offset(id%v) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%v))/)
@@ -138,12 +141,12 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   !      + (/(i, i=1,dim_fields_l(id%w))/)
   
   ! Temp
-  id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp+1))&
+  id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp)+dim_fields_l(id%temp))&
          = offset(id%temp) &
          + (domain_p-1)*(mesh_fesom%nl-1) &
          + (/(i, i=1,dim_fields_l(id%temp))/)
   ! Salt
-  id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt+1)) &
+  id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt)+dim_fields_l(id%salt)) &
         = offset(id%salt) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%salt))/)

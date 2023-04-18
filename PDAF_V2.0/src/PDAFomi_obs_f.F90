@@ -246,7 +246,9 @@ CONTAINS
                WRITE (*, '(a, 5x, a)') 'PDAFomi', '--- Use limited full observations'
 
           ! *** Initialize global dimension of observation vector ***
+!~           write(*,*) 'PDAFomi_obs_f mype PDAF_gather_dim_obs_f 1', mype
           CALL PDAF_gather_dim_obs_f(dim_obs_p, thisobs%dim_obs_g)
+          write(*,*) 'PDAF_gather_dim_obs_f 2', mype, dim_obs_p, thisobs%dim_obs_g
 
           ! *** First gather global observation vector and corresponding coordinates ***
 
@@ -255,9 +257,14 @@ CONTAINS
           ALLOCATE(ivar_obs_g(thisobs%dim_obs_g))
           ALLOCATE(ocoord_g(ncoord, thisobs%dim_obs_g))
 
+          write(*,*) 'PDAFomi_obs_f mype gather_obs_f 0', mype
           CALL PDAFomi_gather_obs_f_flex(dim_obs_p, obs_p, obs_g, status)
+          write(*,*) 'PDAFomi_obs_f mype gather_obs_f 1', mype
           CALL PDAFomi_gather_obs_f_flex(dim_obs_p, ivar_obs_p, ivar_obs_g, status)
+          write(*,*) 'PDAFomi_obs_f mype gather_obs_f 2', mype
           CALL PDAFomi_gather_obs_f2_flex(dim_obs_p, ocoord_p, ocoord_g, ncoord, status)
+          write(*,*) 'PDAFomi_obs_f mype gather_obs_f 3', mype
+
 
 
           ! *** Now restrict the global observation arrays to the process-relevant parts ***

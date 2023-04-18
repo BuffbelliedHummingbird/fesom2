@@ -45,6 +45,8 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        ONLY: assim_o_ssh, init_dim_obs_ssh
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, init_dim_obs_prof
+  USE PDAFomi, &
+       ONLY: PDAFomi_set_debug_flag
 
   IMPLICIT NONE
 
@@ -74,6 +76,9 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   ! Call observation specific routines
   ! The routines are independent, so it is not relevant
   ! in which order they are called
+  
+  CALL PDAFomi_set_debug_flag(1)
+  
   IF (assim_o_sst) CALL init_dim_obs_sst(step, dim_obs_sst)
   IF (assim_o_sss) CALL init_dim_obs_sss(step, dim_obs_sss)
   IF (assim_o_ssh) CALL init_dim_obs_ssh(step, dim_obs_ssh)
@@ -170,11 +175,13 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
   
    ! Debugging:
-   IF (mype_filter==28 .AND. domain_p==1171) THEN
-     CALL PDAFomi_set_debug_flag(domain_p)
-   ELSE
-     CALL PDAFomi_set_debug_flag(0)
-   ENDIF
+   ! IF (mype_filter==0 .AND. domain_p==1) THEN
+   !  CALL PDAFomi_set_debug_flag(domain_p)
+   ! ELSE
+   !  CALL PDAFomi_set_debug_flag(0)
+   ! ENDIF
+   
+   CALL PDAFomi_set_debug_flag(1)
 
 
 ! **********************************************

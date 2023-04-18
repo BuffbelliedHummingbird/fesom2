@@ -188,18 +188,18 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      END IF
 
 ! **********************************************************
-! *** Set variance of ice fields or u,v,w fields to zero ***
+! *** Set variance of diagnostic fields to zero          ***
 ! **********************************************************
 
-!~      if (mype_filter==0) write (*,*) 'RESET VARIANCE OF ICE FIELDS TO ZERO!'
+     if (mype_filter==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','--- reset variance of MLD field to zero'
 
-!~      s = 0
-!~      DO member = 1, dim_ens-1
-!~         DO i = 1, dim_fields(id% a_ice)
-!~            eof_p(offset(id% a_ice)+i, member) = 0.0
-!~            s = s+1
-!~         END DO
-!~      END DO
+     s = 0
+     DO member = 1, dim_ens-1
+        DO i = 1, dim_fields(id% MLD1)
+           eof_p(offset(id% MLD1)+i, member) = 0.0
+           s = s+1
+        END DO
+     END DO
 
 ! *****************************************
 ! *** Generate ensemble of model states ***

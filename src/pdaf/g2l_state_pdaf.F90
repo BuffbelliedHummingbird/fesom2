@@ -43,7 +43,7 @@ SUBROUTINE g2l_state_pdaf(step, domain_p, dim_p, state_p, dim_l, state_l)
 ! *************************************
 ! *** Initialize local state vector ***
 ! *************************************
-
+ 
   DO i = 1, dim_l
      state_l(i) = state_p(id_lstate_in_pstate(i))
   ENDDO
