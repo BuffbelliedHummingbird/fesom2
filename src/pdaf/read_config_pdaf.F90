@@ -182,7 +182,8 @@ ENDIF
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sst_exclude_ice', sst_exclude_ice
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF','sst_exclude_diff', sst_exclude_diff
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF','prof_exclude_diff', prof_exclude_diff
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','use_global_obs', use_global_obs
+!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','use_global_obs', use_global_obs
+     WRITE (*,'(a,5x,a,i10)')     'FESOM-PDAF','use_global_obs', use_global_obs
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_lag     ', dim_lag
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','DA_couple_type  ', DA_couple_type
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sst     ', TRIM(path_obs_sst)
