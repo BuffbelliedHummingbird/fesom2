@@ -61,15 +61,18 @@ PROGRAM distribute_obs
   write(year_string,'(i4.4)') year
 
   ! Path to and name of file holding global observations on model grid
-  inpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/'
+  ! inpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/'
+  inpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/'
   infile = 'SSH_track_'//year_string//'.nc'
   
   ! Path to and name stub of output files
-  outpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
-  outfile = 'SSH_track_'//year_string//'_dist144'
+  ! outpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
+  outfile = 'SSH_track_'//year_string//'_dist128'
 
   ! Path to mesh partioning
-  distpath   = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_144/'
+  ! distpath   = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_128/'
+  distpath = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
   partfile   = 'rpart.out'
   mylistfile = 'my_list'
 

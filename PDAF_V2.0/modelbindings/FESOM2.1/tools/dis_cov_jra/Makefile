@@ -6,7 +6,10 @@
 #######################################################
 
 .SUFFIXES: .F90 .o 
-include ../../../../make.arch/Ollie_mpiifort_impi.h
+include ../../../../make.arch/cray_mpiifort_impi.h
+
+NC_LIB   = -L${NETCDFFROOT}/lib -lnetcdff
+NC_INC   = -I${NETCDFFROOT}/include
 
 ######################################################
 

@@ -13,7 +13,7 @@
 # For available include files see directory make.arch
 # To choose a file, set PDAF_ARCH either here or by an
 # environment variable.
-include ../../../../make.arch/Ollie_mpiifort_impi.h
+include ../../../../make.arch/cray_mpiifort_impi.h
 
 ######################################################
 
@@ -45,6 +45,10 @@ info:
 #	$(LD)  $(OPT)  -o $@ $(MODULES) $(OBJ_GENOBS) $(NC_LIB) $(LINK_LIBS)
 
 #$(EXE_COVAR) : libpdaf-d.a $(OBJ_COVAR)
+
+NC_LIB   = -L${NETCDFFROOT}/lib -lnetcdff
+NC_INC   = -I${NETCDFFROOT}/include
+
 $(EXE_COVAR) : $(OBJ_COVAR)
 	rm -f $@
 	$(LD)  $(OPT)  -o $@ $(MODULES) $(OBJ_COVAR) $(NC_LIB) $(LINK_LIBS) -L../../../../lib -lpdaf-d

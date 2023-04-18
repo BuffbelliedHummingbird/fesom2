@@ -14,7 +14,7 @@
 
 
 # Compiler, Linker, and Archiver
-FC = ftn
+FC = ifort
 LD = $(FC)
 AR = ar
 RANLIB = ranlib 
