@@ -8,7 +8,7 @@ MODULE mod_nc_out_routines
 USE mod_nc_out_variables
 USE mod_assim_pdaf, &
    ONLY: nfields, id, mesh_fesom, DAoutput_path, dim_ens, dim_state, &
-         dim_state_p, offset
+         dim_state_p, offset, phymin, phymax, bgcmin, bgcmax
 USE mod_parallel_pdaf, &
    ONLY: abort_parallel, writepe
 USE mod_obs_f_pdaf, &
@@ -96,15 +96,24 @@ IF (writepe) THEN
   IF (mm=='mean') THEN
   
      filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.nc'
-     ! Print screen information
-     call netCDF_init_mm()
-     call netCDF_init_rmsens()
+     filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.nc'
+     
+     call netCDF_init_mm    (filename_phy, phymin, phymax)
+     call netCDF_init_rmsens(filename_phy, phymin, phymax)
+     
+     call netCDF_init_mm    (filename_bgc, bgcmin, bgcmax)
+     call netCDF_init_rmsens(filename_bgc, bgcmin, bgcmax)
   
   ELSEIF (mm=='memb') THEN
      DO member=1, dim_ens
+     
         WRITE(memberstr,'(i2.2)') member
         filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
-        call netCDF_init_mm()
+        filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.'//memberstr//'.nc'
+
+        call netCDF_init_mm(filename_phy, phymin, phymax)
+        call netCDF_init_mm(filename_bgc, bgcmin, bgcmax)
+     
      ENDDO
   ELSE
      WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initializing mean or member netCDF file?'
@@ -123,12 +132,16 @@ END SUBROUTINE netCDF_init
 ! ********************************
 ! Initializes a netCDF file.
 
-SUBROUTINE netCDF_init_mm()
+SUBROUTINE netCDF_init_mm(filename, istart, iend)
 
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize assimilation NetCDF physics file: '//TRIM(filename_phy)
+character(len=200), intent(in) :: filename ! Full name of output file
+integer, intent(in) :: istart              ! First field in state vector
+integer, intent(in) :: iend                ! Last field in state vector
+
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize assimilation NetCDF file: '//TRIM(filename)
 
 ! open file
-call check(NF90_CREATE(trim(filename_phy),NF90_NETCDF4,fileid))
+call check(NF90_CREATE(trim(filename),NF90_NETCDF4,fileid))
 
 ! define dimensions
 call check( NF90_DEF_DIM(fileid, 'nod2', mesh_fesom%nod2d, dimID_nod2))
@@ -170,7 +183,7 @@ call check (nf90_put_var(fileid, varid_lat,  REAL(180./pi * lat, 4)))
 
 ! define state variables
 DO j = 1, 3 ! ini / forc / ana
-  DO i = 1, nfields ! nfields
+  DO i = istart, iend ! state fields
     
     ! don't write analysis for not-updated variables
     IF ((j==3) .and. (.not. (sfields(i)% updated))) CYCLE
@@ -198,7 +211,7 @@ DO j = 1, 3 ! ini / forc / ana
     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
 
-  ENDDO ! (nfields)
+  ENDDO ! state fields
 ENDDO ! ini / forc / ana
 
 call check(NF90_ENDDEF(fileid))
@@ -229,6 +242,9 @@ REAL, allocatable :: myData3(:,:)                  ! Temporary array for pe-loca
 REAL, allocatable :: data2_g(:)                    ! Temporary array for global surface fields
 REAL, allocatable :: data3_g(:,:)                  ! Temporary array for global 3D-fields
 
+! character(len=200) :: filename                     ! Full name of output file
+integer            :: fileid_bgc, fileid_phy        ! nc-file ID for biogeochemistry and physics output file
+
 allocate(state_ptr(dim_state_p))
 
 ! Print screen information:
@@ -250,22 +266,29 @@ DO member=0, dim_ens
   ! Set file name and ensemble mean or member data:
   IF (member==0) THEN ! mean state
     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.nc'
+    filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.nc'
     state_ptr => state_p
   ELSE ! ensemble member state
     IF (.not. (write_ens)) EXIT
     WRITE(memberstr,'(i2.2)') member
     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
+    filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.'//memberstr//'.nc'
     state_ptr => ens_p(:,member)
   ENDIF ! mean/member
   
   ! Open netCDF file:
   IF (writepe) THEN
-    call check( nf90_open(TRIM(filename_phy), nf90_write, fileid))
+    call check( nf90_open(TRIM(filename_phy), nf90_write, fileid_phy))
+    call check( nf90_open(TRIM(filename_bgc), nf90_write, fileid_bgc))
   
     ! Non field-specific writing:
     IF (writetype=='a') THEN
-      call check( nf90_inq_varid(fileid, "iter", varid_iter))
-      call check( nf90_put_var  (fileid, varid_iter, iteration, &
+      call check( nf90_inq_varid(fileid_phy, "iter", varid_iter))
+      call check( nf90_inq_varid(fileid_bgc, "iter", varid_iter))
+      
+      call check( nf90_put_var  (fileid_phy, varid_iter, iteration, &
+                                 start=(/ writepos /)))
+      call check( nf90_put_var  (fileid_bgc, varid_iter, iteration, &
                                  start=(/ writepos /)))
     ENDIF ! writetype
   ENDIF ! writepe
@@ -275,6 +298,13 @@ DO member=0, dim_ens
     
     ! don't write analysis of not-updated variables
     IF ((writetype=='a') .and. (.not. (sfields(i)% updated))) CYCLE
+    
+    ! physics or biogeochemistry?
+    IF (sfields(i)% bgc) THEN
+      fileid = fileid_bgc
+    ELSE
+      fileid = fileid_phy
+    ENDIF
     
     ! --------------
     ! surface fields
@@ -359,7 +389,8 @@ DO member=0, dim_ens
   
   ! Close file:
   IF (writepe) THEN
-    call check (nf90_close(fileid))
+    call check (nf90_close(fileid_phy))
+    call check (nf90_close(fileid_bgc))
   ENDIF ! writepe
   
 ENDDO ! dim_ens
@@ -373,17 +404,21 @@ END SUBROUTINE netCDF_out
 
 ! Inits netCDF output for ensemble spread (root-mean-square deviation)
 
-SUBROUTINE netCDF_init_rmsens
+SUBROUTINE netCDF_init_rmsens(filename, istart, iend)
+
+character(len=200), intent(in) :: filename ! Full name of output file
+integer, intent(in) :: istart              ! First field in state vector
+integer, intent(in) :: iend                ! Last field in state vector
 
 ! open file
-call check( nf90_open(TRIM(filename_phy), nf90_write, fileid))
+call check( nf90_open(TRIM(filename), nf90_write, fileid))
 
 ! inquire dimension ID
 call check( nf90_inq_dimid( fileid, "iter", dimID_iter))
 
 ! define rms variables
 DO j = 1, 3 ! ini / forc / ana
-  DO i = 1, nfields ! nfields
+  DO i = istart, iend ! state fields
     
     ! don't write analysis of not-updated variables
     IF ((j==3) .and. (.not. (sfields(i)% updated))) CYCLE
@@ -401,7 +436,7 @@ DO j = 1, 3 ! ini / forc / ana
     ! variable description
     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', 'Ensemble spread (RMS) for '//trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
     
-  ENDDO ! nfields
+  ENDDO ! state fields
 ENDDO ! ini / ana / forc
 
 ! close file

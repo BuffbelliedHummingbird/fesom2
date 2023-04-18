@@ -41,7 +41,8 @@ MODULE mod_assim_pdaf
                               ! (2) generate global profile file
   INTEGER :: start_year_o, &  ! Which years to generate profile files
              end_year_o
-  LOGICAL :: use_global_obs   ! Whether to use global full obs, of full obs limited to process domains
+!~   LOGICAL :: use_global_obs   ! Whether to use global full obs, of full obs limited to process domains
+  INTEGER :: use_global_obs
   LOGICAL :: twin_experiment = .false.   ! Whether to perform a twin experiment with synthetic observations
   INTEGER :: dim_obs_max      ! Expect max. number of observations for synthetic obs.
  
@@ -127,10 +128,17 @@ MODULE mod_assim_pdaf
      INTEGER :: temp 
      INTEGER :: salt
      INTEGER :: a_ice
+     INTEGER :: MLD1
+     INTEGER :: PhyChl
   END TYPE field_ids
-
+  
 ! Type variable holding field IDs in state vector
   TYPE(field_ids) :: id
+  
+  INTEGER :: nfields          ! Number of fields in state vector
+  INTEGER :: phymin, phymax   ! First and last physics field in state vector
+  INTEGER :: bgcmin, bgcmax   ! First and last biogeochemistry field in state vector
+
 
 ! Specific for local filters
   INTEGER, ALLOCATABLE :: id_lobs_in_fobs(:)     ! Indices of local observations in full obs. vector
@@ -169,7 +177,6 @@ MODULE mod_assim_pdaf
 
   ! Other variables - NOT available as command line options / in the namelist:
   REAL    :: time      ! model time
-  INTEGER :: nfields   ! Number of fields in state vector
   INTEGER, ALLOCATABLE :: offset(:)          ! PE-local offsets of fields in state vector
   INTEGER, ALLOCATABLE :: dim_fields(:)      ! PE-local dimensions of fields in state vector
   INTEGER, ALLOCATABLE :: offset_glob(:)     ! Global offsets of fields in state vector
