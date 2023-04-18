@@ -239,6 +239,7 @@ CONTAINS
     thisobs%ncoord = 2
 
     ! Initialize flag for type of full observations
+    if (mype_filter==0) write(*,*) 'obs_sss_smos_pdafomi: use_global_obs', use_global_obs
     thisobs%use_global_obs = use_global_obs
 
     ! set localization radius
@@ -274,7 +275,7 @@ CONTAINS
 
     ! Read observation and standard deviation
     
-    write(*,*) TRIM(path_obs_sss)//TRIM(obs_file)
+    ! write(*,*) TRIM(path_obs_sss)//TRIM(obs_file)
      
     stat(1) = NF_OPEN(TRIM(path_obs_sss)//TRIM(obs_file), NF_NOWRITE, fileid)        
  
@@ -324,7 +325,7 @@ CONTAINS
        DO i = 1, myDim_nod2D
           IF ((mean_ice_p(i) > 0.0) &
              .AND. &
-              (all_obs_p(i)<999.0)) &
+              (abs(all_obs_p(i))<999.0)) &
           THEN
              all_obs_p(i) = 1.0e6
              cnt_ex_ice_p = cnt_ex_ice_p + 1
@@ -360,7 +361,7 @@ CONTAINS
 
        cnt_ex_diff_p = 0
        DO i = 1, myDim_nod2D
-          IF (ABS(mean_sss_p(i) - all_obs_p(i)) > sss_exclude_diff .AND. all_obs_p(i)<=999.0) THEN
+          IF (ABS(mean_sss_p(i) - all_obs_p(i)) > sss_exclude_diff .AND. abs(all_obs_p(i))<=999.0) THEN
              all_obs_p(i) = 1.0e6
              cnt_ex_diff_p = cnt_ex_diff_p+1
           END IF
@@ -390,8 +391,13 @@ CONTAINS
     ! *** Initialize index vector of observed surface nodes ***
     ! This array has a many rows as required for the observation operator
     ! 1 if observations are at grid points; >1 if interpolation is required
-    ALLOCATE(thisobs%id_obs_p(1, dim_obs_p))
-    ALLOCATE(obs_include_index(dim_obs_p))
+    IF (dim_obs_p>0) THEN
+      ALLOCATE(thisobs%id_obs_p(1, dim_obs_p))
+      ALLOCATE(obs_include_index(dim_obs_p))
+    ELSE
+      ALLOCATE(thisobs%id_obs_p(1, 1))
+      ALLOCATE(obs_include_index(1))
+    ENDIF
 
     i_obs=0
     DO i = 1, myDim_nod2d
@@ -408,15 +414,26 @@ CONTAINS
     ENDDO
 
     ! *** Initialize PE-local vectors of observations and std error ***
-    ALLOCATE(obs_p(dim_obs_p))
-    ALLOCATE(obs_error_p(dim_obs_p))
+    IF (dim_obs_p>0) THEN
+      ALLOCATE(obs_p(dim_obs_p))
+      ALLOCATE(obs_error_p(dim_obs_p))
+    ELSE
+      ALLOCATE(obs_p(1))
+      ALLOCATE(obs_error_p(1))
+    ENDIF
+    
     DO i = 1, dim_obs_p
        obs_p(i)       = REAL(all_obs_p(obs_include_index(i)), 8)
        obs_error_p(i) = REAL(all_std_p(obs_include_index(i)), 8)
     ENDDO
 
     ! *** Initialize coordinate arrays for PE-local observations
-    ALLOCATE(ocoord_n2d_p(2, dim_obs_p))
+    IF (dim_obs_p>0) THEN
+      ALLOCATE(ocoord_n2d_p(2, dim_obs_p))
+    ELSE
+      ALLOCATE(ocoord_n2d_p(2, 1))
+    ENDIF
+    
     DO i = 1, dim_obs_p
        ! Rotate to geographic coordinates and store
        CALL r2g(ocoord_n2d_p(1, i), ocoord_n2d_p(2, i), &
@@ -445,7 +462,12 @@ CONTAINS
     END IF
 
     ! Set inverse observation error variance
-    ALLOCATE(ivariance_obs_p(dim_obs_p))
+    IF (dim_obs_p>0) THEN
+      ALLOCATE(ivariance_obs_p(dim_obs_p))
+    ELSE
+      ALLOCATE(ivariance_obs_p(1))
+    ENDIF
+    
     DO i = 1, dim_obs_p
        ivariance_obs_p(i) = 1.0 / obs_error_p(i)**2
     END DO
