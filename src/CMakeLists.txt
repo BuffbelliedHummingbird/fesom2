@@ -159,7 +159,7 @@ target_link_libraries(${PROJECT_NAME} async_threads_cpp)
 # (6) Now, you find your .mod files in the include directory!
 
  if(${PDAF_ACTIVE})
-   set(ENV{PDAF_DIR} "${CMAKE_CURRENT_LIST_DIR}/../PDAF_V2.0") # path to PDAF directory starting from the dir containing our CMakeLists.txt
+	 set(ENV{PDAF_DIR} "${CMAKE_CURRENT_LIST_DIR}/../PDAF_V2.1/PDAF/") # path to PDAF directory starting from the dir containing our CMakeLists.txt
    message("Linking libpdaf from: $ENV{PDAF_DIR}")
    target_include_directories(${PROJECT_NAME} PRIVATE $ENV{PDAF_DIR}/include)
    target_link_libraries(${PROJECT_NAME} $ENV{PDAF_DIR}/lib/libpdaf-d.a)
