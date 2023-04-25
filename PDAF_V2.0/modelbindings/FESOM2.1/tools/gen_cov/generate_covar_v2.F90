@@ -131,6 +131,15 @@ PROGRAM generate_covar
   TYPE field_ids
      INTEGER :: MLD1
      INTEGER :: PhyChl
+     INTEGER :: DiaChl
+     INTEGER :: DIC
+     INTEGER :: DOC
+     INTEGER :: Alk
+     INTEGER :: DIN
+     INTEGER :: DON
+     INTEGER :: O2
+     INTEGER :: pCO2s
+     INTEGER :: CO2f
   END TYPE field_ids
   
   TYPE(field_ids) :: idbio                ! Type variable holding field IDs in state vector
@@ -169,7 +178,7 @@ PROGRAM generate_covar
 ! ************************************************
 
   ! Number of fields in state vector
-  nfields = 9
+  nfields = 18
 
   ! Maximum number of time slices to consider
   maxtimes = 72
@@ -214,17 +223,53 @@ PROGRAM generate_covar
   
   ! Number of biogeochemistry fields and their indeces in state vector
   biomin = 8
-  biomax = 9
+  biomax = 18
   allocate(biofields(nfields))
   
   idbio% MLD1   = 8
   idbio% PhyChl = 9
+  idbio% DiaChl = 10
+  idbio% DIC    = 11
+  idbio% DOC    = 12
+  idbio% Alk    = 13
+  idbio% DIN    = 14
+  idbio% DON    = 15
+  idbio% O2     = 16
+  idbio% pCO2s  = 17
+  idbio% CO2f   = 18
 
   biofields(idbio% MLD1) % ndims = 1
   biofields(idbio% MLD1) % variable = 'MLD1'
   
   biofields(idbio% PhyChl) % ndims = 2
   biofields(idbio% PhyChl) % variable = 'PhyChl'
+
+  biofields(idbio% DiaChl) % ndims = 2
+  biofields(idbio% DiaChl) % variable = 'DiaChl'
+
+  biofields(idbio% DIC) % ndims = 2
+  biofields(idbio% DIC) % variable = 'DIC' 
+
+  biofields(idbio% DOC) % ndims = 2
+  biofields(idbio% DOC) % variable = 'DOC'
+
+  biofields(idbio% Alk) % ndims = 2
+  biofields(idbio% Alk) % variable = 'Alk'
+
+  biofields(idbio% DIN) % ndims = 2
+  biofields(idbio% DIN) % variable = 'DIN'
+
+  biofields(idbio% DON) % ndims = 2
+  biofields(idbio% DON) % variable = 'DON'
+
+  biofields(idbio% O2) % ndims = 2
+  biofields(idbio% O2) % variable = 'O2'
+
+  biofields(idbio% pCO2s) % ndims = 1
+  biofields(idbio% pCO2s) % variable = 'pCO2s'
+
+  biofields(idbio% CO2f) % ndims = 1
+  biofields(idbio% CO2f) % variable = 'CO2f'
   
   do b=biomin, biomax
     biofields(b) % filename = trim(inpath)//trim(biofields(b) % variable)//'.fesom.2016.nc'

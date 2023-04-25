@@ -87,6 +87,15 @@ PROGRAM distribute_covar
      INTEGER :: a_ice
      INTEGER :: MLD1
      INTEGER :: PhyChl
+     INTEGER :: DiaChl
+     INTEGER :: DIC
+     INTEGER :: DOC
+     INTEGER :: Alk
+     INTEGER :: DIN
+     INTEGER :: DON
+     INTEGER :: O2
+     INTEGER :: pCO2s
+     INTEGER :: CO2f
   END TYPE field_ids
   ! Type variable holding field IDs in state vector
   TYPE(field_ids) :: ids
@@ -114,16 +123,16 @@ PROGRAM distribute_covar
 
   ! Path to mesh
   ! dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
-  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
   partfile      = 'rpart.out'
   mylistfile    = 'my_list'
 
   ! Path to and name stub of output files
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist128/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist72/'
   outfile = 'cov'
   
   ! Composition of state vector:
-  nfields = 9
+  nfields = 18
   
   ids% ssh    = 1
   ids% u      = 2
@@ -134,9 +143,18 @@ PROGRAM distribute_covar
   ids% a_ice  = 7
   ids% MLD1   = 8
   ids% PhyChl = 9
+  ids% DiaChl = 10
+  ids% DIC    = 11
+  ids% DOC    = 12
+  ids% Alk    = 13
+  ids% DIN    = 14
+  ids% DON    = 15
+  ids% O2     = 16
+  ids% pCO2s  = 17
+  ids% CO2f   = 18
   
   biomin = 8
-  biomax = 9
+  biomax = 18
   
   ! Field-specific variables:
   allocate(biofields(nfields))
@@ -146,6 +164,33 @@ PROGRAM distribute_covar
 
   biofields (ids% PhyChl) % ndims = 2 
   biofields (ids% PhyChl) % variable = 'PhyChl'
+
+  biofields (ids% DiaChl) % ndims = 2
+  biofields (ids% DiaChl) % variable = 'DiaChl'
+
+  biofields(ids% DIC) % ndims = 2
+  biofields(ids% DIC) % variable = 'DIC'
+
+  biofields(ids% DOC) % ndims = 2
+  biofields(ids% DOC) % variable = 'DOC'
+
+  biofields(ids% Alk) % ndims = 2
+  biofields(ids% Alk) % variable = 'Alk'
+
+  biofields(ids% DIN) % ndims = 2
+  biofields(ids% DIN) % variable = 'DIN'
+
+  biofields(ids% DON) % ndims = 2
+  biofields(ids% DON) % variable = 'DON'
+
+  biofields(ids% O2) % ndims = 2
+  biofields(ids% O2) % variable = 'O2'
+
+  biofields(ids% pCO2s) % ndims = 1
+  biofields(ids% pCO2s) % variable = 'pCO2s'
+
+  biofields(ids% CO2f) % ndims = 1
+  biofields(ids% CO2f) % variable = 'CO2f'
 
 ! ************************************************
 ! *** Init                                     ***

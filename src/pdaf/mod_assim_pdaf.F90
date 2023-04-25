@@ -130,6 +130,15 @@ MODULE mod_assim_pdaf
      INTEGER :: a_ice
      INTEGER :: MLD1
      INTEGER :: PhyChl
+     INTEGER :: DiaChl
+     INTEGER :: DIC
+     INTEGER :: DOC
+     INTEGER :: Alk
+     INTEGER :: DIN
+     INTEGER :: DON
+     INTEGER :: O2
+     INTEGER :: pCO2s
+     INTEGER :: CO2f
   END TYPE field_ids
   
 ! Type variable holding field IDs in state vector
