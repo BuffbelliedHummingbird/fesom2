@@ -80,6 +80,15 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   dim_fields_l (id%a_ice)  = 0
   dim_fields_l (id%MLD1)   = 0
   dim_fields_l (id%PhyChl) = 0
+  dim_fields_l (id%DiaChl) = 0
+  dim_fields_l (id%DIC) = 0
+  dim_fields_l (id%DOC) = 0
+  dim_fields_l (id%Alk) = 0
+  dim_fields_l (id%DIN) = 0
+  dim_fields_l (id%DON) = 0
+  dim_fields_l (id%O2) = 0
+  dim_fields_l (id%pCO2s) = 0
+  dim_fields_l (id%CO2f) = 0
 
   offset_l(1) = 0
   DO i = 2,nfields

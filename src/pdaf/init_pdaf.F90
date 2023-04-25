@@ -275,23 +275,32 @@ disturb_mslp=.true.
 ! *** Define state vector ***
 ! ***************************
               
-  id% ssh    = 1 ! sea surface height
-  id% u      = 2 ! zonal velocity
-  id% v      = 3 ! meridional velocity
-  id% w      = 4 ! vertical velocity
-  id% temp   = 5 ! temperature
-  id% salt   = 6 ! salinity
-  id% a_ice  = 7 ! sea-ice concentration
-  id% MLD1   = 8 ! mixed layer depth (criterion after Large et al., 1997)
-  id% PhyChl = 9 ! chlorophyll-a small phytoplankton
+  id% ssh    =  1 ! sea surface height
+  id% u      =  2 ! zonal velocity
+  id% v      =  3 ! meridional velocity
+  id% w      =  4 ! vertical velocity
+  id% temp   =  5 ! temperature
+  id% salt   =  6 ! salinity
+  id% a_ice  =  7 ! sea-ice concentration
+  id% MLD1   =  8 ! mixed layer depth (criterion after Large et al., 1997)
+  id% PhyChl =  9 ! chlorophyll-a small phytoplankton
+  id% DiaChl = 10 ! chlorophyll-a diatoms
+  id% DIC    = 11
+  id% DOC    = 12
+  id% Alk    = 13
+  id% DIN    = 14
+  id% DON    = 15
+  id% O2     = 16
+  id% pCO2s  = 17
+  id% CO2f   = 18
   
-  nfields = 9
+  nfields = 18
 
   phymin = 1
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 9
+  bgcmax = 18
 
 ! *** Specify offset of fields in pe-local state vector ***
 
@@ -305,6 +314,15 @@ disturb_mslp=.true.
   dim_fields(id% a_ice )   = myDim_nod2D                     ! 7 a_ice
   dim_fields(id% MLD1  )   = myDim_nod2D
   dim_fields(id% PhyChl)   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% DiaChl)   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% DIC   )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% DOC   )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% Alk   )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% DIN   )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% DON   )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% O2    )   = myDim_nod2D*(mesh_fesom%nl-1)
+  dim_fields(id% pCO2s )   = myDim_nod2D
+  dim_fields(id% CO2f  )   = myDim_nod2D
 
   ALLOCATE(offset(nfields))
   offset(id% ssh   )   = 0                                                ! 1 SSH
@@ -337,6 +355,15 @@ disturb_mslp=.true.
 	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D                        ! a_ice
 	dim_fields_glob(id% MLD1  ) = mesh_fesom%nod2D
 	dim_fields_glob(id% PhyChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% DiaChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% DIC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% DOC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% Alk   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% DIN   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% DON   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% O2    ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+	dim_fields_glob(id% pCO2s ) = mesh_fesom%nod2D
+	dim_fields_glob(id% CO2f  ) = mesh_fesom%nod2D
 	
 	ALLOCATE(offset_glob(nfields))
 	offset_glob(id% ssh   ) = 0                                                                 ! SSH

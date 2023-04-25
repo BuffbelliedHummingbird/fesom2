@@ -120,83 +120,83 @@ sfields(id% PhyChl) % updated = .false.
 sfields(id% PhyChl) % bgc = .true.
 
 ! chlorophyll diatoms
-!~ sfields(id% DiaChl) % ndims = 2
-!~ sfields(id% DiaChl) % nz1 = .true.
-!~ sfields(id% DiaChl) % variable = 'DiaChl'
-!~ sfields(id% DiaChl) % long_name = 'Chlorophyll-a diatoms'
-!~ sfields(id% DiaChl) % units = 'mg chl m-3'
-!~ sfields(id% DiaChl) % updated = .false.
-!~ sfields(id% DiaChl) % bgc = .true.
+sfields(id% DiaChl) % ndims = 2
+sfields(id% DiaChl) % nz1 = .true.
+sfields(id% DiaChl) % variable = 'DiaChl'
+sfields(id% DiaChl) % long_name = 'Chlorophyll-a diatoms'
+sfields(id% DiaChl) % units = 'mg chl m-3'
+sfields(id% DiaChl) % updated = .false.
+sfields(id% DiaChl) % bgc = .true.
 
 ! DIC
-!~ sfields(id% DIC) % ndims = 2
-!~ sfields(id% DIC) % nz1 = .true.
-!~ sfields(id% DIC) % variable = 'DIC'
-!~ sfields(id% DIC) % long_name = 'Dissolved inorganic carbon'
-!~ sfields(id% DIC) % units = 'mmol m-3'
-!~ sfields(id% DIC) % updated = .false.
-!~ sfields(id% DIC) % bgc = .true.
+sfields(id% DIC) % ndims = 2
+sfields(id% DIC) % nz1 = .true.
+sfields(id% DIC) % variable = 'DIC'
+sfields(id% DIC) % long_name = 'Dissolved inorganic carbon'
+sfields(id% DIC) % units = 'mmol m-3'
+sfields(id% DIC) % updated = .false.
+sfields(id% DIC) % bgc = .true.
 
 ! DOC
-!~ sfields(id% DOC) % ndims = 2
-!~ sfields(id% DOC) % nz1 = .true.
-!~ sfields(id% DOC) % variable = 'DOC'
-!~ sfields(id% DOC) % long_name = 'Dissolved organic carbon'
-!~ sfields(id% DOC) % units = 'mmol m-3'
-!~ sfields(id% DOC) % updated = .false.
-!~ sfields(id% DOC) % bgc = .true.
+sfields(id% DOC) % ndims = 2
+sfields(id% DOC) % nz1 = .true.
+sfields(id% DOC) % variable = 'DOC'
+sfields(id% DOC) % long_name = 'Dissolved organic carbon'
+sfields(id% DOC) % units = 'mmol m-3'
+sfields(id% DOC) % updated = .false.
+sfields(id% DOC) % bgc = .true.
 
 ! Alkalinity
-!~ sfields(id% Alk) % ndims = 2
-!~ sfields(id% Alk) % nz1 = .true.
-!~ sfields(id% Alk) % variable = 'Alk'
-!~ sfields(id% Alk) % long_name = 'Alkalinity'
-!~ sfields(id% Alk) % units = 'mmol m-3'
-!~ sfields(id% Alk) % updated = .false.
-!~ sfields(id% Alk) % bgc = .true.
+sfields(id% Alk) % ndims = 2
+sfields(id% Alk) % nz1 = .true.
+sfields(id% Alk) % variable = 'Alk'
+sfields(id% Alk) % long_name = 'Alkalinity'
+sfields(id% Alk) % units = 'mmol m-3'
+sfields(id% Alk) % updated = .false.
+sfields(id% Alk) % bgc = .true.
 
 ! DIN
-!~ sfields(id% DIN) % ndims = 2
-!~ sfields(id% DIN) % nz1 = .true.
-!~ sfields(id% DIN) % variable = 'DIN'
-!~ sfields(id% DIN) % long_name = 'Dissolved inorganic nitrogen'
-!~ sfields(id% DIN) % units = 'mmol m-3'
-!~ sfields(id% DIN) % updated = .false.
-!~ sfields(id% DIN) % bgc = .true.
+sfields(id% DIN) % ndims = 2
+sfields(id% DIN) % nz1 = .true.
+sfields(id% DIN) % variable = 'DIN'
+sfields(id% DIN) % long_name = 'Dissolved inorganic nitrogen'
+sfields(id% DIN) % units = 'mmol m-3'
+sfields(id% DIN) % updated = .false.
+sfields(id% DIN) % bgc = .true.
 
 ! DON
-!~ sfields(id% DON) % ndims = 2
-!~ sfields(id% DON) % nz1 = .true.
-!~ sfields(id% DON) % variable = 'DON'
-!~ sfields(id% DON) % long_name = 'Dissolved organic nitrogen'
-!~ sfields(id% DON) % units = 'mmol m-3'
-!~ sfields(id% DON) % updated = .false.
-!~ sfields(id% DON) % bgc = .true.
+sfields(id% DON) % ndims = 2
+sfields(id% DON) % nz1 = .true.
+sfields(id% DON) % variable = 'DON'
+sfields(id% DON) % long_name = 'Dissolved organic nitrogen'
+sfields(id% DON) % units = 'mmol m-3'
+sfields(id% DON) % updated = .false.
+sfields(id% DON) % bgc = .true.
 
 ! Oxygen
-!~ sfields(id% O2) % ndims = 2
-!~ sfields(id% O2) % nz1 = .true.
-!~ sfields(id% O2) % variable = 'O2'
-!~ sfields(id% O2) % long_name = 'Oxygen'
-!~ sfields(id% O2) % units = 'mmol m-3'
-!~ sfields(id% O2) % updated = .false.
-!~ sfields(id% O2) % bgc = .true.
+sfields(id% O2) % ndims = 2
+sfields(id% O2) % nz1 = .true.
+sfields(id% O2) % variable = 'O2'
+sfields(id% O2) % long_name = 'Oxygen'
+sfields(id% O2) % units = 'mmol m-3'
+sfields(id% O2) % updated = .false.
+sfields(id% O2) % bgc = .true.
 
 ! pCO2
-!~ sfields(id% pCO2s) % ndims = 1
-!~ sfields(id% pCO2s) % variable = 'pCO2s'
-!~ sfields(id% pCO2s) % long_name = 'Partial pressure CO2 surface ocean'
-!~ sfields(id% pCO2s) % units = 'micro atm'
-!~ sfields(id% pCO2s) % updated = .false.
-!~ sfields(id% pCO2s) % bgc = .true.
+sfields(id% pCO2s) % ndims = 1
+sfields(id% pCO2s) % variable = 'pCO2s'
+sfields(id% pCO2s) % long_name = 'Partial pressure CO2 surface ocean'
+sfields(id% pCO2s) % units = 'micro atm'
+sfields(id% pCO2s) % updated = .false.
+sfields(id% pCO2s) % bgc = .true.
 
 ! CO2f
-!~ sfields(id% CO2f) % ndims = 1
-!~ sfields(id% CO2f) % variable = 'CO2f'
-!~ sfields(id% CO2f) % long_name = 'CO2 flux from atmosphere into ocean'
-!~ sfields(id% CO2f) % units = 'mmolC m-2 d-1'
-!~ sfields(id% CO2f) % updated = .false.
-!~ sfields(id% CO2f) % bgc = .true.
+sfields(id% CO2f) % ndims = 1
+sfields(id% CO2f) % variable = 'CO2f'
+sfields(id% CO2f) % long_name = 'CO2 flux from atmosphere into ocean'
+sfields(id% CO2f) % units = 'mmolC m-2 d-1'
+sfields(id% CO2f) % updated = .false.
+sfields(id% CO2f) % bgc = .true.
 
 
 END SUBROUTINE init_sfields

@@ -30,6 +30,8 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
        ONLY: mydim_nod2d, myDim_elem2D
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1
+  USE REcoM_GloVar, &
+       ONLY: GloPCO2surf, GloCO2flux, Diags3D
   USE i_arrays, &
        ONLY: a_ice
   USE mod_parallel_pdaf, &
@@ -110,18 +112,18 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
    DO i = 1, myDim_nod2D
         ! 3D-fields
         DO k = 1, mesh_fesom%nl-1
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl)) = tr_arr(k, i, 8) ! small phytoplankton chlorophyll
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl)) = tr_arr(k, i, 17) ! diatom chlorophyll
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC)) = tr_arr(k, i, 4) ! DIC
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC)) = tr_arr(k, i, 14) ! DOC
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk)) = tr_arr(k, i, 5) ! Alk
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN)) = tr_arr(k, i, 3) ! DIN
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC)) = tr_arr(k, i, 13) ! DON
-           ! state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2)) = tr_arr(k, i, 24) ! O2
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl)) = tr_arr(k, i,  8) ! small phytoplankton chlorophyll
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl)) = tr_arr(k, i, 17) ! diatom chlorophyll
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC))    = tr_arr(k, i,  4) ! DIC
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC))    = tr_arr(k, i, 14) ! DOC
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk))    = tr_arr(k, i,  5) ! Alk
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN))    = tr_arr(k, i,  3) ! DIN
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON))    = tr_arr(k, i, 13) ! DON
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2))     = tr_arr(k, i, 24) ! O2
         ENDDO
         ! 2D-fields
-        ! state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2
-        ! state_p(i + offset(id% CO2f ))  = GloCO2flux(i)  ! CO2 flux (from atmosphere into ocean)
+        state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2
+        state_p(i + offset(id% CO2f ))  = GloCO2flux(i)  ! CO2 flux (from atmosphere into ocean)
    ENDDO
    
    ! chlorophyll
@@ -135,6 +137,8 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
    ! tr_arr(:,:,24)  --> O2
    ! GloPCO2surf(myDim) --> pCO2 surface
    ! GloCO2flux (myDim) --> CO2 flux
+   
+   ! Diags3D(1:nzmax,n,idiags)  = Diags3Dloc(1:nzmax,idiags) ! 1=NPPnano, 2=NPPdia
    ! --> PAR
    ! --> sum: DIN + DON (?)
    ! --> total organic carbon: PhyC + DiaC + DetC + DOC + HetC
