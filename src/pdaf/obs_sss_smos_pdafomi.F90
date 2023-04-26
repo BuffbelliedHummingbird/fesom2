@@ -388,100 +388,94 @@ CONTAINS
        IF (ABS(all_obs_p(i)) < 999.0) dim_obs_p=dim_obs_p+1
     ENDDO
 
-    ! *** Initialize index vector of observed surface nodes ***
-    ! This array has a many rows as required for the observation operator
-    ! 1 if observations are at grid points; >1 if interpolation is required
-    IF (dim_obs_p>0) THEN
-      ALLOCATE(thisobs%id_obs_p(1, dim_obs_p))
-      ALLOCATE(obs_include_index(dim_obs_p))
-    ELSE
-      ALLOCATE(thisobs%id_obs_p(1, 1))
-      ALLOCATE(obs_include_index(1))
-    ENDIF
-
-    i_obs=0
-    DO i = 1, myDim_nod2d
-       IF (ABS(all_obs_p(i)) < 999.0) THEN
-          i_obs = i_obs + 1
-          
-          ! index for state vector
-          thisobs%id_obs_p(1, i_obs) = &
-          (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% salt)
-          
-          ! index for all_obs_p and surface nod2d vector, respectively. 
-          obs_include_index(i_obs) = i
-       ENDIF
-    ENDDO
-
-    ! *** Initialize PE-local vectors of observations and std error ***
-    IF (dim_obs_p>0) THEN
-      ALLOCATE(obs_p(dim_obs_p))
-      ALLOCATE(obs_error_p(dim_obs_p))
-    ELSE
-      ALLOCATE(obs_p(1))
-      ALLOCATE(obs_error_p(1))
-    ENDIF
+    haveobs: IF(dim_obs_p>0) THEN
     
-    DO i = 1, dim_obs_p
-       obs_p(i)       = REAL(all_obs_p(obs_include_index(i)), 8)
-       obs_error_p(i) = REAL(all_std_p(obs_include_index(i)), 8)
-    ENDDO
+		! *** Initialize index vector of observed surface nodes ***
+		! This array has a many rows as required for the observation operator
+		! 1 if observations are at grid points; >1 if interpolation is required
+		
+		ALLOCATE(thisobs%id_obs_p(1, dim_obs_p))
+		ALLOCATE(obs_include_index(dim_obs_p))
 
-    ! *** Initialize coordinate arrays for PE-local observations
-    IF (dim_obs_p>0) THEN
-      ALLOCATE(ocoord_n2d_p(2, dim_obs_p))
-    ELSE
-      ALLOCATE(ocoord_n2d_p(2, 1))
-    ENDIF
-    
-    DO i = 1, dim_obs_p
-       ! Rotate to geographic coordinates and store
-       CALL r2g(ocoord_n2d_p(1, i), ocoord_n2d_p(2, i), &
-            mesh_fesom%coord_nod2d(1, obs_include_index(i)), mesh_fesom%coord_nod2d(2, obs_include_index(i)))
-    ENDDO
+		i_obs=0
+		DO i = 1, myDim_nod2d
+		   IF (ABS(all_obs_p(i)) < 999.0) THEN
+			  i_obs = i_obs + 1
+			  
+			  ! index for state vector
+			  thisobs%id_obs_p(1, i_obs) = &
+			  (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% salt)
+			  
+			  ! index for all_obs_p and surface nod2d vector, respectively. 
+			  obs_include_index(i_obs) = i
+		   ENDIF
+		ENDDO
 
+		! *** Initialize PE-local vectors of observations and std error ***
+		ALLOCATE(obs_p(dim_obs_p))
+		ALLOCATE(obs_error_p(dim_obs_p))
+		
+		DO i = 1, dim_obs_p
+		   obs_p(i)       = REAL(all_obs_p(obs_include_index(i)), 8)
+		   obs_error_p(i) = REAL(all_std_p(obs_include_index(i)), 8)
+		ENDDO
 
-! ****************************************************************
-! *** Define observation errors for process-local observations ***
-! ****************************************************************
-
-    IF (sss_fixed_rmse) THEN
-
-       ! *** Set constant observation error *** 
-       IF (mype_filter == 0) &
-            WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
-            '--- Use global SSS observation error of ', rms_obs_sss, 'psu'
-
-       obs_error_p(:) = rms_obs_sss
-    ELSE
-
-       ! *** Use variable error from file
-       IF (mype_filter == 0) &
-            WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
-            '--- Use variable SSS observation error from file'
-    END IF
-
-    ! Set inverse observation error variance
-    IF (dim_obs_p>0) THEN
-      ALLOCATE(ivariance_obs_p(dim_obs_p))
-    ELSE
-      ALLOCATE(ivariance_obs_p(1))
-    ENDIF
-    
-    DO i = 1, dim_obs_p
-       ivariance_obs_p(i) = 1.0 / obs_error_p(i)**2
-    END DO
+		! *** Initialize coordinate arrays for PE-local observations
+		ALLOCATE(ocoord_n2d_p(2, dim_obs_p))
+		DO i = 1, dim_obs_p
+		   ! Rotate to geographic coordinates and store
+		   CALL r2g(ocoord_n2d_p(1, i), ocoord_n2d_p(2, i), &
+				mesh_fesom%coord_nod2d(1, obs_include_index(i)), mesh_fesom%coord_nod2d(2, obs_include_index(i)))
+		ENDDO
 
 
-! ****************************
-! *** De-bias observations ***
-! ****************************
+	! ****************************************************************
+	! *** Define observation errors for process-local observations ***
+	! ****************************************************************
 
-    IF (bias_obs_sss/=0.0 .AND. mype_filter == 0) &
-         WRITE (*, '(a, 5x, a, f12.3)') &
-         'FESOM-PDAF', '--- For SSS, use global observation bias of ', bias_obs_sss
+		IF (sss_fixed_rmse) THEN
 
-    obs_p = obs_p - bias_obs_sss
+		   ! *** Set constant observation error *** 
+		   IF (mype_filter == 0) &
+				WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
+				'--- Use global SSS observation error of ', rms_obs_sss, 'psu'
+
+		   obs_error_p(:) = rms_obs_sss
+		ELSE
+
+		   ! *** Use variable error from file
+		   IF (mype_filter == 0) &
+				WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
+				'--- Use variable SSS observation error from file'
+		END IF
+
+		! Set inverse observation error variance
+		ALLOCATE(ivariance_obs_p(dim_obs_p))
+		DO i = 1, dim_obs_p
+		   ivariance_obs_p(i) = 1.0 / obs_error_p(i)**2
+		END DO
+
+
+	! ****************************
+	! *** De-bias observations ***
+	! ****************************
+
+		IF (bias_obs_sss/=0.0 .AND. mype_filter == 0) &
+			 WRITE (*, '(a, 5x, a, f12.3)') &
+			 'FESOM-PDAF', '--- For SSS, use global observation bias of ', bias_obs_sss
+
+		obs_p = obs_p - bias_obs_sss
+		
+	ELSE ! (elseif dim_obs_p==0)
+		
+		ALLOCATE(thisobs%id_obs_p(1, 1))
+		ALLOCATE(obs_include_index(1))
+		ALLOCATE(obs_p(1))
+		ALLOCATE(obs_error_p(1))
+		ALLOCATE(ocoord_n2d_p(2, 1))
+		ALLOCATE(ivariance_obs_p(1))
+		
+	ENDIF haveobs
 
 
 ! **************************************
