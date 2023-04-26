@@ -1,0 +1,165 @@
+#!/bin/bash
+#SBATCH --job-name=fesom2.0
+#SBATCH -p mpp
+#SBATCH --ntasks=1440 #288 #1440
+#SBATCH --time=00:08:00
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+
+module load intel.compiler intel.mpi netcdf/4.4.0_intel
+module load centoslibs
+
+set -x
+
+# determine JOBID
+JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
+
+# Directories:
+exp_name=FESOM_PDAF_TEST72
+start_dir=${PWD}
+run_dir=/work/ollie/frbunsen/model_runs/fesom2/${exp_name}/work
+
+# Settings:
+NENS=2            # number of ensembles --> namelist.fesom.pdaf
+fes_numproc=72     # ntasks divided by NENS
+
+# ----------------------------------------------------------------------
+# *** Create the run dir if necessary and go there
+#     Everything is done from here.
+# ----------------------------------------------------------------------
+if [ ! -d ${run_dir} ]; then
+    mkdir -p ${run_dir}
+fi
+cd ${run_dir}
+
+### ---- delete output from previous test runs -------------------------
+rm -rf ${run_dir}/*
+
+# ----------------------------------------------------------------------
+# *** Prepare the run directory for a run from scratch
+# ----------------------------------------------------------------------
+
+mkdir -p ${run_dir}/../start
+cp -r ${start_dir}/* ${run_dir}/../start
+
+for((i=1;i<=$NENS;i++))
+     do
+            ENSstr=`printf %02d $i`
+            ENS4str=`printf %04d $i`
+            echo 'preparing files...'${ENS4str}
+
+            if [ ! -d ${run_dir}/${ENSstr} ]; then
+                mkdir -p ${run_dir}/${ENSstr} 
+            fi
+            
+            cd ${run_dir}/${ENSstr}
+    
+            # *** Link executable of model component
+            ln -s ${start_dir}/../bin/fesom.x .
+            
+            # *** Copy namelist files
+            cp ${start_dir}/namelist.* .
+            
+            sed -i `grep -n ResultPath ${run_dir}/${ENSstr}/namelist.config | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'" ${run_dir}/${ENSstr}/namelist.config
+            
+            sed -i `grep -n dim_ens ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS" ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            
+            sed -i `grep -n DAoutput_path ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'" ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+            # *** Files needed for FESOM2
+            cp ../../restart_files/fesom.clock .
+            ln -s ../../restart_files/*.nc .
+done
+
+
+# ------------------------------------------------------------------
+# *** Setting up MPI and OMP
+# ------------------------------------------------------------------
+
+
+#  Mailbox size
+export MBX_SIZE=128000000
+
+#  Increase per processor buffers to reduce retries
+export MPI_BUFS_PER_PROC=256
+
+#  Bind your OpenMP threads
+export OMP_NUM_THREADS=1
+export KMP_AFFINITY=noverbose,granularity=thread,compact,1
+#  Limit stacksize - adjust to your programs need
+export KMP_STACKSIZE=64m
+
+# Enable ATP on ECMWF HPCF (recommended)
+# export ATP_ENABLED=1
+
+ulimit -c unlimited
+
+# Environment settings to run a MPI/OpenMP parallel program compiled with Intel MPI
+module purge
+module load intel.compiler intel.mpi
+module load hdf5
+module load centoslibs cdo nco netcdf/4.4.0_intel
+export I_MPI_FABRICS=shm:dapl
+export I_MPI_FALLBACK=disable
+export I_MPI_SLURM_EXT=1
+export I_MPI_LARGE_SCALE_THRESHOLD=8192
+
+
+# ------------------------------------------------------------------
+# *** Start the run
+# ------------------------------------------------------------------
+
+cd ${run_dir}/../start
+
+# Use the launch function from the platform configuration file
+t1=$(date +%s)
+
+if [ -e mpmd.conf ];then
+    rm mpmd.conf
+fi
+
+# ------------------------------------------------------------------
+# *** Configure Multiple Program Multiple Data (MPMD)
+# ------------------------------------------------------------------
+
+for((i=1;i<=$NENS;i++))
+do
+      ENSstr=`printf %02d $i`
+      ENS4str=`printf %04d $i`
+      echo 'preparing mpmd.conf...'${ENS4str}
+
+      echo '#!/bin/sh' > fesom${ENSstr}
+      echo 'cd '${run_dir}/${ENSstr} >> fesom${ENSstr}
+      echo ${run_dir}'/'$ENSstr'/fesom.x' >> fesom${ENSstr}
+      chmod +x fesom${ENSstr}
+
+      echo $(((i-1)*($fes_numproc)))'-'$(((i-1)*($fes_numproc)+$fes_numproc-1))' ./fesom'${ENSstr} >> mpmd.conf
+done
+
+cat mpmd.conf
+
+srun -l --propagate=STACK,CORE  --cpu_bind=quiet,cores --multi-prog mpmd.conf > "fesom2.0.out"
+
+t2=$(date +%s)
+
+tr=$(date -d "0 -$t1 sec + $t2 sec" +%T)
+
+
+#~ # ----------------------------------------------------------------------
+#~ # *** Platform dependent finalising of the run
+#~ # ----------------------------------------------------------------------
+#~ #finalise
+    #~ # This function should execute of any post run functionality, e.g.
+    #~ # platform dependent cleaning or a resubmit
+
+    #~ if ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
+     #~ then
+        #~ info "Resubmitting job for leg $((leg_number+1))"
+        #~ # Need to go to run_dir to find the run script
+        #~ cd ${run_dir}/../start
+        #~ # Submit command
+        #~ srun -l --propagate=STACK,CORE  --cpu_bind=quiet,cores --multi-prog mpmd.conf
+    #~ fi
+#~ exit 0
+
+

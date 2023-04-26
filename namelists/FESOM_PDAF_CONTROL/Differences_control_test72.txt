@@ -1,0 +1,25 @@
+In run directory:
+
+- Created a new directory: FESOM_PDAF_CONTROL
+- Copied restart files into restart_files directory
+
+In namelist.fesom.pdaf:
+
+DAoutput_path='/work/ollie/frbunsen/model_runs/fesom2/FESOM_PDAF_CONTROL/work/'
+str_daspec='FESOM_PDAF_CONTROL'
+ASSIM_O_ssh = .false.
+ASSIM_O_sst = .false.
+ASSIM_O_sss = .false.
+ASSIM_O_en4_t = .false.
+ASSIM_O_en4_s = .false.
+
+
+In namelist.config:
+
+ResultPath='/work/ollie/frbunsen/model_runs/fesom2/FESOM_PDAF_CONTROL/'
+
+
+In job_ollie_restart:
+
+exp_name=FESOM_PDAF_CONTROL
+
