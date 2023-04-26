@@ -3,7 +3,6 @@
 *.mod
 *.x
 *.out
-*~
 *.swp
 *.xx
 src/icepack_drivers/Icepack
