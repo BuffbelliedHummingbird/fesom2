@@ -146,8 +146,8 @@ PROGRAM generate_covar
      INTEGER :: DiaC
      INTEGER :: DiaSi
      INTEGER :: PAR
-     INTEGER :: NPPn
-     INTEGER :: NPPd
+     INTEGER :: NPPn   ! (Dummy data)
+     INTEGER :: NPPd   ! (Dummy data)
      INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
      INTEGER :: TDN    ! Total dissolved N = DIN + DON
      INTEGER :: HetC
@@ -165,7 +165,7 @@ PROGRAM generate_covar
    integer :: fid = 0                     ! Field ID (in/output file)
    integer :: mid = 0                     ! Mean field ID (output file)
    integer :: sid = 0                     ! Singular vector ID
-   logical :: dfield = .false.            ! Fields derived from model fields
+   logical :: dfield = .false.            ! Diagnostic fields derived from model fields
                                           ! (e.g. total chlorophyll,
                                           ! derived from DiaChl + PhyChl)
   end type state_field
@@ -271,6 +271,7 @@ PROGRAM generate_covar
 
   biofields(idbio% MLD1) % ndims = 1
   biofields(idbio% MLD1) % variable = 'MLD1'
+  biofields(idbio% MLD1) % dfield = .true.
   
   biofields(idbio% PhyChl) % ndims = 2
   biofields(idbio% PhyChl) % variable = 'PhyChl'
@@ -320,11 +321,13 @@ PROGRAM generate_covar
   biofields(idbio% PAR) % ndims = 2
   biofields(idbio% PAR) % variable = 'PAR'
   
-  biofields(idbio% NPPn) % ndims = 1
+  biofields(idbio% NPPn) % ndims = 2
   biofields(idbio% NPPn) % variable = 'NPPn'
+  biofields(idbio% NPPn) % dfield = .true.
   
-  biofields(idbio% NPPd) % ndims = 1
+  biofields(idbio% NPPd) % ndims = 2
   biofields(idbio% NPPd) % variable = 'NPPd'
+  biofields(idbio% NPPd) % dfield = .true.
   
   biofields(idbio% TChl) % ndims = 2
   biofields(idbio% TChl) % variable = 'TChl'
@@ -888,9 +891,16 @@ PROGRAM generate_covar
      
   enddo ! biomin, biomax
 
-! ******************************************
-! *** State trajectory of derived fields ***
-! ******************************************
+! *********************************************
+! *** State trajectory of diagnostic fields ***
+! *********************************************
+
+  ! Mixed layer depth (dummy data)
+  states(offsets(idbio% MLD1)  +1 : offsets(idbio% MLD1)  +dim_fields(idbio% MLD1)  , :) = 1
+  
+  ! Net primary production (dummy data)
+  states(offsets(idbio% NPPn)  +1 : offsets(idbio% NPPn)  +dim_fields(idbio% NPPn)  , :) = 1
+  states(offsets(idbio% NPPd)  +1 : offsets(idbio% NPPd)  +dim_fields(idbio% NPPd)  , :) = 1
 
   ! Total Chlorophyll
   states(offsets(idbio% TChl)  +1 : offsets(idbio% TChl)  +dim_fields(idbio% TChl)  , :) = &
