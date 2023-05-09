@@ -95,13 +95,13 @@ PROGRAM distribute_covar
 
   ! Path to mesh
   ! dist_mesh_dir = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_72/'
-  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_126/'
   partfile      = 'rpart.out'
   mylistfile    = 'my_list'
 
   ! Path to and name stub of output files
   ! outpath = '/work/ollie/frbunsen/jra_core2/dist72_cov/'
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist128_cov/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist126_cov/'
   outfile = 'cov'
   
   ! Composition of state vector:

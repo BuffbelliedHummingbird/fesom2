@@ -129,7 +129,7 @@ PROGRAM generate_covar
   integer :: biomin, biomax
   
   TYPE field_ids
-     INTEGER :: MLD1
+     INTEGER :: MLD1    ! (Dummy data)
      INTEGER :: PhyChl
      INTEGER :: DiaChl
      INTEGER :: DIC
@@ -140,6 +140,19 @@ PROGRAM generate_covar
      INTEGER :: O2
      INTEGER :: pCO2s
      INTEGER :: CO2f
+     INTEGER :: PhyN
+     INTEGER :: PhyC
+     INTEGER :: DiaN
+     INTEGER :: DiaC
+     INTEGER :: DiaSi
+     INTEGER :: PAR
+     INTEGER :: NPPn
+     INTEGER :: NPPd
+     INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
+     INTEGER :: TDN    ! Total dissolved N = DIN + DON
+     INTEGER :: HetC
+     INTEGER :: DetC
+     INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
   END TYPE field_ids
   
   TYPE(field_ids) :: idbio                ! Type variable holding field IDs in state vector
@@ -152,10 +165,14 @@ PROGRAM generate_covar
    integer :: fid = 0                     ! Field ID (in/output file)
    integer :: mid = 0                     ! Mean field ID (output file)
    integer :: sid = 0                     ! Singular vector ID
+   logical :: dfield = .false.            ! Fields derived from model fields
+                                          ! (e.g. total chlorophyll,
+                                          ! derived from DiaChl + PhyChl)
   end type state_field
 
   type(state_field), allocatable :: biofields(:) ! Type variable holding the
                                                  ! definitions of model fields
+                                                 
 
   ! File IDs:
   ! fID_nod_in_elem   = 90
@@ -178,7 +195,7 @@ PROGRAM generate_covar
 ! ************************************************
 
   ! Number of fields in state vector
-  nfields = 18
+  nfields = 31
 
   ! Maximum number of time slices to consider
   maxtimes = 72
@@ -223,7 +240,7 @@ PROGRAM generate_covar
   
   ! Number of biogeochemistry fields and their indeces in state vector
   biomin = 8
-  biomax = 18
+  biomax = 31
   allocate(biofields(nfields))
   
   idbio% MLD1   = 8
@@ -237,6 +254,20 @@ PROGRAM generate_covar
   idbio% O2     = 16
   idbio% pCO2s  = 17
   idbio% CO2f   = 18
+  idbio% PhyN   = 19
+  idbio% PhyC   = 20
+  idbio% DiaN   = 21
+  idbio% DiaC   = 22
+  idbio% DiaSi  = 23
+  idbio% PAR    = 24
+  idbio% NPPn = 25
+  idbio% NPPd = 26
+  idbio% TChl   = 27 ! PhyChl + DiaChl
+  idbio% TDN    = 28 ! DIN + DON
+  idbio% HetC   = 29
+  idbio% DetC   = 30
+  idbio% TOC    = 31 ! PhyC + DiaC + DetC + DOC + HetC
+  
 
   biofields(idbio% MLD1) % ndims = 1
   biofields(idbio% MLD1) % variable = 'MLD1'
@@ -270,8 +301,52 @@ PROGRAM generate_covar
 
   biofields(idbio% CO2f) % ndims = 1
   biofields(idbio% CO2f) % variable = 'CO2f'
+
+  biofields(idbio% PhyN) % ndims = 2
+  biofields(idbio% PhyN) % variable = 'PhyN'
+  
+  biofields(idbio% PhyC) % ndims = 2
+  biofields(idbio% PhyC) % variable = 'PhyC'
+  
+  biofields(idbio% DiaN) % ndims = 2
+  biofields(idbio% DiaN) % variable = 'DiaN'
+  
+  biofields(idbio% DiaC) % ndims = 2
+  biofields(idbio% DiaC) % variable = 'DiaC'
+  
+  biofields(idbio% DiaSi) % ndims = 2
+  biofields(idbio% DiaSi) % variable = 'DiaSi'
+  
+  biofields(idbio% PAR) % ndims = 2
+  biofields(idbio% PAR) % variable = 'PAR'
+  
+  biofields(idbio% NPPn) % ndims = 1
+  biofields(idbio% NPPn) % variable = 'NPPn'
+  
+  biofields(idbio% NPPd) % ndims = 1
+  biofields(idbio% NPPd) % variable = 'NPPd'
+  
+  biofields(idbio% TChl) % ndims = 2
+  biofields(idbio% TChl) % variable = 'TChl'
+  biofields(idbio% TChl) % dfield = .true.
+  
+  biofields(idbio% TDN) % ndims = 2
+  biofields(idbio% TDN) % variable = 'TDN'
+  biofields(idbio% TDN) % dfield = .true.
+  
+  biofields(idbio% HetC) % ndims = 2
+  biofields(idbio% HetC) % variable = 'HetC'
+  
+  biofields(idbio% DetC) % ndims = 2
+  biofields(idbio% DetC) % variable = 'DetC'
+  
+  biofields(idbio% TOC) % ndims = 2
+  biofields(idbio% TOC) % variable = 'TOC'
+  biofields(idbio% TOC) % dfield = .true.
+
   
   do b=biomin, biomax
+    if (biofields(b) % dfield) CYCLE
     biofields(b) % filename = trim(inpath)//trim(biofields(b) % variable)//'.fesom.2016.nc'
   enddo
 
@@ -311,6 +386,7 @@ PROGRAM generate_covar
   WRITE (*,*) 'Read sea-ice concentration trajectory from file: ',TRIM(ncfile_in_i)
   
   do b=biomin, biomax
+    if (biofields(b) % dfield) CYCLE
     write(*,*) 'Read ',trim(biofields(b) % variable),' trajectory from file: ',trim(biofields(b) % filename)
   enddo
 
@@ -513,6 +589,8 @@ PROGRAM generate_covar
 
   s = 1
   do b=biomin, biomax
+  
+    if (biofields(b) % dfield) CYCLE
   
     stat(s) = NF_OPEN(biofields(b)% filename, NF_NOWRITE, biofields(b)% ncid)
     IF (stat(s) /= NF_NOERR) WRITE(*, *) 'NetCDF error in reading biogeochemistry file, no.', s, ' (', biofields(b)% variable, ')'
@@ -745,6 +823,8 @@ PROGRAM generate_covar
   s=1
   do b=biomin, biomax
   
+     if (biofields(b) % dfield) CYCLE
+  
      IF (iter==1) WRITE(*,*) '- Read biogeochem. (',biofields(b)% variable,') at step 1'
   
      if (biofields(b)% ndims == 1) then
@@ -798,6 +878,8 @@ PROGRAM generate_covar
   
   s=1
   do b=biomin, biomax
+  
+    if (biofields(b) % dfield) CYCLE
     
     stat(s) = NF_CLOSE(biofields(b)% ncid)
     
@@ -806,7 +888,27 @@ PROGRAM generate_covar
      
   enddo ! biomin, biomax
 
+! ******************************************
+! *** State trajectory of derived fields ***
+! ******************************************
 
+  ! Total Chlorophyll
+  states(offsets(idbio% TChl)  +1 : offsets(idbio% TChl)  +dim_fields(idbio% TChl)  , :) = &
+  states(offsets(idbio% PhyChl)+1 : offsets(idbio% PhyChl)+dim_fields(idbio% PhyChl), :) + &
+  states(offsets(idbio% DiaChl)+1 : offsets(idbio% DiaChl)+dim_fields(idbio% DiaChl), :)
+  
+  ! Total dissolved nitrogen
+  states(offsets(idbio% TDN)+1 : offsets(idbio% TDN)+dim_fields(idbio% TDN), :) = &
+  states(offsets(idbio% DIN)+1 : offsets(idbio% DIN)+dim_fields(idbio% DIN), :) + &
+  states(offsets(idbio% DON)+1 : offsets(idbio% DON)+dim_fields(idbio% DON), :)
+  
+  ! Total organic carbon
+  states(offsets(idbio% TOC) +1 : offsets(idbio% TOC) +dim_fields(idbio% TOC), :) = &
+  states(offsets(idbio% PhyC)+1 : offsets(idbio% PhyC)+dim_fields(idbio% PhyC),:) + &
+  states(offsets(idbio% DiaC)+1 : offsets(idbio% DiaC)+dim_fields(idbio% DiaC),:) + &
+  states(offsets(idbio% DetC)+1 : offsets(idbio% DetC)+dim_fields(idbio% DetC),:) + &
+  states(offsets(idbio% DOC) +1 : offsets(idbio% DOC) +dim_fields(idbio% DOC), :) + &
+  states(offsets(idbio% HetC)+1 : offsets(idbio% HetC)+dim_fields(idbio% HetC),:)
 
 ! **********************************
 ! *** Compute running mean state ***
@@ -819,11 +921,13 @@ PROGRAM generate_covar
   DO i = 1, maxtimes
      meanstate = 0.0
 
+     ! "middle/main" part of timeseries
      IF (i > hwindow .AND. i <= (maxtimes - hwindow)) THEN
         Do j = i - hwindow, i + hwindow
            meanstate = meanstate + states (:, j)
         END DO
 
+     ! near start of timeseries
      ELSE IF (i <= hwindow) THEN
         DO j = 1, i + hwindow
            meanstate = meanstate + states (:, j)
@@ -832,6 +936,7 @@ PROGRAM generate_covar
            meanstate = meanstate + states (:, j)
         END DO
 
+     ! towards end of timeseries
      ELSE IF (i > maxtimes - hwindow) THEN
         DO j = i - hwindow, maxtimes
            meanstate = meanstate + states (:, j)

@@ -13,7 +13,7 @@ NC_INC   = -I${NETCDFFROOT}/include
 
 ######################################################
 
-OBJ_COVAR  = distribute_covar_FESOM2.1_v2.o
+OBJ_COVAR  = distribute_covar_FESOM2.1_v3.o
 
 ### Name of Executables ##############################################
 
