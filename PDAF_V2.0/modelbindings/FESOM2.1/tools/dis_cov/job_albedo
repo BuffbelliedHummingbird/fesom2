@@ -1,15 +1,16 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
-#SBATCH --partition=fat
-#SBATCH --ntasks=1
+#SBATCH --partition=smp
+#SBATCH --ntasks=72
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=4000GB
+#SBATCH --mem=200GB
 #SBATCH --time=00:30:00
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
-#SBATCH --job-name=gencov
-#SBATCH -o slurm-out.out
+#SBATCH --job-name=discov
 #SBATCH -e slurm-err.out
 
+set -x
 ulimit -s unlimited
-srun generate_covar
+
+srun --mpi=pmi2 ./distribute_covar > "slurm-out.out"

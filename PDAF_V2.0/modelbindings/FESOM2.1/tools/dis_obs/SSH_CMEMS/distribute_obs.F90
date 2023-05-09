@@ -67,7 +67,7 @@ PROGRAM distribute_obs
   
   ! Path to and name stub of output files
   ! outpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_128/'
   outfile = 'SSH_track_'//year_string//'_dist128'
 
   ! Path to mesh partioning

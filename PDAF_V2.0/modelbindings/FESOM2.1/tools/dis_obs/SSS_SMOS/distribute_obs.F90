@@ -53,6 +53,8 @@ PROGRAM distribute_obs
   INTEGER :: year
   CHARACTER(len=4)  :: year_string
 
+  CHARACTER(len=3)  :: npes_string
+
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
@@ -60,16 +62,18 @@ PROGRAM distribute_obs
   year = 2016
   write(year_string,'(i4.4)') year
 
+  npes_string = '126'
+
   ! Path to and name of file holding global observations on model grid
   inpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/'
   infile = 'SMOS_SSS_'//year_string//'.nc'
   
   ! Path to and name stub of output files
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_128/'
-  outfile = 'SMOS_SSS_'//year_string//'_dist128'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_'//trim(npes_string)//'/'
+  outfile = 'SMOS_SSS_'//year_string//'_dist'//trim(npes_string)
 
   ! Path to mesh partioning
-  distpath   = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  distpath   = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_'//trim(npes_string)//'/'
   partfile   = 'rpart.out'
   mylistfile = 'my_list'
 

@@ -19,13 +19,14 @@ PROGRAM distribute_covar
 !
 ! Version 2: Velocities are interpolated from elements on nodes.
 
-! !USES:
+  USE mpi
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
 
 
   ! Local variables
+  INTEGER :: mpierror,errorcode                                         ! Error status for MPI
   INTEGER :: i, s, iter, pe, irank, n, b                                ! counters
   INTEGER :: j, k                                                       ! counters
   CHARACTER(len=120) :: inpath, outpath, dist_mesh_dir
@@ -55,6 +56,7 @@ PROGRAM distribute_covar
   INTEGER :: countv(2), startv(2)
   INTEGER :: dimids(2)
   INTEGER :: npes                                                       ! number of model processes
+  CHARACTER(len=2) :: npes_char                                         ! number of model processes in file name
   INTEGER :: myDim_nod2D, myDim_elem2D                                  ! number of pe-local nodes / elements
   INTEGER :: eDim_nod2D, eDim_elem2D                                    ! number of pe-local halo nodes / elements
   INTEGER :: eXDim_elem2D
@@ -70,6 +72,7 @@ PROGRAM distribute_covar
   INTEGER, ALLOCATABLE :: my_nodlist_2D(:), my_nodlist_uv(:)            ! pe-local node lists (repeated lists for 3D variables)
   INTEGER, ALLOCATABLE :: my_nodlist_w(:)  , my_nodlist_ts(:)           ! pe-local node lists (repeated lists for 3D variables)
   
+  INTEGER :: dim_fields3D, dim_fieldsW, dim_fields2D
   INTEGER, ALLOCATABLE :: dim_fields(:)                                              ! Field dimensions for SSH, u, v, w, temp, salt
   INTEGER, ALLOCATABLE :: offsets(:)                                                 ! Field offsets in state vector
   INTEGER, ALLOCATABLE :: dim_fields_l(:)                                            ! dimensions of pe-local fields
@@ -96,6 +99,19 @@ PROGRAM distribute_covar
      INTEGER :: O2
      INTEGER :: pCO2s
      INTEGER :: CO2f
+     INTEGER :: PhyN
+     INTEGER :: PhyC
+     INTEGER :: DiaN
+     INTEGER :: DiaC
+     INTEGER :: DiaSi
+     INTEGER :: PAR
+     INTEGER :: NPPn
+     INTEGER :: NPPd
+     INTEGER :: TChl
+     INTEGER :: TDN
+     INTEGER :: HetC
+     INTEGER :: DetC
+     INTEGER :: TOC
   END TYPE field_ids
   ! Type variable holding field IDs in state vector
   TYPE(field_ids) :: ids
@@ -116,19 +132,27 @@ PROGRAM distribute_covar
 ! *** Configuration                            ***
 ! ************************************************
 
+  CALL MPI_INIT(mpierror)
+  
+  CALL MPI_COMM_SIZE(MPI_COMM_WORLD, npes, MPIERROR)
+  write(npes_char,'(i2.2)') npes
+  
+  CALL MPI_COMM_RANK(MPI_COMM_WORLD, pe,   MPIERROR)
+  write(mype_string,'(i5.5)') pe
+  
+  
   ! Path to and name of file holding global covariance matrix
   ! inpath = '/work/ollie/frbunsen/model_runs/fesom2/test_control/cov/'
   inpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/'
   infile = 'cov.nc'
 
   ! Path to mesh
-  ! dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
-  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  dist_mesh_dir = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_'//trim(npes_char)//'/'
   partfile      = 'rpart.out'
   mylistfile    = 'my_list'
 
   ! Path to and name stub of output files
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist128/'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist'//trim(npes_char)//'/'
   outfile = 'cov'
   
   ! Composition of state vector:
@@ -152,9 +176,22 @@ PROGRAM distribute_covar
   ids% O2     = 16
   ids% pCO2s  = 17
   ids% CO2f   = 18
+  ids% PhyN   = 19
+  ids% PhyC   = 20
+  ids% DiaN   = 21
+  ids% DiaC   = 22
+  ids% DiaSi  = 23
+  ids% PAR    = 24
+  ids% NPPn   = 25
+  ids% NPPd   = 26
+  ids% TChl   = 27
+  ids% TDN    = 28
+  ids% HetC   = 29
+  ids% DetC   = 30
+  ids% TOC    = 31
   
   biomin = 8
-  biomax = 18
+  biomax = 31
   
   ! Field-specific variables:
   allocate(biofields(nfields))
@@ -191,27 +228,68 @@ PROGRAM distribute_covar
 
   biofields(ids% CO2f) % ndims = 1
   biofields(ids% CO2f) % variable = 'CO2f'
+  
+  biofields(ids% PhyN) % ndims = 2
+  biofields(ids% PhyN) % variable = 'PhyN'
+
+  biofields(ids% PhyC) % ndims = 2
+  biofields(ids% PhyC) % variable = 'PhyC'
+
+  biofields(ids% DiaN) % ndims = 2
+  biofields(ids% DiaN) % variable = 'DiaN'
+
+  biofields(ids% DiaC) % ndims = 2
+  biofields(ids% DiaC) % variable = 'DiaC'
+
+  biofields(ids% DiaSi) % ndims = 2
+  biofields(ids% DiaSi) % variable = 'DiaSi'
+
+  biofields(ids% PAR) % ndims = 2
+  biofields(ids% PAR) % variable = 'PAR'
+
+  biofields(ids% NPPn) % ndims = 1
+  biofields(ids% NPPn) % variable = 'NPPn'
+
+  biofields(ids% NPPd) % ndims = 1
+  biofields(ids% NPPd) % variable = 'NPPd'
+
+  biofields(ids% TChl) % ndims = 2
+  biofields(ids% TChl) % variable = 'TChl'
+
+  biofields(ids% TDN) % ndims = 2
+  biofields(ids% TDN) % variable = 'TDN'
+ 
+  biofields(ids% HetC) % ndims = 2
+  biofields(ids% HetC) % variable = 'HetC'
+ 
+  biofields(ids% DetC) % ndims = 2
+  biofields(ids% DetC) % variable = 'DetC'
+
+  biofields(ids% TOC) % ndims = 2
+  biofields(ids% TOC) % variable = 'TOC'  
+  
 
 ! ************************************************
 ! *** Init                                     ***
 ! ************************************************
 
-  WRITE (*,'(3x,a)')  '*****************************************************************'
-  WRITE (*,'(3x,a)')  '*** Generate distributed covariance matrix files for FESOM2.1 ***'
-  WRITE (*,'(3x,a/)') '*****************************************************************'
+  if (pe==0) WRITE (*,'(3x,a)')  '*****************************************************************'
+  if (pe==0) WRITE (*,'(3x,a)')  '*** Generate distributed covariance matrix files for FESOM2.1 ***'
+  if (pe==0) WRITE (*,'(3x,a/)') '*****************************************************************'
 
   ncfile_in = TRIM(inpath)//TRIM(infile)
-  WRITE (*,*) 'Read fields from file: ',TRIM(ncfile_in)
+  if (pe==0) WRITE (*,*) 'Read fields from file: ',TRIM(ncfile_in)
 
   ncfile_out = TRIM(outpath)//TRIM(outfile)
-  WRITE (*,*) 'Write distributed fields to files: ',TRIM(ncfile_out),'_XXXX.nc'
-  WRITE (*,*) 'Read partitioning information from directory: ',TRIM(dist_mesh_dir)
+  if (pe==0) WRITE (*,*) 'Write distributed fields to files: ',TRIM(ncfile_out),'_XXXX.nc'
+  if (pe==0) WRITE (*,*) 'Read partitioning information from directory: ',TRIM(dist_mesh_dir)
 
 
 ! ********************************************
 ! *** Open global file and read dimensions ***
 ! ********************************************
 
+  if (pe==0) then ! netCDF pe
   s = 1
   stat(s) = NF_OPEN(TRIM(ncfile_in), NF_NOWRITE, ncid_in)
 
@@ -220,11 +298,16 @@ PROGRAM distribute_covar
   stat(s) = NF_INQ_DIMID(ncid_in, 'nfields', id_dim)
   s = s + 1
   stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, nfields)
+  endif ! netCDF pe
+  
+  if (pe==0) WRITE(*,*) 'Broadcasting nfields'
+  CALL MPI_BCAST(nfields,1,MPI_INT,0,MPI_COMM_WORLD)
   
   allocate(dim_fields(nfields))
   allocate(offsets(nfields))
   allocate(dim_fields_l(nfields))
   
+  if (pe==0) then ! netCDF pe
   s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'rank', id_dim)
   s = s + 1
@@ -232,42 +315,59 @@ PROGRAM distribute_covar
   s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'nod2', id_dim)
   s = s + 1
-  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fields(1)) ! for SSH (SIC)
+  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fields2D) ! for SSH (SIC)
   s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'nz1_x_nod2', id_dim)
   s = s + 1
-  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fields(4)) ! for w
+  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fieldsW) ! for w
     s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'nz_x_nod2', id_dim)
   s = s + 1
-  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fields(5)) ! for temp (salt, u, v)
+  stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_fields3D) ! for temp (salt, u, v)
   s = s + 1
   stat(s) = NF_INQ_DIMID(ncid_in, 'dim_state', id_dim)
   s = s + 1
   stat(s) = NF_INQ_DIMLEN(ncid_in, id_dim, dim_state)
   
-  ! dimensions of u, v and salt are like temp (5)
-  dim_fields(2) = dim_fields(5) ! u
-  dim_fields(3) = dim_fields(5) ! v
-  dim_fields(6) = dim_fields(5) ! salt
-  ! dimensions of SIC are like SSH
-  dim_fields(ids% a_ice) = dim_fields(ids% SSH)
-  
-  ! dimensions of biogeochemistry fields
-  do b=biomin, biomax
-    if (biofields(b)% ndims == 1) dim_fields(b) = dim_fields(ids% SSH)  ! surface fields
-    if (biofields(b)% ndims == 2) dim_fields(b) = dim_fields(ids% temp) ! 3D fields
-  enddo
-
   DO i = 1,  s
      IF (stat(i) /= NF_NOERR) &
           WRITE(*, *) 'NetCDF error in reading dimensions, no.', i
   END DO
   
+  endif ! netCDF pe
+  
+  if (pe==0) WRITE(*,*) 'Broadcasting SVD rank'
+  CALL MPI_BCAST(rank,        1,MPI_INT,0,MPI_COMM_WORLD, MPIERROR)
+  if (pe==0) WRITE(*,*) 'Broadcasting dim_fields'
+  CALL MPI_BCAST(dim_fields2D,1,MPI_INT,0,MPI_COMM_WORLD, MPIERROR)
+  CALL MPI_BCAST(dim_fieldsW, 1,MPI_INT,0,MPI_COMM_WORLD, MPIERROR)
+  CALL MPI_BCAST(dim_fields3D,1,MPI_INT,0,MPI_COMM_WORLD, MPIERROR)
+  
+  ! 2D fields:
+  dim_fields(ids% SSH)   = dim_fields2D
+  dim_fields(ids% a_ice) = dim_fields2D
+  
+  ! vertical velocity:
+  dim_fields(ids% w)    = dim_fieldsW
+  
+  ! 3D fields:
+  dim_fields(ids% temp) = dim_fields3D
+  dim_fields(ids% u)    = dim_fields3D
+  dim_fields(ids% v)    = dim_fields3D
+  dim_fields(ids% salt) = dim_fields3D
+  
+  
+  ! dimensions of biogeochemistry fields
+  do b=biomin, biomax
+    if (biofields(b)% ndims == 1) dim_fields(b) = dim_fields2D ! surface fields
+    if (biofields(b)% ndims == 2) dim_fields(b) = dim_fields3D ! 3D fields
+  enddo
+  
   nlevels = 47         ! number of vertical levels
   nod2D   = 126858     ! number of nodes
   elem2D  = 244659     ! number of elements (not used)
   
+  if (pe==0) then ! write pe
   ! Write dimensions
   WRITE (*,'(/1x,a)') 'Global dimensions of experiment:'
   WRITE (*,'(10x,1x,a30,i12)') 'dim_fields 1,7  (SSH, SIC)    ', dim_fields(1)
@@ -288,28 +388,20 @@ PROGRAM distribute_covar
 	WRITE (*,*) 'Number of vertical levels and horizontal nodes not consistent with 3D nodes!'
 	STOP
   END IF
+  endif ! write pe
 
 ! ***********************************
 ! *** Read mesh partitioning data ***
 ! ***********************************
- 
-  OPEN(unit=1,file=TRIM(dist_mesh_dir)//TRIM(partfile), status='old', form='formatted')
-  READ(1,*) npes
-  CLOSE(1)
-
-  ALLOCATE( nod2D_part(npes))
-  ALLOCATE(elem2D_part(npes))
     
 ! *******************************************************
 ! *** Lists of nodes and elements in global indexing. ***
 ! *** every proc reads its file                       ***
 ! *******************************************************
   
-  DO i = 1, npes
-  
-	write(mype_string,'(i5.5)') i-1
+	write(mype_string,'(i5.5)') pe
 	file_name = trim(dist_mesh_dir)//'my_list'//trim(mype_string)//'.out'  
-	fileID = i+1
+	fileID = pe+2
 		
 	open(fileID, file=trim(file_name))
 	read(fileID,*) n                      ! myPE
@@ -321,57 +413,62 @@ PROGRAM distribute_covar
 	allocate(myList_nod2D(myDim_nod2D+eDim_nod2D)) 	 
 	read(fileID,*) myList_nod2D           ! list of vertices
 	
-	nod2D_part(i) = myDim_nod2D
-
 	read(fileID,*) myDim_elem2D           ! triangles that belong to myPE
 	read(fileID,*) eDim_elem2D            ! triangles sharing an edge with my triangles
 	read(fileID,*) eXDim_elem2D           ! triangles sharing a vertix with my triangles
 	allocate(myList_elem2D(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
 	read(fileID,*) myList_elem2D
 	
-	elem2D_part(i) = myDim_elem2D
-
 	close(fileID)
 	
-	deallocate(myList_nod2D)
-	deallocate(myList_elem2D)
+        if (pe==0) WRITE (*,'(5x,a,4x,a)') 'Local nodes:   nod2d','elem2d'
+        CALL MPI_BARRIER(MPI_COMM_WORLD,MPIERROR)
+        WRITE(*,'(18x,i5,i7,i10)') pe, myDim_nod2D, myDim_elem2D
+	
+	ALLOCATE( nod2D_part(npes))
+    ALLOCATE(elem2D_part(npes))
+	
+	CALL MPI_ALLGATHER(myDim_nod2D,  1, MPI_INT, nod2D_part,  1, MPI_INT, MPI_COMM_WORLD, MPIERROR)
+	CALL MPI_ALLGATHER(myDim_elem2D, 1, MPI_INT, elem2D_part, 1, MPI_INT, MPI_COMM_WORLD, MPIERROR)
   
-  END DO
+!~   END DO
 
-  ! *** Consistency check ***
-  IF (SUM(nod2D_part) /= nod2D) THEN
-	WRITE (*,*) 'Partitioned mesh not consistent with global mesh (nodes)'
-	STOP
-  END IF
-  
   ! elem2D_part(i) is the number of triangles that belong to each PE,
   ! which are those that contain at least one vertex that belongs to the PE.
   ! Thus, triangles with vertices that belong to several PE are counted
   ! as my_triangle by each PE.
   
-  WRITE(*,*) 'Sum of elements in partitioned mesh: ', SUM(elem2D_part)
-  WRITE(*,*) 'Sum of elements in global mesh:      ', elem2D
+  if (pe==0) then ! write pe
+  
+    WRITE(*,*) 'Sum of elements in partitioned mesh: ', SUM(elem2D_part)
+    WRITE(*,*) 'Sum of elements in global mesh:      ', elem2D
+    
+    WRITE (*,'(/1x,a)') 'Mesh distribution:'
+    WRITE (*,'(5x,a,i6)') 'Number of PEs:', npes
+    WRITE (*,*) 'Local nodes gathered:'
+    DO i = 1, npes
+       WRITE (*,*) 'mype:', i, 'nod2D_part:', nod2D_part(i), 'elem2D_part', elem2D_part(i)
+    END DO
+    
+    ! *** Consistency check ***
+    IF (SUM(nod2D_part) /= nod2D) THEN
+          WRITE (*,*) 'Partitioned mesh not consistent with global mesh (nodes)'
+          CALL MPI_ABORT(MPI_COMM_WORLD,errorcode,MPIERROR)
+    END IF
 
-  WRITE (*,'(/1x,a)') 'Mesh distribution:'
-  WRITE (*,'(5x,a,i6)') 'Number of PEs:', npes
-  WRITE (*,'(5x,a,4x,a)') 'Local nodes:   nod2d','elem2d'
-  WRITE (*,*) 'Local nodes:'
-  DO i = 1, npes
-     WRITE (*,'(18x,i7,i10)') nod2D_part(i) , elem2D_part(i)
-  END DO  
+    WRITE (*,'(/1x,a/)') '------- Initialize distributed files -------------'
 
-
+  endif ! write pe
 
 ! ************************************
 ! *** Initialize distributed files ***
 ! ************************************
 
-  WRITE (*,'(/1x,a/)') '------- Initialize distributed files -------------'
-
   ! Read singular values from input file
 
   ALLOCATE(svals(rank))
 
+  if (pe==0) then ! netCDF pe
   s = 1
   stat(s) = NF_INQ_VARID(ncid_in, 'sigma', id_sigma)
   s = s + 1
@@ -387,9 +484,14 @@ PROGRAM distribute_covar
      IF (stat(i) /= NF_NOERR) &
           WRITE(*, *) 'NetCDF error in reading from input file, no.', i
   END DO
+  endif ! netCDF pe
+  
+  CALL MPI_BCAST(svals,     rank,       MPI_DOUBLE,    0, MPI_COMM_WORLD, MPIERROR)
+  CALL MPI_BCAST(title,     len(title), MPI_CHARACTER, 0, MPI_COMM_WORLD, MPIERROR)
+  CALL MPI_BCAST(fieldsstr, len(title), MPI_CHARACTER, 0, MPI_COMM_WORLD, MPIERROR)
 
   ! Initialize one file for each PE
-  initoutfiles: DO pe = 0, npes - 1
+!~   initoutfiles: DO pe = 0, npes - 1
   
      dim_fields_l(1)          = nod2D_part(pe+1)                ! SSH
      dim_fields_l(2)          = nod2D_part(pe+1) * nlevels      ! u
@@ -407,7 +509,6 @@ PROGRAM distribute_covar
      dim_state_l = SUM(dim_fields_l)
      
      write(mype_string,'(i4.4)') pe
-     
      WRITE (*,'(a, i4, i7)') 'pe and dim_state_l: ', pe, dim_state_l
 
      s = 1
@@ -476,14 +577,14 @@ PROGRAM distribute_covar
              WRITE(*, *) 'NetCDF error in init of output file, no.', i
      END DO
 
-  END DO initoutfiles
+!~   END DO initoutfiles
 
 
 ! ****************************************************
 ! *** Generate and write distributed state vectors ***
 ! ****************************************************
 
-  WRITE (*,'(1x,a/)') '------- Generate and write distributed files -------------'
+  if (pe==0) WRITE (*,'(1x,a/)') '------- Generate and write distributed files -------------'
 
     ! Allocate global fields
      ALLOCATE(field_2D (dim_fields(1)))
@@ -493,9 +594,9 @@ PROGRAM distribute_covar
 
   ! *** Read, distribute and write mean state
 
-  peloop: DO pe = 0, npes - 1
+!~   peloop: DO pe = 0, npes - 1
 
-     WRITE (*,'(5x, a, i5)') '-- Process ', pe
+!~      WRITE (*,'(5x, a, i5)') '-- Process ', pe
      
      dim_fields_l(1)          = nod2D_part(pe+1)                ! SSH
      dim_fields_l(2)          = nod2D_part(pe+1) * nlevels      ! u
@@ -533,43 +634,11 @@ PROGRAM distribute_covar
      do b=biomin,biomax
        offsets(b) = offsets(b-1) + dim_fields_l(b-1)
      enddo
-
-    ! Read my_listXXXXX files
-    WRITE (*,'(1x,a)') '*** Read my_listXXXXX files ***'
-    
-	write(mype_string,'(i5.5)') pe
-	file_name = trim(dist_mesh_dir)//'my_list'//trim(mype_string)//'.out'  
-	fileID = pe
-		
-	open(fileID, file=trim(file_name))
-	read(fileID,*) n
- 
-	read(fileID,*) myDim_nod2D
-	read(fileID,*) eDim_nod2D
-	allocate(List_nod2D(myDim_nod2D+eDim_nod2D))
-    read(fileID,*) List_nod2D
 	
-	allocate(myList_nod2D(myDim_nod2D))
-	myList_nod2D = List_nod2D(1:myDim_nod2D)
+	if (pe==0) WRITE (*,'(1x,a)') '*** Create list of 3D nodes / elements ***'
 	
-	read(fileID,*) myDim_elem2D
-	read(fileID,*) eDim_elem2D
-	read(fileID,*) eXDim_elem2D
-	allocate(List_elem2D(myDim_elem2D+eDim_elem2D+eXDim_elem2D))
-	read(fileID,*) List_elem2D
-
-	allocate(myList_elem2D(myDim_elem2D))
-	myList_elem2D = List_elem2D(1:myDim_elem2D)
-	
-	close(fileID)
-	
-	deallocate(List_nod2D)
-	deallocate(List_elem2D)
-	
-	WRITE (*,'(1x,a)') '*** Create list of 3D nodes / elements ***'
-	
-	allocate(my_nodlist_2D(dim_fields_l(1)))
-	allocate(my_nodlist_uv(dim_fields_l(2)))
+	allocate(my_nodlist_2D (dim_fields_l(1)))
+	allocate(my_nodlist_uv (dim_fields_l(2)))
 	allocate(my_nodlist_w  (dim_fields_l(4)))
 	allocate(my_nodlist_ts (dim_fields_l(5)))
 	
@@ -621,7 +690,7 @@ PROGRAM distribute_covar
      s = s + 1
      stat(s) = NF_INQ_VARID(ncid_out, 'V', id_svec)
 
-
+     if (pe==0) then ! netCDF pe
      ! Get IDs for global fields from input file
      s = s + 1
      stat(s) = NF_INQ_VARID(ncid_in, 'ssh_mean', id_mz)
@@ -667,12 +736,14 @@ PROGRAM distribute_covar
         IF (stat(i) /= NF_NOERR) &
              WRITE(*, *) 'NetCDF error in inquire from output file, no.', i, ' pe ',pe
      END DO
+     endif ! netCDF pe
 
      loopfields: DO irank = 0, rank
 
         IF (irank == 0) THEN
            ! Treat mean state
 
+           if (pe==0) then ! netCDF pe
            ! Ids for input
            id_z = id_mz
            id_u = id_mu
@@ -685,6 +756,7 @@ PROGRAM distribute_covar
            do b=biomin,biomax
              biofields(b)% fid = biofields(b)% mid
            enddo
+           endif ! netCDF pe
 
            ! Id for output
            id_out = id_mean
@@ -695,6 +767,7 @@ PROGRAM distribute_covar
         ELSE
            ! Treat singular vectors
 
+           if (pe==0) then ! netCDF pe
            ! Ids for input
            id_z = id_svdz
            id_u = id_svdu
@@ -707,7 +780,8 @@ PROGRAM distribute_covar
            do b=biomin,biomax
              biofields(b)% fid = biofields(b)% sid
            enddo
-
+           endif ! netCDF pe
+           
            ! Id for output
            id_out = id_svec
            
@@ -716,9 +790,10 @@ PROGRAM distribute_covar
            
         END IF
 
-        WRITE (*,'(1x,a/)') '*** Generate local state vector ***'
+        if (pe==0) WRITE (*,*) '*** Generate local state vector (rank ',irank,') ***'
         ! *** Generate local state vector
 
+        if (pe==0) then ! netCDF pe
         ! Read global SSH (mean state or singular vectors, respectively)
         startv(2) = startpos
         countv(2) = 1
@@ -726,6 +801,9 @@ PROGRAM distribute_covar
         countv(1) = dim_fields(1)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_z, startv, countv, field_2D)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_2D, dim_fields2D, mpi_float, 0, mpi_comm_world, mpierror)
+
 
         ! Initialize local nodes of pe-local state vector
         DO i = 1, dim_fields_l(1)
@@ -733,9 +811,12 @@ PROGRAM distribute_covar
         END DO
 
         ! Read global U
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(2) 
         s = 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_u, startv, countv, field_uv)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_uv, dim_fields3D, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of local state vector
         DO i = 1, dim_fields_l(2)
@@ -743,9 +824,12 @@ PROGRAM distribute_covar
         END DO
 
         ! Read global V
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(3)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_v, startv, countv, field_uv)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_uv, dim_fields3D, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of local state vector
         DO i = 1, dim_fields_l(3)
@@ -753,9 +837,12 @@ PROGRAM distribute_covar
         END DO
 
         ! Read global W
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(4)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_w, startv, countv, field_w)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_w, dim_fieldsW, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of local state vector
         DO i = 1, dim_fields_l(4)
@@ -763,9 +850,12 @@ PROGRAM distribute_covar
         END DO
 
         ! Read global Temperature
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(5)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_t, startv, countv, field_ts)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_ts, dim_fields3D, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of local state vector
         DO i = 1, dim_fields_l(5)
@@ -773,9 +863,12 @@ PROGRAM distribute_covar
         END DO
 
         ! Read global Salinity
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(6)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_s, startv, countv, field_ts)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_ts, dim_fields3D, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of local state vector
         DO i = 1, dim_fields_l(6)
@@ -783,9 +876,12 @@ PROGRAM distribute_covar
         END DO
         
         ! Read global SIC
+        if (pe==0) then ! netCDF pe
         countv(1) = dim_fields(ids% a_ice)
         s = s + 1
         stat(s) = NF_GET_VARA_REAL(ncid_in, id_i, startv, countv, field_2D)
+        endif ! netCDF pe
+        CALL MPI_BCAST(field_2D, dim_fields2D, mpi_float, 0, mpi_comm_world, mpierror)
 
         ! Initialize local nodes of pe-local state vector
         DO i = 1, dim_fields_l(ids% a_ice)
@@ -799,9 +895,12 @@ PROGRAM distribute_covar
           
           if (biofields(b)% ndims==1) then
             ! surface fields
-            ! read global field
-            s = s + 1
-            stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_2D)
+            if (pe==0) then ! netCDF pe
+              ! read global field
+              s = s + 1
+              stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_2D)
+            endif ! netCDF pe
+            CALL MPI_BCAST(field_2D, dim_fields2D, mpi_float, 0, mpi_comm_world, mpierror)
             ! fill local state vector:
              do i = 1, dim_fields_l(b)
               state_l(i + offsets(b)) = REAL(field_2D(my_nodlist_2D(i)),8)
@@ -810,8 +909,11 @@ PROGRAM distribute_covar
           elseif (biofields(b)% ndims==2) then
             ! 3D-fields
             ! read global field
-            s = s + 1
-            stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_ts)
+            if (pe==0) then ! netCDF pe
+              s = s + 1
+              stat(s) = NF_GET_VARA_REAL(ncid_in, biofields(b)% fid, startv, countv, field_ts)
+            endif ! netCDF pe
+            CALL MPI_BCAST(field_ts, dim_fields3D, mpi_float, 0, mpi_comm_world, mpierror)
             ! fill local state vector:
             do i = 1, dim_fields_l(b)
               state_l(i + offsets(b)) = REAL(field_ts(my_nodlist_ts(i)),8)
@@ -840,16 +942,17 @@ PROGRAM distribute_covar
 
      DO i = 1,  s
         IF (stat(i) /= NF_NOERR) &
-             WRITE(*, *) 'NetCDF error in closing output file, no.', i, ' pe ',pe
+             WRITE(*, *) 'NetCDF error in closing output file, no.', i, ' pe ', pe
      END DO
 
      DEALLOCATE(myfield_2D, myfield_uv, myfield_w, myfield_ts)
      DEALLOCATE(state_l, my_nodlist_2D, my_nodlist_uv, my_nodlist_w, my_nodlist_ts)
 
-  END DO peloop
+!~   END DO peloop
 
-  stat(1) = nf_close(ncid_in)
+  if (pe==0) stat(1) = nf_close(ncid_in)
 
-  WRITE (*,'(/1x,a/)') '------- END -------------'
+  if (pe==0) WRITE (*,'(/1x,a/)') '------- END -------------'
+  CALL MPI_FINALIZE(mpierror)
 
 END PROGRAM distribute_covar
