@@ -21,7 +21,7 @@ type state_field
    integer :: ndims = 0                   ! Number of field dimensions (1 or 2)
    logical :: nz1 = .true.                ! Vertical coordinates (on levels / on layers)
    character(len=10) :: variable = ''     ! Name of field
-   character(len=40) :: long_name = ''    ! Long name of field
+   character(len=50) :: long_name = ''    ! Long name of field
    character(len=20) :: units = ''        ! Unit of variable
    integer :: varid(3)                    ! To write to netCDF file
    logical :: updated = .true.            ! Whether variable is updated through assimilation
@@ -53,8 +53,6 @@ sfields(id% u) % units = 'm/s'
 sfields(id% u) % updated = .true.
 sfields(id% u) % bgc = .false.
 
-
-
 ! v
 sfields(id% v) % ndims = 2
 sfields(id% v) % nz1 = .true.
@@ -63,7 +61,6 @@ sfields(id% v) % long_name = 'Meridional velocity (interpolated on nodes)'
 sfields(id% v) % units = 'm/s'
 sfields(id% v) % updated = .true.
 sfields(id% v) % bgc = .false.
-
 
 ! w
 sfields(id% w) % ndims = 2
@@ -133,7 +130,7 @@ sfields(id% DIC) % ndims = 2
 sfields(id% DIC) % nz1 = .true.
 sfields(id% DIC) % variable = 'DIC'
 sfields(id% DIC) % long_name = 'Dissolved inorganic carbon'
-sfields(id% DIC) % units = 'mmol m-3'
+sfields(id% DIC) % units = 'mmol C m-3'
 sfields(id% DIC) % updated = .false.
 sfields(id% DIC) % bgc = .true.
 
@@ -142,7 +139,7 @@ sfields(id% DOC) % ndims = 2
 sfields(id% DOC) % nz1 = .true.
 sfields(id% DOC) % variable = 'DOC'
 sfields(id% DOC) % long_name = 'Dissolved organic carbon'
-sfields(id% DOC) % units = 'mmol m-3'
+sfields(id% DOC) % units = 'mmol C m-3'
 sfields(id% DOC) % updated = .false.
 sfields(id% DOC) % bgc = .true.
 
@@ -194,10 +191,113 @@ sfields(id% pCO2s) % bgc = .true.
 sfields(id% CO2f) % ndims = 1
 sfields(id% CO2f) % variable = 'CO2f'
 sfields(id% CO2f) % long_name = 'CO2 flux from atmosphere into ocean'
-sfields(id% CO2f) % units = 'mmolC m-2 d-1'
+sfields(id% CO2f) % units = 'mmol C m-2 d-1'
 sfields(id% CO2f) % updated = .false.
 sfields(id% CO2f) % bgc = .true.
 
+! PhyN
+sfields(id% PhyN) % ndims = 2
+sfields(id% PhyN) % variable = 'PhyN'
+sfields(id% PhyN) % long_name = 'intracell nitrogen small phytoplankton'
+sfields(id% PhyN) % units = 'mmol m-3'
+sfields(id% PhyN) % updated = .false.
+sfields(id% PhyN) % bgc = .true.
+
+! PhyC
+sfields(id% PhyC) % ndims = 2
+sfields(id% PhyC) % variable = 'PhyC'
+sfields(id% PhyC) % long_name = 'intracell carbon small phytoplankton'
+sfields(id% PhyC) % units = 'mmol C m-3'
+sfields(id% PhyC) % updated = .false.
+sfields(id% PhyC) % bgc = .true.
+
+! DiaN
+sfields(id% DiaN) % ndims = 2
+sfields(id% DiaN) % variable = 'DiaN'
+sfields(id% DiaN) % long_name = 'intracell nitrogen diatoms'
+sfields(id% DiaN) % units = 'mmol m-3'
+sfields(id% DiaN) % updated = .false.
+sfields(id% DiaN) % bgc = .true.
+
+! DiaC
+sfields(id% DiaC) % ndims = 2
+sfields(id% DiaC) % variable = 'DiaC'
+sfields(id% DiaC) % long_name = 'intracell carbon diatom'
+sfields(id% DiaC) % units = 'mmol C m-3'
+sfields(id% DiaC) % updated = .false.
+sfields(id% DiaC) % bgc = .true.
+
+! DiaSi
+sfields(id% DiaSi) % ndims = 2
+sfields(id% DiaSi) % variable = 'DiaSi'
+sfields(id% DiaSi) % long_name = 'intracell Si diatom'
+sfields(id% DiaSi) % units = 'mmol m-3'
+sfields(id% DiaSi) % updated = .false.
+sfields(id% DiaSi) % bgc = .true.
+
+! PAR
+sfields(id% PAR) % ndims = 2
+sfields(id% PAR) % variable = 'PAR'
+sfields(id% PAR) % long_name = 'photosynthetically active radiation'
+sfields(id% PAR) % units = 'W m-2'
+sfields(id% PAR) % updated = .false.
+sfields(id% PAR) % bgc = .true.
+
+! NNPn
+sfields(id% NPPn) % ndims = 2
+sfields(id% NPPn) % variable = 'NPPn'
+sfields(id% NPPn) % long_name = 'mean net primary production small phytoplankton'
+sfields(id% NPPn) % units = 'mmol C m-2 d-1'
+sfields(id% NPPn) % updated = .false.
+sfields(id% NPPn) % bgc = .true.
+
+! NPPd
+sfields(id% NPPd) % ndims = 2
+sfields(id% NPPd) % variable = 'NPPd'
+sfields(id% NPPd) % long_name = 'mean net primary production diatoms'
+sfields(id% NPPd) % units = 'mmol C m-2 d-1'
+sfields(id% NPPd) % updated = .false.
+sfields(id% NPPd) % bgc = .true.
+
+! TChl
+sfields(id% TChl) % ndims = 2
+sfields(id% TChl) % variable = 'TChl'
+sfields(id% TChl) % long_name = 'Total chlorophyll (PhyChl+DiaChl)'
+sfields(id% TChl) % units = 'mg chl m-3'
+sfields(id% TChl) % updated = .false.
+sfields(id% TChl) % bgc = .true.
+
+! TDN
+sfields(id% TDN) % ndims = 2
+sfields(id% TDN) % variable = 'TDN'
+sfields(id% TDN) % long_name = 'Total dissolved nitrogen (DIN+DON)'
+sfields(id% TDN) % units = 'mmol m-3'
+sfields(id% TDN) % updated = .false.
+sfields(id% TDN) % bgc = .true.
+
+! HetC
+sfields(id% HetC) % ndims = 2
+sfields(id% HetC) % variable = 'HetC'
+sfields(id% HetC) % long_name = 'carbon in heterotrophs'
+sfields(id% HetC) % units = 'mmol C m-3'
+sfields(id% HetC) % updated = .false.
+sfields(id% HetC) % bgc = .true.
+
+! DetC
+sfields(id% DetC) % ndims = 2
+sfields(id% DetC) % variable = 'DetC'
+sfields(id% DetC) % long_name = 'carbon in detritus'
+sfields(id% DetC) % units = 'mmol C m-3'
+sfields(id% DetC) % updated = .false.
+sfields(id% DetC) % bgc = .true.
+
+! TOC
+sfields(id% TOC) % ndims = 2
+sfields(id% TOC) % variable = 'TOC'
+sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
+sfields(id% TOC) % units = 'mmol C m-3'
+sfields(id% TOC) % updated = .false.
+sfields(id% TOC) % bgc = .true.
 
 END SUBROUTINE init_sfields
   

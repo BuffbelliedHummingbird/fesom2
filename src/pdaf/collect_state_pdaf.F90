@@ -25,13 +25,13 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE mod_parallel_pdaf, &
        ONLY: mype_world
   USE mod_assim_pdaf, &
-       ONLY: offset, mesh_fesom, id
+       ONLY: offset, mesh_fesom, id, dim_fields
   USE g_PARSUP, &
        ONLY: mydim_nod2d, myDim_elem2D
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1
   USE REcoM_GloVar, &
-       ONLY: GloPCO2surf, GloCO2flux, Diags3D
+       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D
   USE i_arrays, &
        ONLY: a_ice
   USE mod_parallel_pdaf, &
@@ -114,35 +114,42 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
         DO k = 1, mesh_fesom%nl-1
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl)) = tr_arr(k, i,  8) ! small phytoplankton chlorophyll
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl)) = tr_arr(k, i, 17) ! diatom chlorophyll
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC))    = tr_arr(k, i,  4) ! DIC
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC))    = tr_arr(k, i, 14) ! DOC
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk))    = tr_arr(k, i,  5) ! Alk
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN))    = tr_arr(k, i,  3) ! DIN
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON))    = tr_arr(k, i, 13) ! DON
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2))     = tr_arr(k, i, 24) ! O2
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC))    = tr_arr(k, i,  4) ! dissolved inorganic carbon
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC))    = tr_arr(k, i, 14) ! dissolved organic carbon
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk))    = tr_arr(k, i,  5) ! alkalinity
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN))    = tr_arr(k, i,  3) ! dissolved inorganic nitrogen
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON))    = tr_arr(k, i, 13) ! dissolved organic nitrogen
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2))     = tr_arr(k, i, 24) ! oxygen
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyN))   = tr_arr(k, i,  6) ! intracellular conc of nitrogen in small phytoplankton
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyC))   = tr_arr(k, i,  7) ! intracellular conc of carbon in small phytoplankton
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaN))   = tr_arr(k, i, 15) ! intracellular conc of nitrogen in diatoms
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaC))   = tr_arr(k, i, 16) ! intracellular conc of carbon in diatoms
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaSi))  = tr_arr(k, i, 18) ! intracellular conc of Si in diatoms
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR))    = PAR3D(k, i)      ! photosynthetically active radiation
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% HetC))   = tr_arr(k, i, 12) ! intracellular conc of carbon in heterotrophs
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC))   = tr_arr(k, i, 10) ! detritus carbon
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn))   = diags3D(k, i, 1) ! net primary production small phytoplankton
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd))   = diags3D(k, i, 2) ! net primary production diatoms
         ENDDO
         ! 2D-fields
         state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2
         state_p(i + offset(id% CO2f ))  = GloCO2flux(i)  ! CO2 flux (from atmosphere into ocean)
    ENDDO
+   ! derived fields:
+   state_p(offset(id% TChl   )+1 : offset(id% TChl   )+dim_fields(id% TChl   )) = & ! Total chlorophyll
+   state_p(offset(id% PhyChl )+1 : offset(id% PhyChl )+dim_fields(id% PhyChl )) + &
+   state_p(offset(id% DiaChl )+1 : offset(id% DiaChl )+dim_fields(id% DiaChl ))
    
-   ! chlorophyll
-   ! tr_arr(:,:,8)   --> small phytoplankton chlorophyll
-   ! tr_arr(:,:,17)  --> diatom chlorophyll
-   ! tr_arr(:,:,3)   --> DIN; dissolved inorganic nitrogen
-   ! tr_arr(:,:,13)  --> DON; dissolved organic nitrogen
-   ! tr_arr(:,:,5)   --> alkalinity
-   ! tr_arr(:,:,4)   --> DIC
-   ! tr_arr(:,:,14)  --> DOC
-   ! tr_arr(:,:,24)  --> O2
-   ! GloPCO2surf(myDim) --> pCO2 surface
-   ! GloCO2flux (myDim) --> CO2 flux
+   state_p(offset(id% TDN ) +1 : offset(id% TDN )+dim_fields(id% TDN )) = & ! Total dissolved nitrogen
+   state_p(offset(id% DIN ) +1 : offset(id% DIN )+dim_fields(id% DIN )) + &
+   state_p(offset(id% DON ) +1 : offset(id% DON )+dim_fields(id% DON ))
    
-   ! Diags3D(1:nzmax,n,idiags)  = Diags3Dloc(1:nzmax,idiags) ! 1=NPPnano, 2=NPPdia
-   ! --> PAR
-   ! --> sum: DIN + DON (?)
-   ! --> total organic carbon: PhyC + DiaC + DetC + DOC + HetC
-   ! --> "silicate?": DiaSi + DetSi + Si (silicic acid) ???
+   state_p(offset(id% TOC  ) +1 : offset(id% TOC  )+dim_fields(id% TOC  )) = & ! Total organic carbon
+   state_p(offset(id% PhyC ) +1 : offset(id% PhyC )+dim_fields(id% PhyC )) + &
+   state_p(offset(id% DiaC ) +1 : offset(id% DiaC )+dim_fields(id% DiaC )) + &
+   state_p(offset(id% HetC ) +1 : offset(id% HetC )+dim_fields(id% HetC )) + &
+   state_p(offset(id% DetC ) +1 : offset(id% DetC )+dim_fields(id% DetC )) + &
+   state_p(offset(id% DOC  ) +1 : offset(id% DOC  )+dim_fields(id% DOC  ))
    
    
   

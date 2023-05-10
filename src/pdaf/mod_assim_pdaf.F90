@@ -139,6 +139,19 @@ MODULE mod_assim_pdaf
      INTEGER :: O2
      INTEGER :: pCO2s
      INTEGER :: CO2f
+     INTEGER :: PhyN
+     INTEGER :: PhyC
+     INTEGER :: DiaN
+     INTEGER :: DiaC
+     INTEGER :: DiaSi
+     INTEGER :: PAR
+     INTEGER :: NPPn
+     INTEGER :: NPPd
+     INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
+     INTEGER :: TDN    ! Total dissolved N = DIN + DON
+     INTEGER :: HetC
+     INTEGER :: DetC
+     INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
   END TYPE field_ids
   
 ! Type variable holding field IDs in state vector
