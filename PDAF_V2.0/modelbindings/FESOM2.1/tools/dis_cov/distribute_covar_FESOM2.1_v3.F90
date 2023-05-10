@@ -247,10 +247,10 @@ PROGRAM distribute_covar
   biofields(ids% PAR) % ndims = 2
   biofields(ids% PAR) % variable = 'PAR'
 
-  biofields(ids% NPPn) % ndims = 1
+  biofields(ids% NPPn) % ndims = 2
   biofields(ids% NPPn) % variable = 'NPPn'
 
-  biofields(ids% NPPd) % ndims = 1
+  biofields(ids% NPPd) % ndims = 2
   biofields(ids% NPPd) % variable = 'NPPd'
 
   biofields(ids% TChl) % ndims = 2
@@ -509,7 +509,7 @@ PROGRAM distribute_covar
      dim_state_l = SUM(dim_fields_l)
      
      write(mype_string,'(i4.4)') pe
-     WRITE (*,'(a, i4, i7)') 'pe and dim_state_l: ', pe, dim_state_l
+     WRITE (*,'(a, i4, 4x, i7)') 'pe and dim_state_l: ', pe, dim_state_l
 
      s = 1
      stat(s) = NF_CREATE(TRIM(ncfile_out)//'_'//TRIM(mype_string)//'.nc', NF_64BIT_OFFSET, ncid_out)
