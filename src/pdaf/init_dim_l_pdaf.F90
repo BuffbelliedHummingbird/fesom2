@@ -24,7 +24,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
              id, &                         ! Field IDs in state vector
              coords_l, &                   ! Coordinates of local analysis domain
              mesh_fesom, &                 
-             nfields
+             nfields, bgcmin, bgcmax
                                           ! mesh_fesom % coord_nod2D, & ! vertex coordinates in radian measure
                                           ! mesh_fesom % nlevels, &     ! number of levels at (below) elem     considering bottom topography
                                           ! mesh_fesom % nlevels_nod2D  ! number of levels at (below) vertices considering bottom topography
@@ -35,6 +35,8 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
         ONLY: mype_filter
     USE PDAF_mod_filter, &
         ONLY: state
+    USE mod_nc_out_variables, &
+        ONLY: sfields
        
   USE g_rotate_grid, &
        ONLY: r2g                           ! Transform from the mesh (rotated) coordinates 
@@ -58,7 +60,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   INTEGER :: nlay                              ! Number of layers for current domain
   INTEGER :: dim_fields_l(nfields)             ! Field dimensions for current domain
   INTEGER :: offset_l(nfields)                 ! Field offsets for current domain
-  INTEGER :: i                                 ! Counters
+  INTEGER :: i, b                              ! Counters
   
   ! integer :: myDebug_id(1)
   ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
@@ -79,16 +81,29 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   dim_fields_l (id%salt)   = nlay
   dim_fields_l (id%a_ice)  = 0
   dim_fields_l (id%MLD1)   = 0
-  dim_fields_l (id%PhyChl) = 0
-  dim_fields_l (id%DiaChl) = 0
-  dim_fields_l (id%DIC) = 0
-  dim_fields_l (id%DOC) = 0
-  dim_fields_l (id%Alk) = 0
-  dim_fields_l (id%DIN) = 0
-  dim_fields_l (id%DON) = 0
-  dim_fields_l (id%O2) = 0
-  dim_fields_l (id%pCO2s) = 0
-  dim_fields_l (id%CO2f) = 0
+  
+!~   dim_fields_l (id%PhyChl) = 0
+!~   dim_fields_l (id%DiaChl) = 0
+!~   dim_fields_l (id%DIC) = 0
+!~   dim_fields_l (id%DOC) = 0
+!~   dim_fields_l (id%Alk) = 0
+!~   dim_fields_l (id%DIN) = 0
+!~   dim_fields_l (id%DON) = 0
+!~   dim_fields_l (id%O2) = 0
+!~   dim_fields_l (id%pCO2s) = 0
+!~   dim_fields_l (id%CO2f) = 0
+
+  DO b=bgcmin, bgcmax
+    ! not updated:
+    IF ( .not. (sfields(b)% updated)) THEN
+      dim_fields_l(b) = 0
+    ELSE
+      ! surface fields:
+      IF (sfields(b)% ndims == 1)   dim_fields_l(b)=1
+      ! 3D fields:
+      IF (sfields(b)% ndims == 2)   dim_fields_l(b)=nlay
+    ENDIF
+  ENDDO
 
   offset_l(1) = 0
   DO i = 2,nfields
