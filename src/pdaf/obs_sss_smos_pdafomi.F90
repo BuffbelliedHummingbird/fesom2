@@ -467,13 +467,18 @@ CONTAINS
 		obs_p = obs_p - bias_obs_sss
 		
 	ELSE ! (elseif dim_obs_p==0)
-		
-		ALLOCATE(thisobs%id_obs_p(1, 1))
-		ALLOCATE(obs_include_index(1))
+	
 		ALLOCATE(obs_p(1))
-		ALLOCATE(obs_error_p(1))
-		ALLOCATE(ocoord_n2d_p(2, 1))
 		ALLOCATE(ivariance_obs_p(1))
+		ALLOCATE(ocoord_n2d_p(2, 1))
+		! ALLOCATE(thisobs%id_obs_p(1, 0))
+		ALLOCATE(thisobs%id_obs_p(1, 1))
+		thisobs%id_obs_p = 0
+		
+		ALLOCATE(obs_include_index(1))
+		ALLOCATE(obs_error_p(1))
+		
+		
 		
 	ENDIF haveobs
 

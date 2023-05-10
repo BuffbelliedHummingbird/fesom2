@@ -75,7 +75,7 @@ SUBROUTINE init_pdaf()
   USE mod_nc_out_routines, &
        ONLY: netCDF_init
   USE mod_nc_out_variables, &
-       ONLY: write_ens, init_sfields
+       ONLY: write_ens, init_sfields, sfields
 
   IMPLICIT NONE
 
@@ -293,14 +293,29 @@ disturb_mslp=.true.
   id% O2     = 16
   id% pCO2s  = 17
   id% CO2f   = 18
+  id% PhyN   = 19
+  id% PhyC   = 20
+  id% DiaN   = 21
+  id% DiaC   = 22
+  id% DiaSi  = 23
+  id% PAR    = 24
+  id% NPPn   = 25
+  id% NPPd   = 26
+  id% TChl   = 27
+  id% TDN    = 28
+  id% HetC   = 29
+  id% DetC   = 30
+  id% TOC    = 31
   
-  nfields = 18
+  nfields = 31
 
   phymin = 1
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 18
+  bgcmax = 31
+  
+  CALL init_sfields()
 
 ! *** Specify offset of fields in pe-local state vector ***
 
@@ -313,16 +328,28 @@ disturb_mslp=.true.
   dim_fields(id% salt  )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 6 salt
   dim_fields(id% a_ice )   = myDim_nod2D                     ! 7 a_ice
   dim_fields(id% MLD1  )   = myDim_nod2D
-  dim_fields(id% PhyChl)   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% DiaChl)   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% DIC   )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% DOC   )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% Alk   )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% DIN   )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% DON   )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% O2    )   = myDim_nod2D*(mesh_fesom%nl-1)
-  dim_fields(id% pCO2s )   = myDim_nod2D
-  dim_fields(id% CO2f  )   = myDim_nod2D
+  
+  ! dim_fields biogeochemistry:
+  do b=bgcmin,bgcmax
+    ! 3D fields:
+    if     (sfields(b)% ndims == 2) then
+      dim_fields(b) = myDim_nod2D*(mesh_fesom%nl-1)
+    ! surface fields:
+    elseif (sfields(b)% ndims == 1) then
+      dim_fields(b) = myDim_nod2D
+    endif
+  enddo
+  
+!~   dim_fields(id% PhyChl)   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% DiaChl)   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% DIC   )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% DOC   )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% Alk   )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% DIN   )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% DON   )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% O2    )   = myDim_nod2D*(mesh_fesom%nl-1)
+!~   dim_fields(id% pCO2s )   = myDim_nod2D
+!~   dim_fields(id% CO2f  )   = myDim_nod2D
 
   ALLOCATE(offset(nfields))
   offset(id% ssh   )   = 0                                                ! 1 SSH
@@ -354,16 +381,27 @@ disturb_mslp=.true.
 	dim_fields_glob(id% salt  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! salt
 	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D                        ! a_ice
 	dim_fields_glob(id% MLD1  ) = mesh_fesom%nod2D
-	dim_fields_glob(id% PhyChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% DiaChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% DIC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% DOC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% Alk   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% DIN   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% DON   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% O2    ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-	dim_fields_glob(id% pCO2s ) = mesh_fesom%nod2D
-	dim_fields_glob(id% CO2f  ) = mesh_fesom%nod2D
+	
+	! dim_fields biogeochemistry:
+    do b=bgcmin,bgcmax
+      ! 3D fields:
+      if     (sfields(b)% ndims == 2) then
+        dim_fields_glob(b) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+      ! surface fields:
+      elseif (sfields(b)% ndims == 1) then
+        dim_fields_glob(b) = mesh_fesom%nod2D
+      endif
+    enddo
+!~ 	dim_fields_glob(id% PhyChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% DiaChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% DIC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% DOC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% Alk   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% DIN   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% DON   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% O2    ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+!~ 	dim_fields_glob(id% pCO2s ) = mesh_fesom%nod2D
+!~ 	dim_fields_glob(id% CO2f  ) = mesh_fesom%nod2D
 	
 	ALLOCATE(offset_glob(nfields))
 	offset_glob(id% ssh   ) = 0                                                                 ! SSH
@@ -383,8 +421,6 @@ disturb_mslp=.true.
 	dim_state = sum(dim_fields_glob)
 				
 !end if
-
-  CALL init_sfields()
 
   
   if (mype_world==0) THEN
