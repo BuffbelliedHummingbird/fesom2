@@ -5,6 +5,7 @@
 *.out
 *.swp
 *.xx
+*.~
 src/icepack_drivers/Icepack
 /work_*
 Makefile.in
