@@ -26,14 +26,14 @@ SUBROUTINE init_pdaf()
   USE mod_assim_pdaf, &                                                   ! Variables for assimilation
        ONLY: dim_state, dim_state_p, dim_ens, dim_lag, &
        step_null, offset, dim_fields, screen, filtertype, subtype, &
-       delt_obs_ocn, write_3D_monthly_mean, &
+       delt_obs_ocn, write_monthly_mean, &
        DA_couple_type, incremental, type_forget, peak_obs_error, &
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, eff_dim_obs, loc_radius, loctype, &
        twin_experiment, dim_obs_max, use_global_obs, mesh_fesom, &
        offset_glob, dim_fields_glob, nfields, id, &
        phymin, phymax, bgcmin, bgcmax, &
-       path_atm_cov, &
+       path_atm_cov, this_is_pdaf_restart, timemean, &
        ! Debugging:
        debug_id_depth, debug_id_nod2, ens_member_debug, &
        ! EN4 profile data processing:
@@ -161,7 +161,7 @@ SUBROUTINE init_pdaf()
 ! **********************************************************
 
 ! *** Forecast length (time interval between analysis steps) ***
-  delt_obs_ocn = 10  ! Number of time steps between analysis/assimilation steps
+  delt_obs_ocn = 32  ! Number of time steps between analysis/assimilation steps
 
 ! *** Set weakly- or strongly-coupled DA
   DA_couple_type = 0 ! (0) for weakly- (1) for strongly-coupled DA
@@ -306,14 +306,15 @@ disturb_mslp=.true.
   id% HetC   = 29
   id% DetC   = 30
   id% TOC    = 31
+  id% PhyCalc= 32
   
-  nfields = 31
+  nfields = 32
 
   phymin = 1
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 31
+  bgcmax = 32
   
   CALL init_sfields()
 
@@ -339,17 +340,6 @@ disturb_mslp=.true.
       dim_fields(b) = myDim_nod2D
     endif
   enddo
-  
-!~   dim_fields(id% PhyChl)   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% DiaChl)   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% DIC   )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% DOC   )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% Alk   )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% DIN   )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% DON   )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% O2    )   = myDim_nod2D*(mesh_fesom%nl-1)
-!~   dim_fields(id% pCO2s )   = myDim_nod2D
-!~   dim_fields(id% CO2f  )   = myDim_nod2D
 
   ALLOCATE(offset(nfields))
   offset(id% ssh   )   = 0                                                ! 1 SSH
@@ -392,16 +382,6 @@ disturb_mslp=.true.
         dim_fields_glob(b) = mesh_fesom%nod2D
       endif
     enddo
-!~ 	dim_fields_glob(id% PhyChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% DiaChl) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% DIC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% DOC   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% Alk   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% DIN   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% DON   ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% O2    ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
-!~ 	dim_fields_glob(id% pCO2s ) = mesh_fesom%nod2D
-!~ 	dim_fields_glob(id% CO2f  ) = mesh_fesom%nod2D
 	
 	ALLOCATE(offset_glob(nfields))
 	offset_glob(id% ssh   ) = 0                                                                 ! SSH
@@ -441,6 +421,9 @@ disturb_mslp=.true.
           ') needs to be identical to the number of model tasks (',n_modeltasks,')'
      CALL abort_parallel()
   END IF
+  
+  ALLOCATE(timemean(dim_state_p))
+  timemean = 0.0
 
 
 ! *****************************************************
@@ -489,8 +472,10 @@ disturb_mslp=.true.
   ENDIF
   ! Initialize Netcdf output
 !~      CALL  init_output_pdaf(dim_lag, writepe)
-  CALL netCDF_init('mean')
-  IF (write_ens) CALL netCDF_init('memb')
+  IF (.not. this_is_pdaf_restart) THEN
+    CALL netCDF_init('mean')
+    IF (write_ens) CALL netCDF_init('memb')
+  ENDIF
 
 
 ! ******************************'***

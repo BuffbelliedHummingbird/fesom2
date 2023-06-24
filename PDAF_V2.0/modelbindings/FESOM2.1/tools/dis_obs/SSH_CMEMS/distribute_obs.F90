@@ -11,6 +11,8 @@ PROGRAM distribute_obs
 ! holding the global observation information.
 
 ! USES:
+  use iso_fortran_env
+
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
@@ -49,16 +51,23 @@ PROGRAM distribute_obs
   INTEGER, ALLOCATABLE :: nod2D_part(:), elem2D_part(:)                 ! rank partioning vectors (list of nodes, elems per process)
   INTEGER, ALLOCATABLE :: List_nod2D(:), List_elem2D(:)                 ! (dummy) arrays to read from myList files
   INTEGER, ALLOCATABLE :: myList_nod2D(:), myList_elem2D(:)             ! (dummy) arrays to read from myList files
-  
-  INTEGER :: year
+
+! Command line input:
+  INTEGER :: year, ierr
   CHARACTER(len=4)  :: year_string
+  
+! Usage of command line input:
+! After compiling, type e.g. "./distribute_obs 2016"
 
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
 
-  year = 2016
-  write(year_string,'(i4.4)') year
+  call get_command_argument(1,year_string)
+  read(year_string, *, iostat=ierr) year
+  
+!  year = 2016
+!  write(year_string,'(i4.4)') year
 
   ! Path to and name of file holding global observations on model grid
   ! inpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/'
@@ -67,12 +76,12 @@ PROGRAM distribute_obs
   
   ! Path to and name stub of output files
   ! outpath = '/work/ollie/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_144/'
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_128/'
-  outfile = 'SSH_track_'//year_string//'_dist128'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
+  outfile = 'SSH_track_'//year_string//'_dist72'
 
   ! Path to mesh partioning
   ! distpath   = '/work/ollie/projects/clidyn/FESOM2/meshes/core2/dist_128/'
-  distpath = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  distpath = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
   partfile   = 'rpart.out'
   mylistfile = 'my_list'
 
@@ -88,6 +97,8 @@ PROGRAM distribute_obs
   WRITE (*,'(3x,a)')  '********************************************************'
   WRITE (*,'(3x,a)')  '*** Generate distributed observation files for FESOM ***'
   WRITE (*,'(3x,a/)') '********************************************************'
+
+  WRITE (*,*) 'Year: ', year
 
   ncfile_in = TRIM(inpath)//TRIM(infile)
   WRITE (*,*) 'Read fields from file: ',TRIM(ncfile_in)

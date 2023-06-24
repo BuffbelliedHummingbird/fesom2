@@ -73,7 +73,7 @@ USE mod_atmos_ens_stochasticity, &
            disturb_xwind, disturb_ywind, disturb_humi, &
            disturb_qlw, disturb_qsr, disturb_tair, &
            disturb_prec, disturb_snow, disturb_mslp, &
-           atmos_stochasticity_ON
+           atmos_stochasticity_ON, write_atmos_st
 USE mod_assim_pdaf, &
      ONLY: step_null
 #endif
@@ -291,7 +291,7 @@ ENDIF
 ENDIF
 
 call add_atmos_ens_stochasticity(istep)
-call write_atmos_stochasticity_output(istep)
+IF (write_atmos_st) call write_atmos_stochasticity_output(istep)
 
 ENDIF ! atmos_stochasticity_ON
 #endif

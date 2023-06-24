@@ -13,12 +13,19 @@ SUBROUTINE assimilate_pdaf(istep)
   USE pdaf_interfaces_module, &   ! Interface definitions to PDAF core routines
        ONLY: PDAFomi_assimilate_local, PDAFomi_assimilate_global, &
        PDAFomi_assimilate_lenkf, PDAFomi_generate_obs, PDAF_get_localfilter
+  USE PDAF_mod_filter, &
+       ONLY: assim_flag
   USE mod_parallel_pdaf, &        ! Parallelization variables
-       ONLY: mype_world, abort_parallel, task_id, mype_submodel
+       ONLY: mype_world, abort_parallel, task_id, mype_submodel, &
+       COMM_COUPLE, filterpe
   USE mod_assim_pdaf, &           ! Variables for assimilation
-       ONLY: filtertype, istep_asml, step_null
+       ONLY: filtertype, istep_asml, step_null, timemean, &
+       dim_state_p, delt_obs_ocn, dim_ens
+  USE g_clock, &
+       ONLY: timenew
 
   IMPLICIT NONE
+  include 'mpif.h'
 
 ! *** Arguments ***
   INTEGER, INTENT(in) :: istep       !< current time step
@@ -26,7 +33,9 @@ SUBROUTINE assimilate_pdaf(istep)
 ! *** Local variables ***
   INTEGER :: status_pdaf             ! PDAF status flag
   INTEGER :: localfilter             ! Flag for domain-localized filter (1=true)
-
+  REAL, ALLOCATABLE :: ens_p(:)      ! Ensemble member state
+  REAL, ALLOCATABLE :: state_p(:)    ! Ensemble mean state
+  INTEGER :: mpierror
 
   ! External subroutines
   EXTERNAL :: collect_state_pdaf, &  ! Routine to collect a state vector from model fields
@@ -89,5 +98,35 @@ SUBROUTINE assimilate_pdaf(istep)
           ' in PDAF_put_state - stopping! (PE ', mype_world,')'
      CALL  abort_parallel()
   END IF
+  
+  ! Compute time mean
+  IF ( .not. ALLOCATED(ens_p))   ALLOCATE(ens_p  (dim_state_p))
+  IF ( .not. ALLOCATED(state_p)) ALLOCATE(state_p(dim_state_p))
+  
+  ! 1. add to daily mean:
+  IF (assim_flag == 0) THEN
+
+     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean.'
+
+     CALL collect_state_pdaf(dim_state_p, ens_p)
+
+     if(mype_submodel==0) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, member: ', task_id, 'ens_p: ', ens_p(:6)
+
+     CALL MPI_REDUCE(ens_p,state_p,dim_state_p,MPI_DOUBLE_PRECISION,MPI_SUM,0,COMM_COUPLE,mpierror)
+
+     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p: ', state_p(:6)
+     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p/dim_ens/delt_obs: ', state_p(:6) / dim_ens / delt_obs_ocn
+     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean before: ', timemean(:6)
+
+     IF (filterpe) timemean = timemean + state_p / dim_ens / delt_obs_ocn
+
+     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean after: ', timemean(:6)
+
+  ! 2. reset to zero after assimilation step:
+  ELSEIF (assim_flag == 1) THEN
+    if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Resetting daily mean to zero.'
+    timemean = 0.0
+  ENDIF
+  
 
 END SUBROUTINE assimilate_pdaf

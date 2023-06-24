@@ -193,6 +193,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 
 ! Is already zero (see gen_cov tool).
 
+! eof_p(offset-first-biogeo:end,1:dim_ens-1)=0
+
 ! *****************************************
 ! *** Generate ensemble of model states ***
 ! *****************************************
@@ -222,23 +224,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      END IF
 
      ! *** state_ens = state + sqrt(dim_ens-1) eofV A^T ***
-
-!~      IF (ASIM_START_USE_CLIM_STATE) THEN
-!~      !!! unstable - crashes easily !!!
-!~          call do_ic3d(mesh_fesom) ! provides an initial 3D boundary condition
-!~                                   ! for tracers from climate data
-!~          DO i = 1, myDim_nod2D
-!~             DO k = 1, mesh_fesom%nl-1
-!~                state_p((i-1) * (mesh_fesom%nl-1) + k + offset(5)) = tr_arr(k, i, 1) ! temp
-!~             END DO
-!~          END DO
-
-!~          DO i = 1, myDim_nod2D
-!~             DO k = 1, mesh_fesom%nl-1
-!~                state_p((i-1) * (mesh_fesom%nl-1) + k + offset(6)) = tr_arr(k, i, 2) ! salt
-!~             END DO
-!~          END DO
-!~      ENDIF
      
      DO col = 1,dim_ens
         ens_p(1:dim_p,col) = state_p(1:dim_p)

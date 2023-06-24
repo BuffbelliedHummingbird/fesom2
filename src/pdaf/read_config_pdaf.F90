@@ -15,7 +15,7 @@ SUBROUTINE read_config_pdaf()
        ONLY: dim_state, dim_state_p, dim_ens, dim_lag, &
        offset, screen, filtertype, subtype, dim_ens, &
        delt_obs_ocn, &
-       dim_bias, DA_couple_type,write_3D_monthly_mean, &
+       dim_bias, DA_couple_type,write_monthly_mean, &
        incremental, type_forget, peak_obs_error, &
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, step_null, &
@@ -27,9 +27,6 @@ SUBROUTINE read_config_pdaf()
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
-!~   USE output_pdaf, &
-!~        ONLY: write_da, str_daspec, &
-!~        write_a ! write_ens_snapshot,
   USE mod_nc_out_variables, &
        ONLY: write_ens
   USE obs_sst_pdafomi, &
@@ -72,7 +69,7 @@ SUBROUTINE read_config_pdaf()
        loctype, loc_ratio, delt_obs_ocn, &     
        dim_obs_max, &
        twin_experiment, &
-       write_3D_monthly_mean, &
+       write_monthly_mean, &
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        ! Salt:
@@ -146,7 +143,9 @@ IF (disturb_humi   .OR. &
 ELSE
     atmos_stochasticity_ON = .FALSE.
 ENDIF
-  
+
+! No ensemble member monthly means are implemented:
+IF (write_monthly_mean) write_ens=.false.
   
 
 ! *** Print configuration variables ***
@@ -237,7 +236,7 @@ ENDIF
         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_inistate ', TRIM(file_inistate)
      ENDIF
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_ens            ', write_ens
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_3D_monthly_mean', write_3D_monthly_mean
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_monthly_mean', write_monthly_mean
      
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','twin_experiment', twin_experiment
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 

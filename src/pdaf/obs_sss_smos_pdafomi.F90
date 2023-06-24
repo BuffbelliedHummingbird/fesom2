@@ -52,7 +52,8 @@ MODULE obs_sss_smos_pdafomi
   USE mod_parallel_pdaf, &
        ONLY: mype_filter     ! Rank of filter process
   USE PDAFomi, &
-       ONLY: obs_f, obs_l    ! Declaration of observation data types
+       ONLY: obs_f, obs_l, & ! Declaration of observation data types
+       PDAFomi_set_debug_flag
 
   IMPLICIT NONE
   SAVE
@@ -471,12 +472,15 @@ CONTAINS
 		ALLOCATE(obs_p(1))
 		ALLOCATE(ivariance_obs_p(1))
 		ALLOCATE(ocoord_n2d_p(2, 1))
-		! ALLOCATE(thisobs%id_obs_p(1, 0))
-		ALLOCATE(thisobs%id_obs_p(1, 1))
+		ALLOCATE(thisobs%id_obs_p(1,1))
+		! ALLOCATE(thisobs%id_obs_p(1, 1))
 		thisobs%id_obs_p = 0
 		
 		ALLOCATE(obs_include_index(1))
 		ALLOCATE(obs_error_p(1))
+		
+!~ 		thisobs_l, thisobs, coords_l, &
+!~             locweight, lradius_sss, sradius_sss, dim_obs_l
 		
 		
 		
@@ -595,9 +599,19 @@ CONTAINS
        END IF
        lradius_sss = loc_radius_sss(domain_p)
 
-
+!~        if (mype_filter==44) CALL PDAFomi_set_debug_flag(1)
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% id_obs_l', thisobs_l% id_obs_l
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% distance_l', thisobs_l% distance_l
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: coords_l', coords_l
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: locweight', locweight
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: lradius_sss', lradius_sss
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: sradius_sss', sradius_sss
+!~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: dim_obs_l', dim_obs_l
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_sss, sradius_sss, dim_obs_l)
+!~        CALL PDAFomi_set_debug_flag(0)
+       
     END IF
 
   END SUBROUTINE init_dim_obs_l_sss

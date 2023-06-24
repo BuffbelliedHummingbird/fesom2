@@ -11,6 +11,8 @@ PROGRAM distribute_obs
 ! holding the global observation information.
 
 ! USES:
+  use iso_fortran_env
+
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
@@ -50,19 +52,22 @@ PROGRAM distribute_obs
   INTEGER, ALLOCATABLE :: List_nod2D(:), List_elem2D(:)                 ! (dummy) arrays to read from myList files
   INTEGER, ALLOCATABLE :: myList_nod2D(:), myList_elem2D(:)             ! (dummy) arrays to read from myList files
   
-  INTEGER :: year
+  INTEGER :: year, ierr
   CHARACTER(len=4)  :: year_string
 
-  CHARACTER(len=3)  :: npes_string
+  CHARACTER(len=2)  :: npes_string
 
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
 
-  year = 2016
-  write(year_string,'(i4.4)') year
+  call get_command_argument(1,year_string)
+  read(year_string, *, iostat=ierr) year
 
-  npes_string = '126'
+  !year = 2016
+  !write(year_string,'(i4.4)') year
+
+  npes_string = '72'
 
   ! Path to and name of file holding global observations on model grid
   inpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/'

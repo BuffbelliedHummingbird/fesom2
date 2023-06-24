@@ -130,6 +130,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC))   = tr_arr(k, i, 10) ! detritus carbon
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn))   = diags3D(k, i, 1) ! net primary production small phytoplankton
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd))   = diags3D(k, i, 2) ! net primary production diatoms
+           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))= tr_arr(k, i, 22) ! small phytoplankton CaCO2
         ENDDO
         ! 2D-fields
         state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2

@@ -34,11 +34,12 @@ INTEGER :: l                          ! counter (levels/layers)
 
 CHARACTER(len=2) :: memberstr         ! ensemble member
 INTEGER :: fileid                     ! ID of netCDF file
-CHARACTER, dimension(3) :: IFA = ['i', 'f', 'a']
+CHARACTER, dimension(4) :: IFA = ['i', 'f', 'a', 'm']
                                       ! "i" (initial), 
                                       ! "f" (forecast),
-                                      ! "a" (analysis)
-CHARACTER(len=8), dimension(3) :: IFA_long = ['initial','forecast','analysis']
+                                      ! "a" (analysis),
+                                      ! "m" (daily means)
+CHARACTER(len=8), dimension(4) :: IFA_long = ['initial','forecast','analysis','daymean']
 INTEGER :: dimID_nod2, dimID_iter, &
            dimID_nz, dimID_nz1
 INTEGER :: dimIDs(3)
@@ -258,6 +259,9 @@ IF (writepe) THEN
   ELSE IF (writetype== 'a') THEN
      WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write ocean analysis to NetCDF at step ', &
           iteration, ' position ', writepos
+  ELSE IF (writetype== 'm') THEN
+     WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write ocean daily mean to NetCDF at step ', &
+          iteration, ' position ', writepos
   END IF
 END IF ! writepe
 
@@ -270,6 +274,7 @@ DO member=0, dim_ens
     state_ptr => state_p
   ELSE ! ensemble member state
     IF (.not. (write_ens)) EXIT
+    IF (writetype== 'm') EXIT
     WRITE(memberstr,'(i2.2)') member
     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
     filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.'//memberstr//'.nc'
@@ -325,12 +330,12 @@ DO member=0, dim_ens
         ! Write variable to netCDF:
         IF (writetype=='i') THEN ! initial field
           call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4)))
-        ELSE                     ! forecast and analysis fields
+        ELSE                     ! forecast, analysis and mean fields
           call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4), &
                                    start=(/ 1, writepos /), &
                                    count=(/ mesh_fesom% nod2D, 1 /) ))
                                    ! (dims: 1-nod2, 2-iter)
-        ENDIF ! writetype (i,f,a)
+        ENDIF ! writetype (i,f,a,m)
       ENDIF ! writepe
       deallocate(myData2, data2_g)
       
@@ -361,7 +366,7 @@ DO member=0, dim_ens
         ! Write variable to netCDF:
         IF (writetype=='i') THEN ! initial field
           call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4)))
-        ELSE                     ! forecast and analysis fields
+        ELSE                     ! forecast, analysis and mean fields
           call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4), &
                                    start=(/ 1, 1, writepos /), &
                                    count=(/ mesh_fesom% nod2D, nlay, 1 /) ))
@@ -376,6 +381,7 @@ DO member=0, dim_ens
     ! RMS (Ensemble spread)
     ! ---------------------
     IF (member/=0) CYCLE
+    IF (writetype=='m') CYCLE
     
     IF (writepe) THEN
       ! Inquire variable ID
@@ -415,8 +421,13 @@ call check( nf90_open(TRIM(filename), nf90_write, fileid))
 
 ! inquire dimension ID
 call check( nf90_inq_dimid( fileid, "iter", dimID_iter))
+call check( nf90_inq_dimid( fileid, "nod2", dimID_nod2))
+call check( nf90_inq_dimid( fileid, "nz",   dimID_nz))
+call check( nf90_inq_dimid( fileid, "nz1",  dimID_nz1))
 
+! ********************
 ! define rms variables
+! ********************
 DO j = 1, 3 ! ini / forc / ana
   DO i = istart, iend ! state fields
     
@@ -438,6 +449,34 @@ DO j = 1, 3 ! ini / forc / ana
     
   ENDDO ! state fields
 ENDDO ! ini / ana / forc
+
+! ***************************
+! define daily mean variables
+! ***************************
+
+j = 4 ! daily mean data
+DO i = istart, iend ! state fields
+
+    ! set dimensions according to field before defining variables
+    dimIDs(1) = dimID_nod2
+    IF (sfields(i)% ndims == 1) THEN ! surface fields
+      dimIDs(2) = dimID_iter
+    ELSEIF (sfields(i)% ndims == 2) THEN ! 3D-fields
+      dimIDs(2) = dimID_nz1
+      IF (.not.(sfields(i)%nz1)) dimIDs(2) = dimID_nz ! variables on levels (vertical velocity)
+      dimIDs(3) = dimID_iter
+    ENDIF
+    
+    ! number of dimensions
+    ndims = sfields(i)% ndims +1  ! plus iteration
+    
+    ! define variable
+    call check( NF90_DEF_VAR(fileid, TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimIDs(1:ndims), sfields(i)% varid(j)))
+    ! variable description
+    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
+    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
+
+  ENDDO ! state fields
 
 ! close file
 call check (nf90_close(fileid))

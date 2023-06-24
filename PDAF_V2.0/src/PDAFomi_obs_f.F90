@@ -1610,6 +1610,17 @@ SUBROUTINE PDAFomi_gather_obs_f_flex(dim_obs_p, obs_p, obs_f, status)
   INTEGER :: dimobs_f                       ! full dimension of observation vector obtained from allreduce
   INTEGER, ALLOCATABLE :: all_dim_obs_p(:)  ! PE-Local observation dimensions
   INTEGER, ALLOCATABLE :: all_dis_obs_p(:)  ! PE-Local observation displacements
+  
+! Local variables - workaround for FESOM MPI-Error
+  REAL, ALLOCATABLE :: obs_p_LOCAL(:)
+!~   REAL, ALLOCATABLE :: obs_f_LOCAL(:)
+  
+  IF (dim_obs_p>0) THEN
+    ALLOCATE(obs_p_LOCAL(dim_obs_p))
+    obs_p_LOCAL = obs_p
+  ELSE
+    ALLOCATE(obs_p_LOCAL(1))
+  ENDIF
 
 
 ! **********************************************************
@@ -1651,7 +1662,10 @@ SUBROUTINE PDAFomi_gather_obs_f_flex(dim_obs_p, obs_p, obs_f, status)
 ! **********************************************************
 
   IF (npes_filter>1) THEN
-     CALL MPI_AllGatherV(obs_p, all_dim_obs_p(mype_filter+1), MPI_REALTYPE, &
+  
+     ! introduce local arrays here:
+  
+     CALL MPI_AllGatherV(obs_p_LOCAL, all_dim_obs_p(mype_filter+1), MPI_REALTYPE, &
           obs_f, all_dim_obs_p, all_dis_obs_p, MPI_REALTYPE, &
           COMM_filter, MPIerr)
   

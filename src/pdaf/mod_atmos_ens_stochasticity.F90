@@ -87,6 +87,8 @@ LOGICAL :: atmos_stochasticity_ON
 REAL :: varscale_wind
 REAL :: varscale_tair
 
+LOGICAL :: write_atmos_st = .false.
+
 
 CONTAINS
 

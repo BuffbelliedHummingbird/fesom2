@@ -11,6 +11,8 @@ PROGRAM distribute_obs
 ! holding the global observation information.
 
 ! USES:
+  use iso_fortran_env
+
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
@@ -50,26 +52,29 @@ PROGRAM distribute_obs
   INTEGER, ALLOCATABLE :: List_nod2D(:), List_elem2D(:)                 ! (dummy) arrays to read from myList files
   INTEGER, ALLOCATABLE :: myList_nod2D(:), myList_elem2D(:)             ! (dummy) arrays to read from myList files
   
-  INTEGER :: year
+  INTEGER :: year, ierr
   CHARACTER(len=4)  :: year_string
 
 ! ************************************************
 ! *** Configuration                            ***
 ! ************************************************
 
-  year = 2016
-  write(year_string,'(i4.4)') year
+  call get_command_argument(1,year_string)
+  read(year_string, *, iostat=ierr) year
+  
+  !year = 2012
+  !write(year_string,'(i4.4)') year
 
   ! Path to and name of file holding global observations on model grid
   inpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/'
   infile = 'OSTIA_SST_'//year_string//'0101_'//year_string//'1231_daily.nc'
   
   ! Path to and name stub of output files
-  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_128/'
-  outfile = 'OSTIA_SST_'//year_string//'0101_'//year_string//'1231_daily'//'_dist128'
+  outpath = '/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
+  outfile = 'OSTIA_SST_'//year_string//'0101_'//year_string//'1231_daily'//'_dist72'
 
   ! Path to mesh partioning
-  distpath   = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_128/'
+  distpath   = '/albedo/work/projects/p_recompdaf/frbunsen/FESOM2/meshes/core2/dist_72/'
   partfile   = 'rpart.out'
   mylistfile = 'my_list'
 

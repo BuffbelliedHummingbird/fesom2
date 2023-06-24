@@ -23,10 +23,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE mod_assim_pdaf, & ! Variables for assimilation
        ONLY: step_null, filtertype, dim_lag, eff_dim_obs, loctype, &
        offset, proffiles_o, var_p, std_p, state_fcst, &
-       monthly_state_f, monthly_state_a, write_3D_monthly_mean,mon_snapshot_mem, &
+       monthly_state_f, monthly_state_a, write_monthly_mean,mon_snapshot_mem, &
        num_day_in_month, endday_of_month_in_year, startday_of_month_in_year, &
        depth_excl, depth_excl_no, this_is_pdaf_restart, mesh_fesom, &
-       dim_fields, dim_fields_glob, offset, offset_glob, nfields, id
+       dim_fields, dim_fields_glob, offset, offset_glob, nfields, id, &
+       timemean, monthly_state_m, delt_obs_ocn
   USE g_PARSUP, &
        ONLY: MPI_DOUBLE_PRECISION, MPI_SUM, MPIerr, MPI_STATUS_SIZE, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
@@ -97,6 +98,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   
   INTEGER :: myDebug_id(1)
   
+  LOGICAL :: debugging_monthlymean = .false.
+  
   ! generate the format specifier
   ! fmt = '(a,5x,a,'
   ! do i = 1, dim_ens
@@ -131,6 +134,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   
   IF (.not. ALLOCATED(monthly_state_a))    ALLOCATE(monthly_state_a(dim_p))
   IF (.not. ALLOCATED(monthly_state_f))    ALLOCATE(monthly_state_f(dim_p))
+  IF (.not. ALLOCATED(monthly_state_m))    ALLOCATE(monthly_state_m(dim_p))
+
   
   IF (.not. ALLOCATED(count_lim_salt0_g))  ALLOCATE(count_lim_salt0_g  (dim_ens))
   IF (.not. ALLOCATED(count_lim_salt0_p))  ALLOCATE(count_lim_salt0_p  (dim_ens))
@@ -179,6 +184,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    !IF (mype_filter == 0) &
    !         WRITE(*, fmt) 'FESOM-PDAF', &
    !         '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
+   
      
    ! *** Analysed horizontal velocities must be less than a doubling of forecast velocity ***
 !~    count_lim_absvel_p = 0
@@ -203,10 +209,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 !~    END DO
 !~    END DO
    
-   CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+!~    CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
    !IF (mype_filter == 0) &
    !         WRITE(*, fmt) 'FESOM-PDAF', &
    !         '--- Velocity updates limited to doubling: ', (count_lim_absvel_g(member), member = 1, dim_ens)
+   
    
    ! *** SSH state update must be <= 2*sigma
    count_lim_ssh_p = 0
@@ -400,16 +407,28 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
              'FESOM-PDAF', 'avg. effective observation dimension:       ', avg_eff_dim_obs_g
      END IF
   END IF
+  
+! ***************************
+! *** Compute daily means ***
+! ***************************
 
+  IF ((step - step_null) > 0) THEN
+     timemean = timemean + state_p / delt_obs_ocn
+  ENDIF
 
 ! *****************************
 ! *** Compute monthly means ***
 ! *****************************
 
-  IF (write_3D_monthly_mean) THEN
+  debugging_monthlymean = .false.
+
+  IF (write_monthly_mean) THEN
   
       now_to_write_monthly = .FALSE.
       call check_fleapyr(yearold, fleap)
+      
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'dayold: ', dayold
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'daynew: ', daynew
       
       ! set "now_to_write_monthly" at last day of month
       find_month: DO month_iter=1,12
@@ -421,13 +440,18 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
             exit find_month
         endif
       ENDDO find_month
+      
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'whichmonth: ', whichmonth
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'now_to_write_monthly: ', now_to_write_monthly
 
       ! reset monthly_state to zero at first day of month
       monthly_state_p_0: DO month_iter=1,12
         if (dayold == startday_of_month_in_year(fleap,month_iter)) THEN
+          IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'resetting monthly mean to zero.'
           IF ((step - step_null) > 0) THEN
           ! *** assimilated state fields ***
             monthly_state_a= 0.0D0
+            monthly_state_m= 0.0D0
           ELSE IF ((step - step_null) < 0) THEN
           ! *** forecasted state fields ***
             monthly_state_f= 0.0D0
@@ -436,101 +460,62 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         endif
       ENDDO monthly_state_p_0
       
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'num_day_in_month: ', num_day_in_month(fleap,whichmonth)
+      
       ! include daily state into monthly mean
       IF ((step - step_null) > 0) THEN
       ! *** analyzed state fields ***
-        monthly_state_a = monthly_state_a + state_p/num_day_in_month(fleap,whichmonth)
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to mean.'
+        monthly_state_a = monthly_state_a + state_p /num_day_in_month(fleap,whichmonth)
+        monthly_state_m = monthly_state_m + timemean/num_day_in_month(fleap,whichmonth)
       ELSE IF ((step - step_null) < 0) THEN
       ! *** forecasted state fields ***
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to mean.'
         monthly_state_f = monthly_state_f + state_p/num_day_in_month(fleap,whichmonth)
       END IF
-!~    else
-!~       now_to_write_monthly = .TRUE.
+
    ENDIF
    
 ! **************************
 ! *** Write output files ***
 ! **************************
 
-!~   write_pos_da = daynew
-!~   write_pos_da_ens = write_pos_da
-!~   IF (yearold/=yearnew) mon_snapshot_mem = 0
-  
-!~ ! NOTE:
-!~ !       write_3D_monthly_mean ==.TRUE.   -> write monthly mean ocean state analysis
-!~ !       write_3D_monthly_mean ==.FALSE.  -> write daily ocean state analysis
-
-
-!~   output: IF (write_da) THEN
-  
-!~    ! *** write ensemble MEAN: ***  
-!~    IF ((step - step_null)==0) THEN
-!~     IF (.not.(this_is_pdaf_restart)) THEN
-!~       ! *** write initial state fields ***
-!~       CALL write_netcdf_pdaf('i', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, state_p, 1, .TRUE. )
-!~     END IF
-!~    ELSE IF ((step - step_null) > 0) THEN
-!~       ! *** write assimilated state fields ***  
-!~       CALL write_netcdf_pdaf('a', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_a, whichmonth, now_to_write_monthly)
-!~    ELSE IF ((step - step_null) < 0) THEN
-!~       ! *** write forecasted state fields ***
-!~       CALL write_netcdf_pdaf('f', write_pos_da, step, dim_p, state_p, nfields, rmse, writepe, monthly_state_f, whichmonth, now_to_write_monthly)
-!~    END IF
-
-!~    ! *** write ensemble MEMBERS: *** 
-   
-!~    ! NOTE:
-!~    !       write_ens_snapshot    == .true. means writing forecast and analysis ensemble (!) states
-!~    !       now_to_write_monthly
-!~    !                        |_ is set .true. once per month (for snapshot), if write_3D_monthly_mean==.true.
-!~    !                        |_ is set .true. daily                        , if write_3D_monthly_mean==.false.
-
-!~    IF ((step - step_null)==0) THEN
-!~      IF (.not.(this_is_pdaf_restart)) THEN
-!~       ! *** write initial state fields ***
-!~       CALL write_netcdf_pdaf_ens('i', 1, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~      END IF
-!~    ELSE IF ((step - step_null) > 0) THEN
-!~       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
-!~           ! *** write assimilated state fields ***
-!~           CALL write_netcdf_pdaf_ens('a', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~  !         TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
-!~           CALL write_netcdf_pdaf_ens('a', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~       ENDIF
-!~    ELSE IF ((step - step_null) < 0) THEN
-!~       IF (write_ens_snapshot .and. now_to_write_monthly ) THEN   ! write snapshot
-!~           mon_snapshot_mem = mon_snapshot_mem+1
-!~           ! *** write forecasted state fields ***
-!~           CALL write_netcdf_pdaf_ens('f', mon_snapshot_mem, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~      !     TO-DO: Debug mon_snapshot_mem: restarts must not start counting at zero!!
-!~           CALL write_netcdf_pdaf_ens('f', write_pos_da, step, dim_p, ens_p, 8, rmse, writepe, dim_ens)
-!~       END IF
-!~    ENDIF
-
-!~  ENDIF output
-
-! *** NEW NETCDF
-
-write_pos_da = daynew
-! write_pos_da = whichmonth
-
-IF ((step - step_null)==0) THEN
-      ! *** write initial state fields ***
+! *** write initial state fields ***
+IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
       CALL netCDF_out('i',daynew,step,state_p,ens_p,rmse)
-ELSE IF ((step - step_null) < 0) THEN
-      ! *** write forecast state fields ***
-      CALL netCDF_out('f',daynew,step,state_p,ens_p,rmse)
-ELSE IF ((step - step_null) > 0) THEN
-      ! *** write analysis state fields ***
-      CALL netCDF_out('a',daynew,step,state_p,ens_p,rmse)
-END IF
+ENDIF
+
+IF (.not. write_monthly_mean) THEN
+  ! daily output
+  write_pos_da = daynew
+  IF ((step - step_null) < 0) THEN
+        ! *** write forecast state fields ***
+        CALL netCDF_out('f',daynew,step,state_p,ens_p,rmse)
+  ELSE IF ((step - step_null) > 0) THEN
+        ! *** write analysis state fields ***
+        CALL netCDF_out('a',daynew,step,state_p, ens_p,rmse)
+        CALL netCDF_out('m',daynew,step,timemean,ens_p,rmse)
+  END IF
+
+ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
+  ! monthly output
+  write_pos_da = whichmonth
+  IF ((step - step_null) < 0) THEN
+        ! *** write forecast state fields ***
+        CALL netCDF_out('f',write_pos_da,step,monthly_state_f,ens_p,rmse)
+  ELSE IF ((step - step_null) > 0) THEN
+        ! *** write analysis state fields ***
+        CALL netCDF_out('a',write_pos_da,step,monthly_state_a,ens_p,rmse)
+        CALL netCDF_out('m',write_pos_da,step,monthly_state_m,ens_p,rmse)
+  END IF
+END IF ! write_monthly_mean
 
 ! ********************
 ! *** finishing up ***
 ! ********************
   IF ((step - step_null) < 0) DEALLOCATE(var_p)
   IF ((step - step_null) > 0) DEALLOCATE(std_p)
-  DEALLOCATE(monthly_state_a, monthly_state_f)
+!~   DEALLOCATE(monthly_state_a, monthly_state_f)
   
 !~ ENDIF ! this_is_pdaf_restart
 

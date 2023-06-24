@@ -153,6 +153,7 @@ PROGRAM generate_covar
      INTEGER :: HetC
      INTEGER :: DetC
      INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
+     INTEGER :: PhyCalc
   END TYPE field_ids
   
   TYPE(field_ids) :: idbio                ! Type variable holding field IDs in state vector
@@ -195,7 +196,7 @@ PROGRAM generate_covar
 ! ************************************************
 
   ! Number of fields in state vector
-  nfields = 31
+  nfields = 32
 
   ! Maximum number of time slices to consider
   maxtimes = 72
@@ -240,7 +241,7 @@ PROGRAM generate_covar
   
   ! Number of biogeochemistry fields and their indeces in state vector
   biomin = 8
-  biomax = 31
+  biomax = 32
   allocate(biofields(nfields))
   
   idbio% MLD1   = 8
@@ -267,6 +268,7 @@ PROGRAM generate_covar
   idbio% HetC   = 29
   idbio% DetC   = 30
   idbio% TOC    = 31 ! PhyC + DiaC + DetC + DOC + HetC
+  idbio% PhyCalc= 32
   
 
   biofields(idbio% MLD1) % ndims = 1
@@ -346,6 +348,9 @@ PROGRAM generate_covar
   biofields(idbio% TOC) % ndims = 2
   biofields(idbio% TOC) % variable = 'TOC'
   biofields(idbio% TOC) % dfield = .true.
+  
+  biofields(idbio% PhyCalc) % ndims = 2
+  biofields(idbio% PhyCalc) % variable = 'PhyCalc'
 
   
   do b=biomin, biomax

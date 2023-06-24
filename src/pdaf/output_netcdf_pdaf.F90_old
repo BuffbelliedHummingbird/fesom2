@@ -1135,7 +1135,7 @@ CONTAINS
 ! !INTERFACE: 
   SUBROUTINE write_netcdf_pdaf(writetype, write_pos_da, iteration, dim, state_l, &
        nfields, rmse, writepe, monthly_state_p, whichmonth, write_monthly)
-   USE mod_assim_pdaf, ONLY: write_3D_monthly_mean
+   USE mod_assim_pdaf, ONLY: write_monthly_mean
 ! ! USES:
     IMPLICIT NONE
 
@@ -1153,7 +1153,7 @@ CONTAINS
     INTEGER, INTENT(in) :: whichmonth             ! ocean monthly writing position
     LOGICAL, INTENT(in) :: write_monthly          ! whether do ocean monthly writing
 
-   IF (write_3D_monthly_mean) THEN
+   IF (write_monthly_mean) THEN
       IF (write_monthly) THEN
       ! Write ocean fields
           CALL write_nc_oce_pdaf(writetype, whichmonth, iteration, dim, monthly_state_p, &

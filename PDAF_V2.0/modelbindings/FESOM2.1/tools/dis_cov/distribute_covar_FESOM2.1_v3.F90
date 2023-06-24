@@ -112,6 +112,7 @@ PROGRAM distribute_covar
      INTEGER :: HetC
      INTEGER :: DetC
      INTEGER :: TOC
+     INTEGER :: PhyCalc
   END TYPE field_ids
   ! Type variable holding field IDs in state vector
   TYPE(field_ids) :: ids
@@ -189,9 +190,10 @@ PROGRAM distribute_covar
   ids% HetC   = 29
   ids% DetC   = 30
   ids% TOC    = 31
+  ids% PhyCalc= 32
   
   biomin = 8
-  biomax = 31
+  biomax = 32
   
   ! Field-specific variables:
   allocate(biofields(nfields))
@@ -266,7 +268,10 @@ PROGRAM distribute_covar
   biofields(ids% DetC) % variable = 'DetC'
 
   biofields(ids% TOC) % ndims = 2
-  biofields(ids% TOC) % variable = 'TOC'  
+  biofields(ids% TOC) % variable = 'TOC'
+  
+  biofields(ids% PhyCalc) % ndims = 2
+  biofields(ids% PhyCalc) % variable = 'PhyCalc'
   
 
 ! ************************************************
