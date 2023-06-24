@@ -20,24 +20,24 @@ twin_experiment=.false.
 step_null=0            ! 0 for restart at first day of the year.
 					   ! Is reset by runscript.
 
-path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/dist_cov72/'
+path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_3D_monthly_mean=.false.
-write_ens_snapshot=.true.
-
-str_daspec='FESOM_PDAF_TEST72'
+write_monthly_mean=.true.
+write_ens=.false.
 
 ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.true.
-use_global_obs=.false.
+use_global_obs=0
 
 ASSIM_O_ssh = .false.
 path_obs_ssh='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
 file_ssh_prefix='SSH_track_2016_dist72_'
 file_ssh_suffix ='.nc'
-rms_obs_ssh= 0.25
+rms_obs_ssh= 0.05
 ssh_fixed_rmse=.true.
+bias_obs_ssh=0.5
+lradius_ssh=3.0e5
 
 ASSIM_O_sst = .true.
 path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
@@ -55,7 +55,7 @@ file_sss_suffix ='.nc'
 rms_obs_sss=0.5
 sss_fixed_rmse=.true.
 sss_exclude_ice=.true.
-sss_exclude_diff=1.5
+sss_exclude_diff=0
 
 ASSIM_O_en4_t = .false.
 ASSIM_O_en4_s = .false.
@@ -106,7 +106,5 @@ varscale_tair = 1.0
 /
 
 ! Namelist for output variables:
-&pdaf_output
-
-write_a = .true. ! sea-ice concentration
-/
+! &pdaf_output
+! /

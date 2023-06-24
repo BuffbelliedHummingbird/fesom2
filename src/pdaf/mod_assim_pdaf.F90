@@ -152,6 +152,7 @@ MODULE mod_assim_pdaf
      INTEGER :: HetC
      INTEGER :: DetC
      INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
+     INTEGER :: PhyCalc
   END TYPE field_ids
   
 ! Type variable holding field IDs in state vector
@@ -213,7 +214,9 @@ MODULE mod_assim_pdaf
      INTEGER :: num_day_in_month(0:1,12), endday_of_month_in_year(0:1,12), startday_of_month_in_year(0:1,12)
      REAL, ALLOCATABLE :: monthly_state_f(:)     ! forecasted monthly state
      REAL, ALLOCATABLE :: monthly_state_a(:)     ! analyzed monthly state
-     LOGICAL :: write_3D_monthly_mean =.false.   ! set to true if writing 3D fields monthly;
+     REAL, ALLOCATABLE :: monthly_state_m(:)     ! (analyzed) monthly time-mean state
+
+     LOGICAL :: write_monthly_mean =.false.   ! set to true if writing 3D fields monthly;
                                                  ! otherwise, set to false to write daily 3D;
                                                  ! 2D fields are always written daily.
      INTEGER :: mon_snapshot_mem =0
@@ -233,5 +236,7 @@ MODULE mod_assim_pdaf
                 debug_id_nod2
                 
      INTEGER :: ens_member_debug
+     
+     REAL, ALLOCATABLE :: timemean(:)     ! Daily mean local state vector (analysis)
 
 END MODULE mod_assim_pdaf

@@ -23,14 +23,14 @@ step_null=0            ! 0 for restart at first day of the year.
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_3D_monthly_mean=.false.
-write_ens=.true.
+write_monthly_mean=.false.
+write_ens=.false.
 
 ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.true.
 use_global_obs=0
 
-ASSIM_O_ssh = .true.
+ASSIM_O_ssh = .false.
 path_obs_ssh='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSH/CMEMS/CORE2/dist_72/'
 file_ssh_prefix='SSH_track_2016_dist72_'
 file_ssh_suffix ='.nc'
@@ -48,7 +48,7 @@ sst_fixed_rmse=.true.
 sst_exclude_ice=.true.
 sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
-ASSIM_O_sss = .true.
+ASSIM_O_sss = .false.
 path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
 file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'
@@ -57,8 +57,8 @@ sss_fixed_rmse=.true.
 sss_exclude_ice=.true.
 sss_exclude_diff=0
 
-ASSIM_O_en4_t = .true.
-ASSIM_O_en4_s = .true.
+ASSIM_O_en4_t = .false.
+ASSIM_O_en4_s = .false.
 path_obs_prof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
 file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'

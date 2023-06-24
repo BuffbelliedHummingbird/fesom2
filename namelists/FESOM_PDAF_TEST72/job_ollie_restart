@@ -37,7 +37,7 @@ fes_numproc=72    # ntasks divided by NENS
 run_start_date="2016-01-01"
 run_end_date="${run_start_date} + 6 month"
 
-# Restart frequency. Use any (reasonable) number and time unit you want.
+# Restart frequency. Use any 1-digit number and time unit you want.
 # For runs without restart, leave this variable empty.
 rst_freq="6 month"
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
@@ -180,6 +180,8 @@ do
             sed -i `grep -n str_daspec           ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c str_daspec='${exp_name}'"               ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
             sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
+            
+            sed -i `grep -n run_length           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
             
             sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
 

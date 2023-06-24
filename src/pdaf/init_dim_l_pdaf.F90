@@ -65,7 +65,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   ! integer :: myDebug_id(1)
   ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
   
-  if (mype_filter==0) write(*,*) 'init_dim_l_pdaf: domain_p', domain_p
+!~   if (mype_filter==0) write(*,*) 'init_dim_l_pdaf: domain_p', domain_p
 
 ! ****************************************
 ! *** Initialize local state dimension ***
@@ -81,17 +81,6 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   dim_fields_l (id%salt)   = nlay
   dim_fields_l (id%a_ice)  = 0
   dim_fields_l (id%MLD1)   = 0
-  
-!~   dim_fields_l (id%PhyChl) = 0
-!~   dim_fields_l (id%DiaChl) = 0
-!~   dim_fields_l (id%DIC) = 0
-!~   dim_fields_l (id%DOC) = 0
-!~   dim_fields_l (id%Alk) = 0
-!~   dim_fields_l (id%DIN) = 0
-!~   dim_fields_l (id%DON) = 0
-!~   dim_fields_l (id%O2) = 0
-!~   dim_fields_l (id%pCO2s) = 0
-!~   dim_fields_l (id%CO2f) = 0
 
   DO b=bgcmin, bgcmax
     ! not updated:
@@ -123,14 +112,14 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
 !~   WRITE(*,*) 'OMI-debug (F): init_dim_l_pdaf: coords_l(1): ', coords_l(1), ' coords_l(2): ', coords_l(2)
 !~   ENDIF
 
-  IF ((mype_filter==55) .AND. (domain_p==669)) THEN
-        open (2, file = 'dim_fields_l.dat')
-        write(2,*) dim_fields_l
-        close(2)
-        open (3, file = 'offset_l.dat')
-        write(3,*) offset_l
-        close(3)
-  END IF
+!~   IF ((mype_filter==55) .AND. (domain_p==669)) THEN
+!~         open (2, file = 'dim_fields_l.dat')
+!~         write(2,*) dim_fields_l
+!~         close(2)
+!~         open (3, file = 'offset_l.dat')
+!~         write(3,*) offset_l
+!~         close(3)
+!~   END IF
 
 
 ! ****************************************************

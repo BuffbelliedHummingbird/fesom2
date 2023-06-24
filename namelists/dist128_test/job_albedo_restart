@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=256 #720 #288 #1440
+#SBATCH --ntasks=252 #256 #720 #288 #1440
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:07:00 # 7 hours
 #SBATCH --hint=nomultithread
@@ -35,7 +35,7 @@ run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/
 
 # Settings:
 NENS=2            # number of ensembles --> namelist.fesom.pdaf
-fes_numproc=128   # ntasks divided by NENS
+fes_numproc=126   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2016-01-01"

@@ -23,7 +23,7 @@ type state_field
    character(len=10) :: variable = ''     ! Name of field
    character(len=50) :: long_name = ''    ! Long name of field
    character(len=20) :: units = ''        ! Unit of variable
-   integer :: varid(3)                    ! To write to netCDF file
+   integer :: varid(4)                    ! To write to netCDF file
    logical :: updated = .true.            ! Whether variable is updated through assimilation
    logical :: bgc = .false.               ! Whether variable is biogeochemistry (or physics)
 end type state_field
@@ -298,6 +298,14 @@ sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
 sfields(id% TOC) % units = 'mmol C m-3'
 sfields(id% TOC) % updated = .false.
 sfields(id% TOC) % bgc = .true.
+
+! PhyCalc
+sfields(id% PhyCalc) % ndims = 2
+sfields(id% PhyCalc) % variable = 'PhyCalc'
+sfields(id% PhyCalc) % long_name = 'calcium carbonate small phytoplankton'
+sfields(id% PhyCalc) % units = 'mmol m-3'
+sfields(id% PhyCalc) % updated = .false.
+sfields(id% PhyCalc) % bgc = .true.
 
 END SUBROUTINE init_sfields
   
