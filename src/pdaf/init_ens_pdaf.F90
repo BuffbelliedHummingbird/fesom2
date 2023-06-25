@@ -9,7 +9,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE mod_assim_pdaf, &
        ONLY: file_init, path_init, read_inistate, file_inistate, varscale, &
        offset, ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, mesh_fesom, &
-       id, dim_fields
+       id, dim_fields, offset
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, COMM_filter, abort_parallel
   USE g_PARSUP, &
@@ -37,7 +37,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! Called by: PDAF_init       (as U_init_ens)
 
 ! *** local variables ***
-  INTEGER :: i, member, s, row, col, k ! Counters
+  INTEGER :: i, j, member, s, row, col, k ! Counters
   INTEGER :: rank                      ! Rank stored in init file
   INTEGER :: dim_p_file                ! Local state dimension in init file
   INTEGER :: fileid                    ! ID for NetCDF file
@@ -54,33 +54,22 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   INTEGER :: dim_p_read
   LOGICAL :: runningmean               ! True: Initialize state vector from
                                        ! nc-file running mean
+  REAL, ALLOCATABLE :: ens_p_phy(:,:)  ! Ensemble states (physics part)
+  INTEGER :: dim_p_phy                 ! Local state dimension (physics part)
+  INTEGER :: idx1,idx2                 ! Indeces
+  INTEGER :: idxs(7)
 
-  dim_p_read = dim_p
+  dim_p_phy =   dim_fields(id% ssh   ) + &
+                dim_fields(id% u     ) + &
+                dim_fields(id% v     ) + &
+                dim_fields(id% w     ) + &
+                dim_fields(id% temp  ) + &
+                dim_fields(id% salt  ) + &
+                dim_fields(id% a_ice )
   
-  write(mype_string,'(i4.4)') mype_filter
-
-
-!~   IF (assim_o_ssh) THEN
-!~      ALLOCATE(MDT(myDim_nod2D))
-!~      file=TRIM(path_obs_ssh)//'MDT_'//TRIM(mype_string)//'.nc'
-!~      stat(1) = NF_OPEN(file,NF_NOWRITE, fileid)
-!~      stat(2) = NF_INQ_VARID(fileid, 'MDT', id_state)
-!~      startv(2) = 1
-!~      countv(2) = 1
-!~      startv(1) = 1
-!~      countv(1) = myDim_nod2D
-!~      stat(3) = NF_GET_VARA_REAL (fileid, id_state, startv, countv, MDT)
-!~      stat(4) = NF_CLOSE(fileid)
-!~      DO i = 1,  4
-!~         IF (stat(i) /= NF_NOERR) THEN
-!~            WRITE(*, *) 'NetCDF error in read MDT file, no.', i
-!~             write(*,*) file
-!~            STOP
-!~         END IF
-!~      END DO 
-!~   ELSE
-!~      MDT = 0.0D0
-!~   ENDIF 
+  dim_p_read = dim_p_phy
+  
+  write(mype_string,'(i4.4)') mype_filter 
 
 ! no need to initialize the ens in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
@@ -99,7 +88,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   END IF mype0
 
   ! allocate memory for temporary fields
-  ALLOCATE(eof_p(dim_p, dim_ens-1))
+  ALLOCATE(eof_p(dim_p_phy, dim_ens-1))
   ALLOCATE(svals(dim_ens-1))
   ALLOCATE(omega(dim_ens, dim_ens-1))
 
@@ -228,15 +217,30 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      DO col = 1,dim_ens
         ens_p(1:dim_p,col) = state_p(1:dim_p)
      END DO
+     
+     allocate(ens_p_phy(dim_p_phy,dim_ens))
+     ens_p_phy   = 0.0
 
      IF (dim_ens>1) THEN
         ! Only add perturbations if ensemble size > 0
 
         fac = varscale * SQRT(REAL(dim_ens-1))
+        
+        ! =========          =====             =====        =========
+        ! ens_p_phy := fac * eof_p * transpose(Omega) + 0 * ens_p_phy
 
-        CALL DGEMM('n', 't', dim_p, dim_ens, dim_ens-1, &
-             fac, eof_p, dim_p, Omega, dim_ens, 1.0, ens_p, dim_p) ! matrix operation
+        CALL DGEMM('n', 't', dim_p_phy, dim_ens, dim_ens-1, &
+             fac, eof_p, dim_p_phy, Omega, dim_ens, 0.0, ens_p_phy, dim_p_phy) ! matrix operation
      END IF
+     
+   ! Add perturbation to physics part:
+   idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
+   
+   DO j = 1,7
+      idx1 = offset(idxs(j))
+      idx2 = offset(idxs(j)) + dim_fields(idxs(j))
+      ens_p(idx1:idx2,:) = ens_p(idx1:idx2,:) + ens_p_phy(idx1:idx2,:)
+   ENDDO
 
    ! *** Treshold values ***
    DO col= 1,dim_ens
