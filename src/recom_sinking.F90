@@ -174,7 +174,18 @@ end if ! simple upwind
       do nz=nzmin,nzmax
          vert_sink(nz,n) = vert_sink(nz,n) + (vd_flux(nz)-vd_flux(nz+1))*dt/areasvol(nz,n)/hnode_new(nz,n) !/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
       end do
-   end do
+      
+      ! save export production (diagnostics)
+        if (tracer_id(tr_num) == 1008 .or.    &   ! idetc
+            tracer_id(tr_num) == 1021 .or.    &   ! idetcal
+            tracer_id(tr_num) == 1026 .or.    &   ! idetz2c
+            tracer_id(tr_num) == 1028 ) then      ! idetz2calc
+            
+            export(n) = export(n) + vd_flux(16)/area(16,n) * SecondsPerDay   ! nz=16 at depth of 190m
+        endif
+      
+      
+   end do ! do n = 1,myDim_nod2D
 end if ! Vsink .gt. 0.1
 
 end subroutine recom_sinking_new
