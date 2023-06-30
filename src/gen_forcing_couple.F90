@@ -75,7 +75,7 @@ USE mod_atmos_ens_stochasticity, &
            disturb_prec, disturb_snow, disturb_mslp, &
            atmos_stochasticity_ON, write_atmos_st
 USE mod_assim_pdaf, &
-     ONLY: step_null
+     ONLY: step_null, this_is_pdaf_restart
 #endif
 
   implicit none
@@ -285,7 +285,7 @@ IF (atmos_stochasticity_ON) THEN
 
 IF (istep==1) THEN      ! initialize atmospheric stochasticity at (re)start
 call init_atmos_ens_stochasticity()
-IF (step_null==0) THEN  ! create stochasticity file (not for restarts)
+IF (step_null==0 .and. ( .not. this_is_pdaf_restart)) THEN  ! create stochasticity file (not for restarts)
 call init_atmos_stochasticity_output()
 ENDIF
 ENDIF
