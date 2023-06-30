@@ -493,6 +493,8 @@ Module REcoM_GloVar
   Real(kind=8),allocatable,dimension(:,:) :: diags2D          ! Diagnostics in 2D [8 n2d]
   Real(kind=8),allocatable,dimension(:,:,:) :: diags3D          ! Diagnostics in 3D [2 nl-1 n2d]
   Real(kind=8),allocatable,dimension(:)   :: DenitBen         ! Benthic denitrification Field in 2D [n2d 1]
+  Real(kind=8),allocatable,dimension(:)   :: export           ! Export through particle sinking at 180m
+
 
   Real(kind=8), allocatable,dimension(:)  :: Alk_surf         ! Surface alkalinity field used for restoring
   Real(kind=8), allocatable,dimension(:)  :: relax_alk

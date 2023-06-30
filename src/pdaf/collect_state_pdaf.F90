@@ -31,7 +31,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1
   USE REcoM_GloVar, &
-       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D
+       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export
   USE i_arrays, &
        ONLY: a_ice
   USE mod_parallel_pdaf, &
@@ -135,22 +135,24 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
         ! 2D-fields
         state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2
         state_p(i + offset(id% CO2f ))  = GloCO2flux(i)  ! CO2 flux (from atmosphere into ocean)
+        state_p(i + offset(id% export)) = export(i)      ! Export through particle sinking
    ENDDO
-   ! derived fields:
-   state_p(offset(id% TChl   )+1 : offset(id% TChl   )+dim_fields(id% TChl   )) = & ! Total chlorophyll
-   state_p(offset(id% PhyChl )+1 : offset(id% PhyChl )+dim_fields(id% PhyChl )) + &
-   state_p(offset(id% DiaChl )+1 : offset(id% DiaChl )+dim_fields(id% DiaChl ))
    
-   state_p(offset(id% TDN ) +1 : offset(id% TDN )+dim_fields(id% TDN )) = & ! Total dissolved nitrogen
-   state_p(offset(id% DIN ) +1 : offset(id% DIN )+dim_fields(id% DIN )) + &
-   state_p(offset(id% DON ) +1 : offset(id% DON )+dim_fields(id% DON ))
+!~    ! derived fields:
+!~    state_p(offset(id% TChl   )+1 : offset(id% TChl   )+dim_fields(id% TChl   )) = & ! Total chlorophyll
+!~    state_p(offset(id% PhyChl )+1 : offset(id% PhyChl )+dim_fields(id% PhyChl )) + &
+!~    state_p(offset(id% DiaChl )+1 : offset(id% DiaChl )+dim_fields(id% DiaChl ))
    
-   state_p(offset(id% TOC  ) +1 : offset(id% TOC  )+dim_fields(id% TOC  )) = & ! Total organic carbon
-   state_p(offset(id% PhyC ) +1 : offset(id% PhyC )+dim_fields(id% PhyC )) + &
-   state_p(offset(id% DiaC ) +1 : offset(id% DiaC )+dim_fields(id% DiaC )) + &
-   state_p(offset(id% HetC ) +1 : offset(id% HetC )+dim_fields(id% HetC )) + &
-   state_p(offset(id% DetC ) +1 : offset(id% DetC )+dim_fields(id% DetC )) + &
-   state_p(offset(id% DOC  ) +1 : offset(id% DOC  )+dim_fields(id% DOC  ))
+!~    state_p(offset(id% TDN ) +1 : offset(id% TDN )+dim_fields(id% TDN )) = & ! Total dissolved nitrogen
+!~    state_p(offset(id% DIN ) +1 : offset(id% DIN )+dim_fields(id% DIN )) + &
+!~    state_p(offset(id% DON ) +1 : offset(id% DON )+dim_fields(id% DON ))
+   
+!~    state_p(offset(id% TOC  ) +1 : offset(id% TOC  )+dim_fields(id% TOC  )) = & ! Total organic carbon
+!~    state_p(offset(id% PhyC ) +1 : offset(id% PhyC )+dim_fields(id% PhyC )) + &
+!~    state_p(offset(id% DiaC ) +1 : offset(id% DiaC )+dim_fields(id% DiaC )) + &
+!~    state_p(offset(id% HetC ) +1 : offset(id% HetC )+dim_fields(id% HetC )) + &
+!~    state_p(offset(id% DetC ) +1 : offset(id% DetC )+dim_fields(id% DetC )) + &
+!~    state_p(offset(id% DOC  ) +1 : offset(id% DOC  )+dim_fields(id% DOC  ))
    
    
   

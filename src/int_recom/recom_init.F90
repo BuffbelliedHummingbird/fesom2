@@ -180,6 +180,9 @@ end if
 
     PAR3D(:,:) = 0.d0
     DenitBen(:) = 0.d0
+    
+    allocate(export(node_size))
+    export = 0.0
 
 
   if (ciso) then

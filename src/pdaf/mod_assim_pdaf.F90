@@ -147,12 +147,13 @@ MODULE mod_assim_pdaf
      INTEGER :: PAR
      INTEGER :: NPPn
      INTEGER :: NPPd
-     INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
-     INTEGER :: TDN    ! Total dissolved N = DIN + DON
+!~      INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
+!~      INTEGER :: TDN    ! Total dissolved N = DIN + DON
      INTEGER :: HetC
      INTEGER :: DetC
-     INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
+!~      INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
      INTEGER :: PhyCalc
+     INTEGER :: export
   END TYPE field_ids
   
 ! Type variable holding field IDs in state vector
@@ -236,6 +237,9 @@ MODULE mod_assim_pdaf
                 debug_id_nod2
                 
      INTEGER :: ens_member_debug
+     
+     INTEGER :: mype_debug = 30
+     INTEGER :: node_debug = 888
      
      REAL, ALLOCATABLE :: timemean(:)     ! Daily mean local state vector (analysis)
 

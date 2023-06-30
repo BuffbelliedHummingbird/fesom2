@@ -259,21 +259,21 @@ sfields(id% NPPd) % units = 'mmol C m-2 d-1'
 sfields(id% NPPd) % updated = .false.
 sfields(id% NPPd) % bgc = .true.
 
-! TChl
-sfields(id% TChl) % ndims = 2
-sfields(id% TChl) % variable = 'TChl'
-sfields(id% TChl) % long_name = 'Total chlorophyll (PhyChl+DiaChl)'
-sfields(id% TChl) % units = 'mg chl m-3'
-sfields(id% TChl) % updated = .false.
-sfields(id% TChl) % bgc = .true.
+!~ ! TChl
+!~ sfields(id% TChl) % ndims = 2
+!~ sfields(id% TChl) % variable = 'TChl'
+!~ sfields(id% TChl) % long_name = 'Total chlorophyll (PhyChl+DiaChl)'
+!~ sfields(id% TChl) % units = 'mg chl m-3'
+!~ sfields(id% TChl) % updated = .false.
+!~ sfields(id% TChl) % bgc = .true.
 
-! TDN
-sfields(id% TDN) % ndims = 2
-sfields(id% TDN) % variable = 'TDN'
-sfields(id% TDN) % long_name = 'Total dissolved nitrogen (DIN+DON)'
-sfields(id% TDN) % units = 'mmol m-3'
-sfields(id% TDN) % updated = .false.
-sfields(id% TDN) % bgc = .true.
+!~ ! TDN
+!~ sfields(id% TDN) % ndims = 2
+!~ sfields(id% TDN) % variable = 'TDN'
+!~ sfields(id% TDN) % long_name = 'Total dissolved nitrogen (DIN+DON)'
+!~ sfields(id% TDN) % units = 'mmol m-3'
+!~ sfields(id% TDN) % updated = .false.
+!~ sfields(id% TDN) % bgc = .true.
 
 ! HetC
 sfields(id% HetC) % ndims = 2
@@ -291,13 +291,13 @@ sfields(id% DetC) % units = 'mmol C m-3'
 sfields(id% DetC) % updated = .false.
 sfields(id% DetC) % bgc = .true.
 
-! TOC
-sfields(id% TOC) % ndims = 2
-sfields(id% TOC) % variable = 'TOC'
-sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
-sfields(id% TOC) % units = 'mmol C m-3'
-sfields(id% TOC) % updated = .false.
-sfields(id% TOC) % bgc = .true.
+!~ ! TOC
+!~ sfields(id% TOC) % ndims = 2
+!~ sfields(id% TOC) % variable = 'TOC'
+!~ sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
+!~ sfields(id% TOC) % units = 'mmol C m-3'
+!~ sfields(id% TOC) % updated = .false.
+!~ sfields(id% TOC) % bgc = .true.
 
 ! PhyCalc
 sfields(id% PhyCalc) % ndims = 2
@@ -306,6 +306,14 @@ sfields(id% PhyCalc) % long_name = 'calcium carbonate small phytoplankton'
 sfields(id% PhyCalc) % units = 'mmol m-3'
 sfields(id% PhyCalc) % updated = .false.
 sfields(id% PhyCalc) % bgc = .true.
+
+! Export production
+sfields(id% export) % ndims = 1
+sfields(id% export) % variable = 'export'
+sfields(id% export) % long_name = 'export through particle sinking at 190m'
+sfields(id% export) % units = 'mmol m-2 day-1'
+sfields(id% export) % updated = .false.
+sfields(id% export) % bgc = .true.
 
 END SUBROUTINE init_sfields
   
