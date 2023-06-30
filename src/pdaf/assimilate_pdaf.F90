@@ -106,25 +106,25 @@ SUBROUTINE assimilate_pdaf(istep)
   ! 1. add to daily mean:
   IF (assim_flag == 0) THEN
 
-     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean.'
+!~      if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean.'
 
      CALL collect_state_pdaf(dim_state_p, ens_p)
 
-     if(mype_submodel==0) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, member: ', task_id, 'ens_p: ', ens_p(:6)
+!~      if(mype_submodel==0) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, member: ', task_id, 'ens_p: ', ens_p(:6)
 
      CALL MPI_REDUCE(ens_p,state_p,dim_state_p,MPI_DOUBLE_PRECISION,MPI_SUM,0,COMM_COUPLE,mpierror)
 
-     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p: ', state_p(:6)
-     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p/dim_ens/delt_obs: ', state_p(:6) / dim_ens / delt_obs_ocn
-     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean before: ', timemean(:6)
+!~      if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p: ', state_p(:6)
+!~      if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, state_p/dim_ens/delt_obs: ', state_p(:6) / dim_ens / delt_obs_ocn
+!~      if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean before: ', timemean(:6)
 
      IF (filterpe) timemean = timemean + state_p / dim_ens / delt_obs_ocn
 
-     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean after: ', timemean(:6)
+!~      if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Adding to daily mean, timemean after: ', timemean(:6)
 
   ! 2. reset to zero after assimilation step:
   ELSEIF (assim_flag == 1) THEN
-    if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Resetting daily mean to zero.'
+!~     if(mype_submodel==0 .and. task_id==1) write(*,*) 'FESOM-PDAF ', 'Resetting daily mean to zero.'
     timemean = 0.0
   ENDIF
   
