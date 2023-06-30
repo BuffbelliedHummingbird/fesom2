@@ -34,7 +34,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
 
   ! Include functions for different observations
   USE mod_assim_pdaf, &
-       ONLY:  proffiles_o, start_year_o, end_year_o
+       ONLY:  proffiles_o, start_year_o, end_year_o, mype_debug, node_debug
   USE mod_parallel_pdaf, &
        ONLY: abort_parallel
   USE obs_sst_pdafomi, &
@@ -77,7 +77,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   ! The routines are independent, so it is not relevant
   ! in which order they are called
   
-!~   CALL PDAFomi_set_debug_flag(1)
+  ! No domain_p, thus no debugging call.
   
   IF (assim_o_sst) CALL init_dim_obs_sst(step, dim_obs_sst)
   IF (assim_o_sss) CALL init_dim_obs_sss(step, dim_obs_sss)
@@ -119,6 +119,7 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   USE obs_TSprof_EN4_pdafomi, ONLY: obs_op_prof, thisobs
   USE mod_parallel_pdaf, ONLY: mype_filter
 
+  USE mod_assim_pdaf, ONLY: mype_debug, node_debug
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
 
   IMPLICIT NONE
@@ -130,6 +131,7 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   REAL, INTENT(in)    :: state_p(dim_p)       !< PE-local model state
   REAL, INTENT(inout) :: ostate(dim_obs)      !< PE-local full observed state
 
+! No domain_p, thus no debugging call.
 
 ! ******************************************************
 ! *** Apply observation operator H on a state vector ***
@@ -164,7 +166,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
   USE mod_parallel_pdaf, ONLY: mype_filter
   USE g_parsup, ONLY: myList_nod2D
-  USE mod_assim_pdaf, ONLY: debug_id_nod2
+  USE mod_assim_pdaf, ONLY: debug_id_nod2, mype_debug, node_debug
 
   IMPLICIT NONE
 
@@ -173,15 +175,13 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(in)  :: step       !< Current time step
   INTEGER, INTENT(in)  :: dim_obs    !< Full dimension of observation vector
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
-  
-   ! Debugging:
-   ! IF (mype_filter==0 .AND. domain_p==1) THEN
-   !  CALL PDAFomi_set_debug_flag(domain_p)
-   ! ELSE
-   !  CALL PDAFomi_set_debug_flag(0)
-   ! ENDIF
    
-!~    CALL PDAFomi_set_debug_flag(1)
+!~    ! Debugging:
+!~    IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
+!~    CALL PDAFomi_set_debug_flag(domain_p)
+!~    ELSE
+!~    CALL PDAFomi_set_debug_flag(0)
+!~    ENDIF
 
 
 ! **********************************************
