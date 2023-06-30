@@ -49,6 +49,8 @@ SUBROUTINE read_config_pdaf()
        disturb_prec, disturb_snow, disturb_mslp, &
        atmos_stochasticity_ON, &
        varscale_wind, varscale_tair
+  USE g_clock, &
+       ONLY: yearold, yearnew
 
 
   IMPLICIT NONE
@@ -58,6 +60,8 @@ SUBROUTINE read_config_pdaf()
   CHARACTER(len=100) :: nmlfile ='namelist.fesom.pdaf'    ! name of namelist file
   CHARACTER(len=32)  :: handle             ! Handle for command line parser
   LOGICAL :: printconfig = .TRUE.          ! Print information on all configuration parameters
+  CHARACTER(len=4) :: year_string          ! Current year as string
+  
        
   NAMELIST /pdaf/ filtertype, subtype, dim_ens, screen, &
        incremental, type_forget, forget, dim_bias, &
@@ -146,7 +150,12 @@ ENDIF
 
 ! No ensemble member monthly means are implemented:
 IF (write_monthly_mean) write_ens=.false.
-  
+
+! Observation file prefixes:
+WRITE(year_string,'(i4.4)') yearnew
+
+file_sst_prefix = 'OSTIA_SST_'//TRIM(year_string)//'0101_'//TRIM(year_string)//'1231_daily_dist72_'
+file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
 
 ! *** Print configuration variables ***
   showconf: IF (printconfig .AND. mype_model==0 .AND. task_id==1) THEN
