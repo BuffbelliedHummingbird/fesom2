@@ -140,8 +140,9 @@ subroutine solve_tracers_ale(mesh)
     use Toy_Channel_Soufflet
     use adv_tracers_ale_interface
     use diff_tracers_ale_interface
-    use REcom_config, only: ciso     ! to calculation radioactive decay of 14C
-    use REcoM_ciso, only: lambda_14  ! decay constant of 14C
+    use REcom_config, only: ciso           ! to calculation radioactive decay of 14C
+    use REcom_glovar, only: export
+    use REcoM_ciso, only: lambda_14        ! decay constant of 14C
     
     implicit none
     type(t_mesh), intent(in) , target :: mesh
@@ -163,6 +164,9 @@ subroutine solve_tracers_ale(mesh)
         Wvel  =Wvel  +fer_Wvel
     end if
     !___________________________________________________________________________
+#if defined(__recom)
+    export=0.0
+#endif
     ! loop over all tracers 
     do tr_num=1,num_tracers
         ! do tracer AB (Adams-Bashfort) interpolation only for advectiv part 
@@ -184,6 +188,7 @@ subroutine solve_tracers_ale(mesh)
         if ((toy_ocean) .AND. (TRIM(which_toy)=="soufflet")) call relax_zonal_temp(mesh)
         call exchange_nod(tr_arr(:,:,tr_num))
     end do
+    call exchange_nod(export)
     
     !___________________________________________________________________________
     do tr_num=1, ptracers_restore_total           

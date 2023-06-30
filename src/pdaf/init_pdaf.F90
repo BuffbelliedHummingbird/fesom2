@@ -66,7 +66,7 @@ SUBROUTINE init_pdaf()
        ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D
   USE MOD_MESH
   USE g_clock, &
-       ONLY: timeold
+       ONLY: timeold, daynew
   USE g_rotate_grid, &
        ONLY: r2g
   USE timer, only: timeit
@@ -301,20 +301,21 @@ disturb_mslp=.true.
   id% PAR    = 24
   id% NPPn   = 25
   id% NPPd   = 26
-  id% TChl   = 27
-  id% TDN    = 28
-  id% HetC   = 29
-  id% DetC   = 30
-  id% TOC    = 31
-  id% PhyCalc= 32
+!~   id% TChl   = 27
+!~   id% TDN    = 28
+  id% HetC   = 27
+  id% DetC   = 28
+!~   id% TOC    = 31
+  id% PhyCalc= 29
+  id% export = 30
   
-  nfields = 32
+  nfields = 30
 
   phymin = 1
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 32
+  bgcmax = 30
   
   CALL init_sfields()
 
@@ -470,9 +471,8 @@ disturb_mslp=.true.
   IF (filterpe) THEN
      IF (mype_filter==0) writepe = .TRUE.
   ENDIF
-  ! Initialize Netcdf output
-!~      CALL  init_output_pdaf(dim_lag, writepe)
-  IF (.not. this_is_pdaf_restart) THEN
+  ! Initialize netCDF output file
+  IF ((.not. this_is_pdaf_restart) .or. (daynew==1)) THEN
     CALL netCDF_init('mean')
     IF (write_ens) CALL netCDF_init('memb')
   ENDIF
