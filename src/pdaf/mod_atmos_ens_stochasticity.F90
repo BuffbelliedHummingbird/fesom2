@@ -9,6 +9,10 @@ MODULE mod_atmos_ens_stochasticity
 ! --- init_atmos_stochasticity_output
 ! --- write_atmos_stochasticity_output(istep)
 
+! Covariance file contains statistical information on all 9 atmospheric
+! forcing fields. Which of these fields shall be perturbed is set
+! in namelist.fesom.pdaf.
+
 
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, mype_model, mype_world, &
@@ -33,14 +37,17 @@ MODULE mod_atmos_ens_stochasticity
   
   INCLUDE 'netcdf.inc'
 
-  REAL,ALLOCATABLE, save  :: eof_p(:,:)              ! Matrix of eigenvectors of covariance matrix
+  INTEGER                 :: cnt                     ! counters
+  REAL,ALLOCATABLE, save  :: eof_p_cvrfile(:,:)      ! Matrix of eigenvectors of covariance matrix (all fields read from file)
+  REAL,ALLOCATABLE, save  :: eof_p(:,:)              ! Matrix of eigenvectors of covariance matrix (only activated fields)
   REAL,ALLOCATABLE, save  :: svals(:)                ! Singular values
   REAL(8),ALLOCATABLE        :: omega(:,:)           ! Transformation matrix Omega
   REAL(8),ALLOCATABLE        :: omega_v(:)           ! Transformation vector for local ensemble member
   INTEGER                 :: rank                    ! Rank stored in cov.-file
   CHARACTER(len=4)        :: mype_string             ! String for process rank
   CHARACTER(len=110)      :: filename                ! Name of covariance netCDF file
-  INTEGER,          save  :: nfields                 ! Number of atmospheric forcing fields
+  INTEGER,          save  :: nfields_cvrfile         ! Number of atmospheric forcing fields in covariance netCDF file
+  INTEGER,          save  :: nfields                 ! Number of activated atmospheric forcing fields
   REAL,ALLOCATABLE        :: perturbation(:)         ! Vector containing perturbation field for local ensemble member
   
   REAL,ALLOCATABLE, save  :: perturbation_humi (:)   ! Final perturbations for each variable
@@ -66,9 +73,13 @@ MODULE mod_atmos_ens_stochasticity
      INTEGER :: xwind
      INTEGER :: ywind
   END TYPE field_ids
+  
   ! Type variable holding field IDs in atmospheric state vector
   TYPE(field_ids)    , save :: id_atm
+  TYPE(field_ids)    , save :: id_cvrf
+  
   INTEGER,ALLOCATABLE, save :: atm_offset(:)
+  INTEGER,ALLOCATABLE, save :: atm_offset_cvrf(:)
   
   CHARACTER(len=200) :: fname_atm ! filename to write out atmospheric stochasticity
 
@@ -119,22 +130,55 @@ IF (mype_world==0) THEN
 WRITE(*,*) 'FESOM-PDAF: Init ensemble of atmospheric forcings from covariance matrix'
 END IF
 
-nfields = 9
-
+! Count number of activated fields that shall be perturbed:
+nfields = COUNT((/ disturb_humi,  &
+                   disturb_prec,  &
+                   disturb_snow,  &
+                   disturb_mslp,  &
+                   disturb_qlw,   &
+                   disturb_qsr,   &
+                   disturb_tair,  &
+                   disturb_xwind, &
+                   disturb_ywind /))
+                   
 ALLOCATE(eof_p(nfields * myDim_nod2D, dim_ens-1))
+
+! Nine fields in covariance file:
+nfields_cvrfile = 9
+ALLOCATE(eof_p_cvrfile(nfields_cvrfile * myDim_nod2D, dim_ens-1))
+
 ALLOCATE(svals(dim_ens-1))
 
-! Composition of atmospheric state vector (as in covariance file):
-id_atm% humi = 1
-id_atm% prec = 2
-id_atm% snow = 3
-id_atm% mslp = 4
-id_atm% qlw  = 5
-id_atm% qsr  = 6
-id_atm% tair = 7
-id_atm% xwind= 8
-id_atm% ywind= 9
+! Composition of atmospheric state vector as in covariance file:
+id_cvrf% humi = 1
+id_cvrf% prec = 2
+id_cvrf% snow = 3
+id_cvrf% mslp = 4
+id_cvrf% qlw  = 5
+id_cvrf% qsr  = 6
+id_cvrf% tair = 7
+id_cvrf% xwind= 8
+id_cvrf% ywind= 9
 
+! Composition of atmospheric state vector, only activated fields:
+cnt = 1
+IF (disturb_xwind) THEN; id_atm% xwind = cnt; cnt=cnt+1; ENDIF
+IF (disturb_ywind) THEN; id_atm% ywind = cnt; cnt=cnt+1; ENDIF
+IF (disturb_humi ) THEN; id_atm% humi  = cnt; cnt=cnt+1; ENDIF
+IF (disturb_qlw  ) THEN; id_atm% qlw   = cnt; cnt=cnt+1; ENDIF
+IF (disturb_qsr  ) THEN; id_atm% qsr   = cnt; cnt=cnt+1; ENDIF
+IF (disturb_tair ) THEN; id_atm% tair  = cnt; cnt=cnt+1; ENDIF
+IF (disturb_prec ) THEN; id_atm% prec  = cnt; cnt=cnt+1; ENDIF
+IF (disturb_snow ) THEN; id_atm% snow  = cnt; cnt=cnt+1; ENDIF
+IF (disturb_mslp ) THEN; id_atm% mslp  = cnt; cnt=cnt+1; ENDIF
+
+! Offset of each field in state vector spaced equally (all fields are surface fields):
+! As in covariance file:
+ALLOCATE(atm_offset(nfields_cvrfile))
+DO i=1,nfields_cvrfile
+	atm_offset_cvrf(i)=(i-1)*myDim_nod2D
+END DO
+! Only activated fields:
 ALLOCATE(atm_offset(nfields))
 DO i=1,nfields
 	atm_offset(i)=(i-1)*myDim_nod2D
@@ -181,7 +225,7 @@ DO i = 1,  s
      ENDIF
 END DO
 
-checkdim: IF (dim_p_file /= (nfields*myDim_nod2D)) THEN
+checkdim: IF (dim_p_file /= (nfields_cvrfile*myDim_nod2D)) THEN
      WRITE(*,*) 'FESOM-PDAF: Dimensions inconsistent reading covariance of atmospheric forcing.'
      STOP
 ENDIF checkdim
@@ -200,7 +244,7 @@ countv(2) = dim_ens-1
 startv(1) = 1
 countv(1) = nfields * myDim_nod2D
 s = s + 1
-ncstat(s) = NF_GET_VARA_DOUBLE(fileid, id_eof, startv, countv, eof_p)
+ncstat(s) = NF_GET_VARA_DOUBLE(fileid, id_eof, startv, countv, eof_p_cvrfile)
 
 s = s + 1
 ncstat(s) = NF_GET_VARA_DOUBLE(fileid, id_svals, 1, dim_ens-1, svals)
@@ -214,6 +258,20 @@ DO i = 1,  s
              STOP
         ENDIF
 END DO
+        
+! EOF for activated fields only:
+IF(disturb_xwind) eof_p (atm_offset(id_atm% xwind) : atm_offset(id_atm% xwind)+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% xwind) : atm_offset_cvrf(id_cvrf% xwind)+myDim_nod2D, :)
+IF(disturb_ywind) eof_p (atm_offset(id_atm% ywind) : atm_offset(id_atm% ywind)+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% ywind) : atm_offset_cvrf(id_cvrf% ywind)+myDim_nod2D, :)
+IF(disturb_humi ) eof_p (atm_offset(id_atm% humi ) : atm_offset(id_atm% humi )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% humi ) : atm_offset_cvrf(id_cvrf% humi )+myDim_nod2D, :)
+IF(disturb_qlw  ) eof_p (atm_offset(id_atm% qlw  ) : atm_offset(id_atm% qlw  )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% qlw  ) : atm_offset_cvrf(id_cvrf% qlw  )+myDim_nod2D, :)
+IF(disturb_qsr  ) eof_p (atm_offset(id_atm% qsr  ) : atm_offset(id_atm% qsr  )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% qsr  ) : atm_offset_cvrf(id_cvrf% qsr  )+myDim_nod2D, :)
+IF(disturb_tair ) eof_p (atm_offset(id_atm% tair ) : atm_offset(id_atm% tair )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% tair ) : atm_offset_cvrf(id_cvrf% tair )+myDim_nod2D, :)
+IF(disturb_prec ) eof_p (atm_offset(id_atm% prec ) : atm_offset(id_atm% prec )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% prec ) : atm_offset_cvrf(id_cvrf% prec )+myDim_nod2D, :)
+IF(disturb_snow ) eof_p (atm_offset(id_atm% snow ) : atm_offset(id_atm% snow )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% snow ) : atm_offset_cvrf(id_cvrf% snow )+myDim_nod2D, :)
+IF(disturb_mslp ) eof_p (atm_offset(id_atm% mslp ) : atm_offset(id_atm% mslp )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% mslp ) : atm_offset_cvrf(id_cvrf% mslp )+myDim_nod2D, :)
+
+deallocate(eof_p_cvrfile)
+
 END SUBROUTINE
 
 
@@ -291,15 +349,15 @@ CALL DGEMV('n', nfields*myDim_nod2D, dim_ens-1, fac, eof_p, nfields*myDim_nod2D,
 
 IF (istep==1) THEN
 
-ALLOCATE(perturbation_xwind (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_ywind (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_humi  (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_qlw   (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_qsr   (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_tair  (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
-ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
+IF(disturb_xwind) ALLOCATE(perturbation_xwind (myDim_nod2D + eDim_nod2D))
+IF(disturb_ywind) ALLOCATE(perturbation_ywind (myDim_nod2D + eDim_nod2D))
+IF(disturb_humi ) ALLOCATE(perturbation_humi  (myDim_nod2D + eDim_nod2D))
+IF(disturb_qlw  ) ALLOCATE(perturbation_qlw   (myDim_nod2D + eDim_nod2D))
+IF(disturb_qsr  ) ALLOCATE(perturbation_qsr   (myDim_nod2D + eDim_nod2D))
+IF(disturb_tair ) ALLOCATE(perturbation_tair  (myDim_nod2D + eDim_nod2D))
+IF(disturb_prec ) ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
+IF(disturb_snow ) ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
+IF(disturb_mslp ) ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
 
 IF (this_is_pdaf_restart) THEN
 
@@ -307,55 +365,55 @@ CALL read_atmos_stochasticity_restart()
 
 ELSE
 
-perturbation_xwind = 0.0
-perturbation_ywind = 0.0
-perturbation_humi  = 0.0
-perturbation_qlw   = 0.0
-perturbation_qsr   = 0.0
-perturbation_tair  = 0.0
-perturbation_prec  = 0.0
-perturbation_snow  = 0.0
-perturbation_mslp  = 0.0
+IF(disturb_xwind) perturbation_xwind = 0.0
+IF(disturb_ywind) perturbation_ywind = 0.0
+IF(disturb_humi ) perturbation_humi  = 0.0
+IF(disturb_qlw  ) perturbation_qlw   = 0.0
+IF(disturb_qsr  ) perturbation_qsr   = 0.0
+IF(disturb_tair ) perturbation_tair  = 0.0
+IF(disturb_prec ) perturbation_prec  = 0.0
+IF(disturb_snow ) perturbation_snow  = 0.0
+IF(disturb_mslp ) perturbation_mslp  = 0.0
 
 ENDIF
 
 
 !~ ! debugging output:
 !~ ALLOCATE(atmdata_debug(nfields,myDim_nod2D))
-!~ atmdata_debug(id_atm% xwind,:) = atmdata(i_xwind,:myDim_nod2D)
-!~ atmdata_debug(id_atm% ywind,:) = atmdata(i_ywind,:myDim_nod2D)
-!~ atmdata_debug(id_atm% humi ,:) = atmdata(i_humi ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% qlw  ,:) = atmdata(i_qlw  ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% qsr  ,:) = atmdata(i_qsr  ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% tair ,:) = atmdata(i_tair ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% prec ,:) = atmdata(i_prec ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% snow ,:) = atmdata(i_snow ,:myDim_nod2D)
-!~ atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
+!~ IF(disturb_xwind) atmdata_debug(id_atm% xwind,:) = atmdata(i_xwind,:myDim_nod2D)
+!~ IF(disturb_ywind) atmdata_debug(id_atm% ywind,:) = atmdata(i_ywind,:myDim_nod2D)
+!~ IF(disturb_humi ) atmdata_debug(id_atm% humi ,:) = atmdata(i_humi ,:myDim_nod2D)
+!~ IF(disturb_qlw  ) atmdata_debug(id_atm% qlw  ,:) = atmdata(i_qlw  ,:myDim_nod2D)
+!~ IF(disturb_qsr  ) atmdata_debug(id_atm% qsr  ,:) = atmdata(i_qsr  ,:myDim_nod2D)
+!~ IF(disturb_tair ) atmdata_debug(id_atm% tair ,:) = atmdata(i_tair ,:myDim_nod2D)
+!~ IF(disturb_prec ) atmdata_debug(id_atm% prec ,:) = atmdata(i_prec ,:myDim_nod2D)
+!~ IF(disturb_snow ) atmdata_debug(id_atm% snow ,:) = atmdata(i_snow ,:myDim_nod2D)
+!~ IF(disturb_mslp ) atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
 
 
 END IF
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
-perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
-perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
-perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
-perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
-perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
-perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * varscale_tair * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
-perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
-perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
-perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
+IF(disturb_xwind) perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% xwind) +1 : atm_offset(id_atm% xwind) +myDim_nod2D)
+IF(disturb_ywind) perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% ywind) +1 : atm_offset(id_atm% ywind) +myDim_nod2D)
+IF(disturb_humi ) perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% humi ) +1 : atm_offset(id_atm% humi ) +myDim_nod2D)
+IF(disturb_qlw  ) perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qlw  ) +1 : atm_offset(id_atm% qlw  ) +myDim_nod2D)
+IF(disturb_qsr  ) perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% qsr  ) +1 : atm_offset(id_atm% qsr  ) +myDim_nod2D)
+IF(disturb_tair ) perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * varscale_tair * perturbation(atm_offset(id_atm% tair ) +1 : atm_offset(id_atm% tair ) +myDim_nod2D)
+IF(disturb_prec ) perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% prec ) +1 : atm_offset(id_atm% prec ) +myDim_nod2D)
+IF(disturb_snow ) perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% snow ) +1 : atm_offset(id_atm% snow ) +myDim_nod2D)
+IF(disturb_mslp ) perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * perturbation(atm_offset(id_atm% mslp ) +1 : atm_offset(id_atm% mslp ) +myDim_nod2D)
 
 ! fill external nodes:
-CALL exchange_nod( perturbation_xwind)
-CALL exchange_nod( perturbation_ywind)
-CALL exchange_nod( perturbation_humi)
-CALL exchange_nod( perturbation_qlw)
-CALL exchange_nod( perturbation_qsr)
-CALL exchange_nod( perturbation_tair)
-CALL exchange_nod( perturbation_prec)
-CALL exchange_nod( perturbation_snow)
-CALL exchange_nod( perturbation_mslp)
+IF(disturb_xwind) CALL exchange_nod( perturbation_xwind)
+IF(disturb_ywind) CALL exchange_nod( perturbation_ywind)
+IF(disturb_humi ) CALL exchange_nod( perturbation_humi)
+IF(disturb_qlw  ) CALL exchange_nod( perturbation_qlw)
+IF(disturb_qsr  ) CALL exchange_nod( perturbation_qsr)
+IF(disturb_tair ) CALL exchange_nod( perturbation_tair)
+IF(disturb_prec ) CALL exchange_nod( perturbation_prec)
+IF(disturb_snow ) CALL exchange_nod( perturbation_snow)
+IF(disturb_mslp ) CALL exchange_nod( perturbation_mslp)
 
 ! add perturbation to atmospheric fields:
 IF (disturb_xwind) atmdata(i_xwind,:) = atmdata(i_xwind,:) + perturbation_xwind
@@ -368,39 +426,38 @@ IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) + perturbation_snow
 IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + perturbation_mslp
 
 ! night: shortwave is zero.
-WHERE(atmdata(i_qsr,:) /= 0)
-atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + perturbation_qsr
-ENDWHERE
+IF(disturb_qsr) THEN
+  WHERE(atmdata(i_qsr,:) /= 0)
+  atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + perturbation_qsr
+  ENDWHERE
+ENDIF
 ! rain, snow, humidity, downwelling shortwave and longwave radiation \
 ! must not be negative:
-WHERE(atmdata(i_prec,:) <0 )
-atmdata(i_prec,:)=0
-ENDWHERE
-WHERE(atmdata(i_snow,:) <0 )
-atmdata(i_snow,:)=0
-ENDWHERE
-WHERE(atmdata(i_humi,:) <0 )
-atmdata(i_humi,:)=0
-ENDWHERE
-WHERE(atmdata(i_humi,:) >1 )
-atmdata(i_humi,:)=1
-ENDWHERE
-WHERE(atmdata(i_qlw,:) <0 )
-atmdata(i_qlw,:)=0
-ENDWHERE
-WHERE(atmdata(i_qsr,:) <0 )
-atmdata(i_qsr,:)=0
-ENDWHERE
-
-!~ xwind xwind xwind xwind
-!~ ywind ywind ywind ywind
-!~ humi  humi  humi  humi 
-!~ qlw   qlw   qlw   qlw  
-!~ qsr   qsr   qsr   qsr  
-!~ tair  tair  tair  tair 
-!~ prec  prec  prec  prec 
-!~ snow  snow  snow  snow 
-!~ mslp  mslp  mslp  mslp 
+IF(disturb_prec) THEN
+  WHERE(atmdata(i_prec,:) <0 )
+  atmdata(i_prec,:)=0
+  ENDWHERE
+ENDIF
+IF(disturb_snow) THEN
+  WHERE(atmdata(i_snow,:) <0 )
+  atmdata(i_snow,:)=0
+  ENDWHERE
+ENDIF
+IF(disturb_humi) THEN
+  WHERE(atmdata(i_humi,:) <0 )
+  atmdata(i_humi,:)=0
+  ENDWHERE
+ENDIF
+IF(disturb_qlw) THEN
+  WHERE(atmdata(i_qlw,:) <0 )
+  atmdata(i_qlw,:)=0
+  ENDWHERE
+ENDIF
+IF(disturb_qsr) THEN
+  WHERE(atmdata(i_qsr,:) <0 )
+  atmdata(i_qsr,:)=0
+  ENDWHERE
+ENDIF
 
 DEALLOCATE(perturbation,omega_v)
 
