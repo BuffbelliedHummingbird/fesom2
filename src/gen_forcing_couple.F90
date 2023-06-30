@@ -285,7 +285,7 @@ IF (atmos_stochasticity_ON) THEN
 
 IF (istep==1) THEN      ! initialize atmospheric stochasticity at (re)start
 call init_atmos_ens_stochasticity()
-IF (step_null==0 .and. ( .not. this_is_pdaf_restart)) THEN  ! create stochasticity file (not for restarts)
+IF (step_null==0) THEN  ! create stochasticity file at beginning of each year
 call init_atmos_stochasticity_output()
 ENDIF
 ENDIF
