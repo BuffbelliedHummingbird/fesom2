@@ -322,7 +322,7 @@ CONTAINS
        DO i = 1, myDim_nod2D
           IF  ((mean_ice_p(i) > 0.0)  &
                .AND. &
-               (all_obs_p(i)<999.0)   &
+               (abs(all_obs_p(i))<999.0)   &
                .AND. &
                (all_obs_p(i)>=0.0 .OR. mean_sst_p(i)>=0.0)) &
                THEN
@@ -361,7 +361,7 @@ CONTAINS
        DO i = 1, myDim_nod2D
           IF (ABS(mean_sst_p(i) - all_obs_p(i)) > sst_exclude_diff &
               .AND. &
-              all_obs_p(i)<=999.0) &
+              ABS(all_obs_p(i))<=999.0) &
               THEN
                 all_obs_p(i)  = 1.0e6
                 cnt_ex_diff_p = cnt_ex_diff_p+1
