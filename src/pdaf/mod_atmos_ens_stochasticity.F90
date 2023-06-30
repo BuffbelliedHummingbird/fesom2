@@ -22,7 +22,8 @@ MODULE mod_atmos_ens_stochasticity
        ONLY: dim_ens, dim_state_p, &
        ! netCDF file:
        path_atm_cov
-       
+  USE g_clock, &
+       ONLY: cyearnew
   USE g_PARSUP, &
        ONLY: myDim_nod2D, MPI_DOUBLE_PRECISION, MPIerr, eDim_nod2D
   USE g_sbf, &
@@ -517,7 +518,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize netCDF file to protocol atmos
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s = 1
 stat(s) = NF_CREATE(TRIM(fname_atm),0,fileid)
@@ -651,7 +652,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity to netCD
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
@@ -765,7 +766,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart 
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
@@ -874,7 +875,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric stochasticity at restar
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'.nc'
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
