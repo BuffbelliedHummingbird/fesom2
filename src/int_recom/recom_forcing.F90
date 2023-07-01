@@ -122,6 +122,7 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
   if((co2flux(1)>1.e10) .or. (co2flux(1)<-1.e10)) then
 !     co2flux(1)=0.0  
       print*,'ERROR: co2 flux !'
+      print*,'node', n
       print*,'pco2surf: ',pco2surf
       print*,'co2: ',co2
       print*,'rhoSW: ', rhoSW

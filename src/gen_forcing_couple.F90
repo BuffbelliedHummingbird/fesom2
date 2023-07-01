@@ -291,7 +291,7 @@ ENDIF
 ENDIF
 
 call add_atmos_ens_stochasticity(istep)
-IF (write_atmos_st) call write_atmos_stochasticity_output(istep)
+IF (write_atmos_st) call write_atmos_stochasticity_output(istep) ! (To-Do: Not tested for restarts.)
 
 ENDIF ! atmos_stochasticity_ON
 #endif
