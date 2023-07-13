@@ -37,7 +37,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
   USE mod_nc_out_variables, &
-       ONLY: write_pos_da
+       ONLY: write_pos_da, write_ens
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
