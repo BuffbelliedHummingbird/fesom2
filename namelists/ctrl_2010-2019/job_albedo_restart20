@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=144 #720 #288 #1440
+#SBATCH --ntasks=1440 #720 #288 #1440
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:30:00 # 7 hours
+#SBATCH --time=01:00:00 # 7 hours
 #SBATCH --hint=nomultithread
-#SBATCH --qos=30min
+#SBATCH --qos=12h
 
-#SBATCH --job-name=nc-out
+#SBATCH --job-name=debug
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -29,23 +29,22 @@ info "Let's get started."
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name='FESOM_PDAF_TEST_dailymean'
+exp_name='debugging'
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
 
 # Settings:
-NENS=2           # number of ensembles --> namelist.fesom.pdaf
-fes_numproc=72   # ntasks divided by NENS
+NENS=20            # number of ensembles --> namelist.fesom.pdaf
+fes_numproc=72    # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
-run_start_date="2011-01-01"
-run_end_date="${run_start_date} + 2 days"
+run_start_date="2016-01-01"
+run_end_date="${run_start_date} + 16 days"
 
-# Restart frequency. Use a 1-digit number and the time unit you want.
+# Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
-rst_freq="2 days"
-rst_freq_number=`echo ${rst_freq} | cut -c 1`
-rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
+rst_freq="16 days"
+rst_freq_unit="d" #`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:
 run_num_legs=1
 
@@ -172,11 +171,11 @@ do
             cd ${run_dir}/${ENSstr}
     
             # *** Link executable of model component
-	        cp ${start_dir}/../../bin/fesom.x ${start_dir}/
+	    cp ${start_dir}/../../bin/fesom.x ${start_dir}/
             ln -s ${start_dir}/fesom.x .
             
             # *** Copy namelist files
-            ln -s  ${start_dir}/namelist.* .
+            cp ${start_dir}/namelist.* .
             
             sed -i `grep -n ResultPath           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             
@@ -184,9 +183,9 @@ do
             
             sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
-            sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
+            sed -i `grep -n str_daspec           ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c str_daspec='${exp_name}'"               ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
-            sed -i `grep -n run_length=          ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"        ${run_dir}/${ENSstr}/namelist.config
+            sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
             
             sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
 
@@ -198,7 +197,7 @@ do
 
             # *** Files needed for FESOM2
             cp ../../restart_files/fesom.clock .
-            cp ../../restart_files/*.nc .
+            ln -s ../../restart_files/*.nc .
          done
     
     else # if ! $leg_is_restart
@@ -328,56 +327,49 @@ done # loop over legs
     
     # Cleaning of ensemble output:
     
-    # cd ${run_dir}
-    # if [ ! -d ensemble_means ]; then
-    #    mkdir -v ensemble_means
-    # fi
-    # mkdir ensemble_means/${leg_number}
+    cd ${run_dir}
+    
+    if [ ! -d ensemble_means ]; then
+        mkdir -v ensemble_means
+    fi
+    mkdir ensemble_means/${leg_number}
     
     # list of FESOM output files (one file for each variable)
-    # files=(02/*.fesom.2016.nc)
-    # echo ${files[@]}
+    files=(02/*.fesom.2016.nc)
+    echo ${files[@]}
     
-    # for file in ${files[@]}
-    # do
+    for file in ${files[@]}
+    do
     # remove first 3 letters ("02/") and last 14 letters (".fesom.2016.nc") from filename
     # remaining: name of variable
-    # vars+=($(echo $file | sed 's/^...//;s/..............$//'))
-    # done
-    # echo ${vars[@]}
+    vars+=($(echo $file | sed 's/^...//;s/..............$//'))
+    done
+    echo ${vars[@]}
 
     # parallel="/home/ollie/frbunsen/bin/parallel-20220922/src/./parallel"
 
-    # time1=$SECONDS
+    time1=$SECONDS
 
     # do in parallel:
     # 1. use one variable from list of fesom output
     # 2. calculate ensemble mean using 'cdo ensmean'
-    # parallel \
-    # "echo post-processing {} \
-    # && srun --exclusive -N1 -n1 --cpus-per-task 128 cdo -P 128 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
-    # ::: ${vars[@]}
+    parallel \
+    "echo post-processing {} \
+    && srun --exclusive -N1 -n1 --cpus-per-task 128 cdo -P 128 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
+    ::: ${vars[@]}
 
-    # duration=$(( $SECONDS - time1 ))
-    # echo "Time: $duration"
+    duration=$(( $SECONDS - time1 ))
+    echo "Time: $duration"
     
     # Delete output of individual ensembles:
     # rm ??/*.fesom.2016.nc
 
     # Copy the protocol of this leg:
-    cd ${run_dir}
-    cp ../start/fesom2.0.out fesom2.0.out_${leg_number}
+    cp ../start/fesom2.0.out ensemble_means/${leg_number}/
     
     # Resubmit next job:
-    IsInLine=$( tail -1 ../start/fesom2.0.out | grep -c 'fesom should stop with exit status = 0')
 
-    if [ $IsInLine -eq 0 ]; then
-	    info "Something is wrong, last line of fesom.out reads:"
-	    info $( tail -1 ../start/fesom2.0.out)
-            info "Termination of job script."
-    fi
-
-    if [ ${IsInLine} -eq 1 ]  && ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
+    if ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
      then
         info "Resubmitting job for leg $((leg_number+1))"
         # Need to go to dir to find the run script

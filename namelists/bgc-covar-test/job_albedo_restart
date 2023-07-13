@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=144 #720 #288 #1440
+#SBATCH --ntasks=1440 #256 #720 #288 #1440
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:30:00 # 7 hours
+#SBATCH --time=8:00:00 # 7 hours
 #SBATCH --hint=nomultithread
-#SBATCH --qos=30min
+#SBATCH --qos=12h
 
-#SBATCH --job-name=nc-out
+#SBATCH --job-name=bgc-vars
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -29,21 +29,21 @@ info "Let's get started."
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name='FESOM_PDAF_TEST_dailymean'
+exp_name='FESOM_PDAF_varatm_assim_tair100_wind010_cvr'
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
 
 # Settings:
-NENS=2           # number of ensembles --> namelist.fesom.pdaf
+NENS=20          # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
-run_start_date="2011-01-01"
-run_end_date="${run_start_date} + 2 days"
+run_start_date="2016-01-01"
+run_end_date="${run_start_date} + 1 month"
 
-# Restart frequency. Use a 1-digit number and the time unit you want.
+# Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
-rst_freq="2 days"
+rst_freq="1 month"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:
@@ -176,7 +176,7 @@ do
             ln -s ${start_dir}/fesom.x .
             
             # *** Copy namelist files
-            ln -s  ${start_dir}/namelist.* .
+            cp ${start_dir}/namelist.* .
             
             sed -i `grep -n ResultPath           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             
@@ -193,12 +193,13 @@ do
             sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
             sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-
+ 
+	    sed -i 's/YYYY/${leg_start_date_yyyy}/g' ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
 
             # *** Files needed for FESOM2
             cp ../../restart_files/fesom.clock .
-            cp ../../restart_files/*.nc .
+            ln -s ../../restart_files/*.nc .
          done
     
     else # if ! $leg_is_restart
@@ -213,6 +214,8 @@ do
                 sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
                 sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+		sed -i 's/YYYY/${leg_start_date_yyyy}/g' ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
             done
 
@@ -369,15 +372,8 @@ done # loop over legs
     cp ../start/fesom2.0.out fesom2.0.out_${leg_number}
     
     # Resubmit next job:
-    IsInLine=$( tail -1 ../start/fesom2.0.out | grep -c 'fesom should stop with exit status = 0')
 
-    if [ $IsInLine -eq 0 ]; then
-	    info "Something is wrong, last line of fesom.out reads:"
-	    info $( tail -1 ../start/fesom2.0.out)
-            info "Termination of job script."
-    fi
-
-    if [ ${IsInLine} -eq 1 ]  && ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
+    if ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
      then
         info "Resubmitting job for leg $((leg_number+1))"
         # Need to go to dir to find the run script
