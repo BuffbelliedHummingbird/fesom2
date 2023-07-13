@@ -27,15 +27,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        num_day_in_month, endday_of_month_in_year, startday_of_month_in_year, &
        depth_excl, depth_excl_no, this_is_pdaf_restart, mesh_fesom, &
        dim_fields, dim_fields_glob, offset, offset_glob, nfields, id, &
-       timemean, monthly_state_m, delt_obs_ocn
+       timemean, monthly_state_m, delt_obs_ocn, &
+       monthly_state_ens_f, monthly_state_ens_a
   USE g_PARSUP, &
        ONLY: MPI_DOUBLE_PRECISION, MPI_SUM, MPIerr, MPI_STATUS_SIZE, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
        myList_edge2D, myDim_edge2D, myList_nod2D
   USE o_ARRAYS, ONLY: hnode_new
-!~   USE output_pdaf, &
-!~        ONLY: write_da, write_netcdf_pdaf, write_netcdf_pdaf_ens, &
-!~        write_pos_da, write_ens_snapshot, write_pos_da_ens
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
   USE mod_nc_out_variables, &
@@ -132,19 +130,21 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (.not. ALLOCATED(state_fcst)) ALLOCATE(state_fcst(dim_p,dim_ens))
   IF (.not. ALLOCATED(std_p)) ALLOCATE(std_p(dim_p))
   
-  IF (.not. ALLOCATED(monthly_state_a))    ALLOCATE(monthly_state_a(dim_p))
-  IF (.not. ALLOCATED(monthly_state_f))    ALLOCATE(monthly_state_f(dim_p))
-  IF (.not. ALLOCATED(monthly_state_m))    ALLOCATE(monthly_state_m(dim_p))
-
-  
-  IF (.not. ALLOCATED(count_lim_salt0_g))  ALLOCATE(count_lim_salt0_g  (dim_ens))
-  IF (.not. ALLOCATED(count_lim_salt0_p))  ALLOCATE(count_lim_salt0_p  (dim_ens))
-  IF (.not. ALLOCATED(count_lim_absvel_g)) ALLOCATE(count_lim_absvel_g (dim_ens))
-  IF (.not. ALLOCATED(count_lim_absvel_p)) ALLOCATE(count_lim_absvel_p (dim_ens))
-  IF (.not. ALLOCATED(count_lim_ssh_g))    ALLOCATE(count_lim_ssh_g    (dim_ens))
-  IF (.not. ALLOCATED(count_lim_ssh_p))    ALLOCATE(count_lim_ssh_p    (dim_ens))
-  IF (.not. ALLOCATED(count_lim_tempM2_g)) ALLOCATE(count_lim_tempM2_g (dim_ens))
-  IF (.not. ALLOCATED(count_lim_tempM2_p)) ALLOCATE(count_lim_tempM2_p (dim_ens))
+  IF (.not. ALLOCATED(monthly_state_a))     ALLOCATE(monthly_state_a(dim_p))
+  IF (.not. ALLOCATED(monthly_state_f))     ALLOCATE(monthly_state_f(dim_p))
+  IF (.not. ALLOCATED(monthly_state_m))     ALLOCATE(monthly_state_m(dim_p))
+  IF (.not. ALLOCATED(monthly_state_ens_a)) ALLOCATE(monthly_state_ens_a(dim_p,dim_ens))
+  IF (.not. ALLOCATED(monthly_state_ens_f)) ALLOCATE(monthly_state_ens_f(dim_p,dim_ens))
+ 
+   
+  IF (.not. ALLOCATED(count_lim_salt0_g))   ALLOCATE(count_lim_salt0_g  (dim_ens))
+  IF (.not. ALLOCATED(count_lim_salt0_p))   ALLOCATE(count_lim_salt0_p  (dim_ens))
+  IF (.not. ALLOCATED(count_lim_absvel_g))  ALLOCATE(count_lim_absvel_g (dim_ens))
+  IF (.not. ALLOCATED(count_lim_absvel_p))  ALLOCATE(count_lim_absvel_p (dim_ens))
+  IF (.not. ALLOCATED(count_lim_ssh_g))     ALLOCATE(count_lim_ssh_g    (dim_ens))
+  IF (.not. ALLOCATED(count_lim_ssh_p))     ALLOCATE(count_lim_ssh_p    (dim_ens))
+  IF (.not. ALLOCATED(count_lim_tempM2_g))  ALLOCATE(count_lim_tempM2_g (dim_ens))
+  IF (.not. ALLOCATED(count_lim_tempM2_p))  ALLOCATE(count_lim_tempM2_p (dim_ens))
 
   ! Initialize numbers
   rmse_p = 0.0
@@ -452,9 +452,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
           ! *** assimilated state fields ***
             monthly_state_a= 0.0D0
             monthly_state_m= 0.0D0
+            IF (write_ens) monthly_state_ens_a= 0.0D0
           ELSE IF ((step - step_null) < 0) THEN
           ! *** forecasted state fields ***
             monthly_state_f= 0.0D0
+            IF (write_ens) monthly_state_ens_f= 0.0D0
           END IF
           exit monthly_state_p_0
         endif
@@ -465,13 +467,15 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       ! include daily state into monthly mean
       IF ((step - step_null) > 0) THEN
       ! *** analyzed state fields ***
-        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to mean.'
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
         monthly_state_a = monthly_state_a + state_p /num_day_in_month(fleap,whichmonth)
         monthly_state_m = monthly_state_m + timemean/num_day_in_month(fleap,whichmonth)
+        IF (write_ens) monthly_state_ens_a = monthly_state_ens_a + ens_p/num_day_in_month(fleap,whichmonth)
       ELSE IF ((step - step_null) < 0) THEN
       ! *** forecasted state fields ***
-        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to mean.'
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
         monthly_state_f = monthly_state_f + state_p/num_day_in_month(fleap,whichmonth)
+        IF (write_ens) monthly_state_ens_f = monthly_state_ens_f + ens_p/num_day_in_month(fleap,whichmonth)
       END IF
 
    ENDIF
@@ -502,10 +506,10 @@ ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
   write_pos_da = whichmonth
   IF ((step - step_null) < 0) THEN
         ! *** write forecast state fields ***
-        CALL netCDF_out('f',write_pos_da,step,monthly_state_f,ens_p,rmse)
+        CALL netCDF_out('f',write_pos_da,step,monthly_state_f,monthly_state_ens_f,rmse)
   ELSE IF ((step - step_null) > 0) THEN
         ! *** write analysis state fields ***
-        CALL netCDF_out('a',write_pos_da,step,monthly_state_a,ens_p,rmse)
+        CALL netCDF_out('a',write_pos_da,step,monthly_state_a,monthly_state_ens_a,rmse)
         CALL netCDF_out('m',write_pos_da,step,monthly_state_m,ens_p,rmse)
   END IF
 END IF ! write_monthly_mean

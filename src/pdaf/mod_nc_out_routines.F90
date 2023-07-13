@@ -1,8 +1,12 @@
 MODULE mod_nc_out_routines
 
 ! contains:
-! netCDF_init()
-! netCDF_out()
+!   - check()
+!   - netCDF_init()
+!        -> calls netCDF_init_mm()
+!   - netCDF_init_rmsens()
+!   - netCDF_out()
+
 
 ! USES:
 USE mod_nc_out_variables
