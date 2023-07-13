@@ -56,7 +56,8 @@ SUBROUTINE init_pdaf()
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
-       disturb_prec, disturb_snow, disturb_mslp
+       disturb_prec, disturb_snow, disturb_mslp, &
+       init_atmos_ens_stochasticity, init_atmos_stochasticity_output
 
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
@@ -66,7 +67,7 @@ SUBROUTINE init_pdaf()
        ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D
   USE MOD_MESH
   USE g_clock, &
-       ONLY: timeold, daynew
+       ONLY: timeold, daynew, cyearold, yearnew, yearold
   USE g_rotate_grid, &
        ONLY: r2g
   USE timer, only: timeit
@@ -97,7 +98,7 @@ SUBROUTINE init_pdaf()
   INTEGER :: show_cpus_for_barrier
 
   ! External subroutines
-  EXTERNAL :: init_ens_pdaf         ! Ensemble initialization
+  EXTERNAL :: init_ens_pdaf            ! Ensemble initialization
   EXTERNAL :: next_observation_pdaf, & ! Provide time step, model time, 
                                        ! and dimension of next observation
        distribute_state_pdaf, &        ! Routine to distribute a state vector to model fields
@@ -361,8 +362,6 @@ disturb_mslp=.true.
 
 ! *** Specify offset of fields in global state vector ***
 
-! if (mype_world==0) THEN
-
 	ALLOCATE(dim_fields_glob(nfields))
 	dim_fields_glob(id% ssh   ) = mesh_fesom%nod2D                        ! SSH
 	dim_fields_glob(id% u     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! u (interpolated on nodes)
@@ -400,8 +399,6 @@ disturb_mslp=.true.
     enddo
 	
 	dim_state = sum(dim_fields_glob)
-				
-!end if
 
   
   if (mype_world==0) THEN
@@ -524,6 +521,17 @@ disturb_mslp=.true.
                                           ! Not sure if needed
 
     CALL PDAFomi_get_domain_limits_unstr(myDim_nod2d, mesh_fesom%geo_coord_nod2D)
+
+! ***********************************
+! **** Atmospheric stochasticity  ***
+! ***********************************
+  
+  ! initialize atmospheric stochasticity at (re)start
+  call init_atmos_ens_stochasticity()
+  ! create stochasticity file at beginning of every new year
+  IF (yearnew .ne. yearold) THEN
+     call init_atmos_stochasticity_output()
+  ENDIF
     
 ! *****************
 ! *** Debugging ***

@@ -23,7 +23,7 @@ MODULE mod_atmos_ens_stochasticity
        ! netCDF file:
        path_atm_cov
   USE g_clock, &
-       ONLY: cyearnew
+       ONLY: cyearnew, cyearold
   USE g_PARSUP, &
        ONLY: myDim_nod2D, MPI_DOUBLE_PRECISION, MPIerr, eDim_nod2D
   USE g_sbf, &
@@ -373,31 +373,31 @@ CALL DGEMV('n', nfields*myDim_nod2D, dim_ens-1, fac, eof_p, nfields*myDim_nod2D,
 
 IF (istep==1) THEN
 
-IF(disturb_xwind) ALLOCATE(perturbation_xwind (myDim_nod2D + eDim_nod2D))
-IF(disturb_ywind) ALLOCATE(perturbation_ywind (myDim_nod2D + eDim_nod2D))
-IF(disturb_humi ) ALLOCATE(perturbation_humi  (myDim_nod2D + eDim_nod2D))
-IF(disturb_qlw  ) ALLOCATE(perturbation_qlw   (myDim_nod2D + eDim_nod2D))
-IF(disturb_qsr  ) ALLOCATE(perturbation_qsr   (myDim_nod2D + eDim_nod2D))
-IF(disturb_tair ) ALLOCATE(perturbation_tair  (myDim_nod2D + eDim_nod2D))
-IF(disturb_prec ) ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
-IF(disturb_snow ) ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
-IF(disturb_mslp ) ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_xwind) ALLOCATE(perturbation_xwind (myDim_nod2D + eDim_nod2D))
+	IF(disturb_ywind) ALLOCATE(perturbation_ywind (myDim_nod2D + eDim_nod2D))
+	IF(disturb_humi ) ALLOCATE(perturbation_humi  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_qlw  ) ALLOCATE(perturbation_qlw   (myDim_nod2D + eDim_nod2D))
+	IF(disturb_qsr  ) ALLOCATE(perturbation_qsr   (myDim_nod2D + eDim_nod2D))
+	IF(disturb_tair ) ALLOCATE(perturbation_tair  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_prec ) ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_snow ) ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_mslp ) ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
 
-IF (this_is_pdaf_restart) THEN
+	IF (this_is_pdaf_restart) THEN
 
-CALL read_atmos_stochasticity_restart()
+		CALL read_atmos_stochasticity_restart()
 
-ELSE
+	ELSE
 
-IF(disturb_xwind) perturbation_xwind = 0.0
-IF(disturb_ywind) perturbation_ywind = 0.0
-IF(disturb_humi ) perturbation_humi  = 0.0
-IF(disturb_qlw  ) perturbation_qlw   = 0.0
-IF(disturb_qsr  ) perturbation_qsr   = 0.0
-IF(disturb_tair ) perturbation_tair  = 0.0
-IF(disturb_prec ) perturbation_prec  = 0.0
-IF(disturb_snow ) perturbation_snow  = 0.0
-IF(disturb_mslp ) perturbation_mslp  = 0.0
+		IF(disturb_xwind) perturbation_xwind = 0.0
+		IF(disturb_ywind) perturbation_ywind = 0.0
+		IF(disturb_humi ) perturbation_humi  = 0.0
+		IF(disturb_qlw  ) perturbation_qlw   = 0.0
+		IF(disturb_qsr  ) perturbation_qsr   = 0.0
+		IF(disturb_tair ) perturbation_tair  = 0.0
+		IF(disturb_prec ) perturbation_prec  = 0.0
+		IF(disturb_snow ) perturbation_snow  = 0.0
+		IF(disturb_mslp ) perturbation_mslp  = 0.0
 
 ENDIF
 
@@ -562,12 +562,13 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: dimarray(2)
     
     
-IF (mype_world==0) THEN
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize netCDF file to protocol atmospheric stochasticity'
-END IF
-    
 ! --- open file:
 fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
+
+IF (mype_world==0) THEN
+WRITE(*,*) 'FESOM-PDAF: cyearold, cyearnew', cyearold, cyearnew
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize netCDF file to protocol atmospheric stochasticity:', fname_atm
+END IF
 
 s = 1
 stat(s) = NF_CREATE(TRIM(fname_atm),0,fileid)
@@ -919,12 +920,12 @@ SUBROUTINE read_atmos_stochasticity_restart()
     INTEGER :: varID_restart_snow 
     INTEGER :: varID_restart_mslp
     
-IF (mype_world==0) THEN
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric stochasticity at restart from netCDF.'
-END IF
-    
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
+fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearold//'.nc'
+
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric stochasticity at restart from netCDF:', fname_atm
+END IF
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
