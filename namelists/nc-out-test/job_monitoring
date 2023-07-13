@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --account=biogeo.p_recompdaf
+#SBATCH --partition=smp
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=10:00:00
+#SBATCH --hint=nomultithread
+#SBATCH --qos=12h
+
+#SBATCH --job-name=monitor
+#SBATCH -o monitor-out.out
+#SBATCH -e monitor-err.out
+#SBATCH --mail-user=frauke.bunsen@awi.de
+#SBATCH --mail-type=END
+
+srun job_monitoring.sh
+
+# info "Something is wrong, last line of fesom.out reads:"
+#            info $( tail -1 ../start/fesom2.0.out)
+
+# Shell script:
+
+# Every 30 seconds:
+# Check if last line of fesom2.0.out is the line where it gets typically stuck:
+# (1 - equals line where it gets typically stuck; 0: PDAFomi     --- Use limited full observations
+#  0 - is something else)
+# write at next position into an array of len(30) (counter +1; mod 30)
+# check if all of array is 1
+# if yes, abort (using exit 0)

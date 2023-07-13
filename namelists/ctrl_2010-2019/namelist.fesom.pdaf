@@ -23,7 +23,7 @@ step_null=0            ! 0 for restart at first day of the year.
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/physics_covar/dist_cov72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_monthly_mean=.false.
+write_monthly_mean=.true.
 write_ens=.false.
 
 ASIM_START_USE_CLIM_STATE=.false.
@@ -48,7 +48,7 @@ sst_fixed_rmse=.true.
 sst_exclude_ice=.true.
 sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
-ASSIM_O_sss = .true.
+ASSIM_O_sss = .false.
 path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
 file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'

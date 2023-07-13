@@ -48,7 +48,7 @@ sst_fixed_rmse=.true.
 sst_exclude_ice=.true.
 sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
-ASSIM_O_sss = .true.
+ASSIM_O_sss = .false.
 path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
 file_sss_prefix='SMOS_SSS_2016_dist72_'
 file_sss_suffix ='.nc'
@@ -57,8 +57,8 @@ sss_fixed_rmse=.true.
 sss_exclude_ice=.true.
 sss_exclude_diff=0
 
-ASSIM_O_en4_t = .false.
-ASSIM_O_en4_s = .false.
+ASSIM_O_en4_t = .true.
+ASSIM_O_en4_s = .true.
 path_obs_prof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
 file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'
@@ -66,11 +66,10 @@ rms_obs_T=0.8
 rms_obs_S=0.5
 path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/'
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
-proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
+proffiles_o=1                                                           ! 0: No processing of EN4 raw profile data.
                                                                         ! 1: Processing of EN4 raw profile data to distributed files.
-
-start_year_o = 2016
-end_year_o   = 2016
+start_year_o = 2010
+end_year_o   = 2019
 
 path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 

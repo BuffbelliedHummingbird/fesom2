@@ -20,10 +20,10 @@ twin_experiment=.false.
 step_null=0            ! 0 for restart at first day of the year.
 					   ! Is reset by runscript.
 
-path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/physics_covar/dist_cov72/'
+path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/cov/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_monthly_mean=.false.
+write_monthly_mean=.true.
 write_ens=.false.
 
 ASIM_START_USE_CLIM_STATE=.false.
@@ -39,7 +39,7 @@ ssh_fixed_rmse=.true.
 bias_obs_ssh=0.5
 lradius_ssh=3.0e5
 
-ASSIM_O_sst = .false.
+ASSIM_O_sst = .true.
 path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
 file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist72_'
 file_sst_suffix ='.nc'
@@ -57,8 +57,8 @@ sss_fixed_rmse=.true.
 sss_exclude_ice=.true.
 sss_exclude_diff=0
 
-ASSIM_O_en4_t = .false.
-ASSIM_O_en4_s = .false.
+ASSIM_O_en4_t = .true.
+ASSIM_O_en4_s = .true.
 path_obs_prof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/fesom-pdaf-processed_dist_72/'
 file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'
