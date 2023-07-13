@@ -283,13 +283,6 @@ INTEGER                 :: atmstoch_fileid
 #ifdef use_PDAF
 IF (atmos_stochasticity_ON) THEN
 
-IF (istep==1) THEN      ! initialize atmospheric stochasticity at (re)start
-call init_atmos_ens_stochasticity()
-IF (step_null==0) THEN  ! create stochasticity file at beginning of each year
-call init_atmos_stochasticity_output()
-ENDIF
-ENDIF
-
 call add_atmos_ens_stochasticity(istep)
 IF (write_atmos_st) call write_atmos_stochasticity_output(istep) ! (To-Do: Not tested for restarts.)
 
