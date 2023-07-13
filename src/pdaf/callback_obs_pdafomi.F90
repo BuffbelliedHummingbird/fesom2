@@ -21,8 +21,6 @@
 !! * Later revisions - see repository log
 !!
 
-! test
-
 !-------------------------------------------------------------------------------
 
 !> Call-back routine for init_dim_obs

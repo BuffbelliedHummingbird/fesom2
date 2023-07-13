@@ -492,12 +492,13 @@ CONTAINS
                 thisobs%id_obs_p(k,i) = (mesh_fesom% nl-1) * (n2d_sal(k,i-cnt_temp)-1) + nl1_sal(i-cnt_temp) + offset(id%salt)
              END DO
           END DO
-          
-          IF (mype_filter==19) THEN
-          open(3, file = 'id_obs_p.dat')
-          write(3,*) thisobs%id_obs_p
-          close(3)
-          END IF
+ 
+!~           ! Debugging:
+!~           IF (mype_filter==19) THEN
+!~           open(3, file = 'id_obs_p.dat')
+!~           write(3,*) thisobs%id_obs_p
+!~           close(3)
+!~           END IF
 
           countv2(1) = 2
 

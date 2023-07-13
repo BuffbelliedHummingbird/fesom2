@@ -81,7 +81,6 @@ MODULE obs_sss_smos_pdafomi
   REAL, ALLOCATABLE :: mean_sss_p (:)    ! Mean value for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_sss(:) ! Localization radius array
 
-
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
 ! *** They are declared in PDAFomi and only listed here for reference ***
@@ -223,6 +222,7 @@ CONTAINS
     REAL, ALLOCATABLE :: ocoord_g(:,:)      ! Global full observation coordinates (used in case of limited obs.)
 !~     INTEGER, ALLOCATABLE :: id_obs_p_all(:)        ! State vector index of all observations on process domain (including excluded observations)
     INTEGER, ALLOCATABLE :: obs_include_index(:)   ! Index of observed (not excluded!) surface nodes on process domain
+    INTEGER :: dim_obs_f                      ! Global full observation number
 
 
 ! *********************************************
@@ -275,9 +275,7 @@ CONTAINS
     END IF
 
     ! Read observation and standard deviation
-    
-    ! write(*,*) TRIM(path_obs_sss)//TRIM(obs_file)
-     
+         
     stat(1) = NF_OPEN(TRIM(path_obs_sss)//TRIM(obs_file), NF_NOWRITE, fileid)        
  
     ! *** Read state estimate ***
@@ -467,25 +465,38 @@ CONTAINS
 
 		obs_p = obs_p - bias_obs_sss
 		
-	ELSE ! (elseif dim_obs_p==0)
+	ELSE ! (i.e. dim_obs_p==0)
 	
 		ALLOCATE(obs_p(1))
 		ALLOCATE(ivariance_obs_p(1))
 		ALLOCATE(ocoord_n2d_p(2, 1))
 		ALLOCATE(thisobs%id_obs_p(1,1))
-		! ALLOCATE(thisobs%id_obs_p(1, 1))
 		thisobs%id_obs_p = 0
 		
 		ALLOCATE(obs_include_index(1))
 		ALLOCATE(obs_error_p(1))
 		
-!~ 		thisobs_l, thisobs, coords_l, &
-!~             locweight, lradius_sss, sradius_sss, dim_obs_l
-		
-		
+!~ 		WRITE(*,*) 'FESOM-PDAF (SSS): dim_obs_p=0, allocating with 1, pe: ', mype_filter
 		
 	ENDIF haveobs
 
+!~ ! ******************************************
+!~ ! *** No global observations? - Fake it! ***
+!~ ! ******************************************
+
+!~     CALL MPI_allreduce(dim_obs_p,dim_obs_f,1,MPI_INTEGER,MPI_SUM,COMM_filter,MPIerr)
+    
+!~     ! to avoid zero-allocation error,
+!~     ! make up a fictional observation with HUGE uncertainty
+!~     IF (dim_obs_f==0) THEN
+!~        obs_p=35
+!~        ivariance_obs_p=1E-12
+!~        ocoord_n2d_p(1,1)=1.57
+!~        ocoord_n2d_p(2,1)=0
+!~        thisobs%id_obs_p=offset(id% salt)+1
+!~        IF (mype_filter==0) WRITE(*,*) 'FESOM-PDAF: No SSS observations, using fictional observations!'
+!~        dim_obs_p=1
+!~     ENDIF
 
 ! **************************************
 ! *** Gather full observation arrays ***
