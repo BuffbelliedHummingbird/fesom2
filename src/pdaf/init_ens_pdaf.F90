@@ -181,7 +181,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! **********************************************************
 
 ! Is already zero (see gen_cov tool).
-
 ! eof_p(offset-first-biogeo:end,1:dim_ens-1)=0
 
 ! *****************************************
@@ -233,35 +232,35 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
              fac, eof_p, dim_p_phy, Omega, dim_ens, 0.0, ens_p_phy, dim_p_phy) ! matrix operation
      END IF
      
-   ! Add perturbation to physics part:
-   idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
+   ! ! Add perturbation to physics part:
+   ! idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
    
-   DO j = 1,7
-      idx1 = offset(idxs(j))
-      idx2 = offset(idxs(j)) + dim_fields(idxs(j))
-      ens_p(idx1:idx2,:) = ens_p(idx1:idx2,:) + ens_p_phy(idx1:idx2,:)
-   ENDDO
+   ! DO j = 1,7
+   !    idx1 = offset(idxs(j))
+   !    idx2 = offset(idxs(j)) + dim_fields(idxs(j))
+   !    ens_p(idx1:idx2,:) = ens_p(idx1:idx2,:) + ens_p_phy(idx1:idx2,:)
+   ! ENDDO
 
-   ! *** Treshold values ***
-   DO col= 1,dim_ens
-      Do i= 1,myDim_nod2D
-          ! SSH: set to +/- 1.7m where larger than that
-          ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.)
-          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)
-          ! SIC: set to null where negative
-          !      set to 1 where larger than that
-          ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)
-          ens_p(i+offset(id% a_ice),col)= min(ens_p(i+offset(id% a_ice),col),1.)
-      END DO
+   ! ! *** Treshold values ***
+   ! DO col= 1,dim_ens
+   !    Do i= 1,myDim_nod2D
+   !        ! SSH: set to +/- 1.7m where larger than that
+   !        ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.)
+   !        ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)
+   !        ! SIC: set to null where negative
+   !        !      set to 1 where larger than that
+   !        ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)
+   !        ens_p(i+offset(id% a_ice),col)= min(ens_p(i+offset(id% a_ice),col),1.)
+   !    END DO
 
-      DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
-          ! temp: set to -1.895 Celsius where smaller than that
-          ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)
-          ! salt: set to null where negative
-          ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)
-      END DO
+   !    DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
+   !        ! temp: set to -1.895 Celsius where smaller than that
+   !        ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)
+   !        ! salt: set to null where negative
+   !        ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)
+   !    END DO
 
-   END DO
+   ! END DO
 
   ELSE checkdim
 
