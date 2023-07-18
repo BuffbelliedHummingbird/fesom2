@@ -57,7 +57,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   REAL, ALLOCATABLE :: ens_p_phy(:,:)  ! Ensemble states (physics part)
   INTEGER :: dim_p_phy                 ! Local state dimension (physics part)
   INTEGER :: idx1,idx2                 ! Indeces
-  INTEGER :: idxs(7)
+  INTEGER, ALLOCATABLE :: idxs(:)
 
   dim_p_phy =   dim_fields(id% ssh   ) + &
                 dim_fields(id% u     ) + &
@@ -181,7 +181,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! **********************************************************
 
 ! Is already zero (see gen_cov tool).
-
 ! eof_p(offset-first-biogeo:end,1:dim_ens-1)=0
 
 ! *****************************************
@@ -234,9 +233,12 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      END IF
      
    ! Add perturbation to physics part:
-   idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
+   ALLOCATE(idxs(6))
+   ! idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
+   idxs = (/ id%SSH, id%u, id%v, id%temp, id%salt, id%a_ice /)
    
-   DO j = 1,7
+   ! DO j = 1,7
+   DO j = 1,6
       idx1 = offset(idxs(j))
       idx2 = offset(idxs(j)) + dim_fields(idxs(j))
       ens_p(idx1:idx2,:) = ens_p(idx1:idx2,:) + ens_p_phy(idx1:idx2,:)

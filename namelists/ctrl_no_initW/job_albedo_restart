@@ -1,0 +1,389 @@
+#!/bin/bash
+#SBATCH --account=biogeo.p_recompdaf
+#SBATCH --partition=mpp
+#SBATCH --ntasks=2880 #256 #720 #288 #1440
+#SBATCH --cpus-per-task=1
+#SBATCH --time=12:00:00 # 7 hours
+#SBATCH --hint=nomultithread
+#SBATCH --qos=12h
+
+#SBATCH --job-name=noinitW
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+
+# Note: If this is not a PDAF-Restart, remove the
+# "rm work/ece.info"
+# file from previous test runs!
+
+#set -x
+#ulimit -s unlimited
+
+export OMP_NUM_THREADS=1
+source ../../env/albedo/shell
+source ./librunscript.sh # librunscript defines some helper functions
+module load cdo
+
+info "Let's get started."
+
+# determine JOBID
+JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
+
+# Directories:
+exp_name='ctrl_no_initW'
+start_dir=${PWD}
+run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
+
+# Settings:
+NENS=40          # number of ensembles --> namelist.fesom.pdaf
+fes_numproc=72   # ntasks divided by NENS
+
+# Simulation start and end date. Use any (reasonable) syntax you want.
+run_start_date="2010-01-01"
+run_end_date="2011-01-01"
+
+# Restart frequency. Use any (reasonable) number and time unit you want.
+# For runs without restart, leave this variable empty.
+rst_freq="1 year"
+rst_freq_number=`echo ${rst_freq} | cut -c 1`
+rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
+# Number of restart legs to be run in one single slurm job:
+run_num_legs=1
+
+#-----------------------------------------------------------------------
+
+# Set $force_run_from_scratch to 'true' if you want to remove files
+# from previous test runs from $run_dir.
+# NOTE: If set to 'true', the run directory $run_dir is cleaned!
+force_run_from_scratch=true
+
+# This file is used to store information about restarts
+ece_info_file="ece.info"
+
+# ----------------------------------------------------------------------
+# *** Read platform dependent configuration
+# ----------------------------------------------------------------------
+
+# File for standard output.
+# NOTE: This will be modified for restart jobs!
+
+# Resubmit this job for automatic restarts? [true/false]
+# Also, add options for the resubmit command here.
+resubmit_job=true
+resubmit_opt=""
+
+# ----------------------------------------------------------------------
+# *** Create the run dir if necessary and go there
+#     Everything is done from here.
+# ----------------------------------------------------------------------
+if [ ! -d ${run_dir} ]; then
+    mkdir -p ${run_dir}
+fi
+cd ${run_dir}
+
+# ----------------------------------------------------------------------
+# *** Determine the time span of this run and whether it's a restart leg
+# ----------------------------------------------------------------------
+
+# Regularise the format of the start and end date of the simulation
+run_start_date=$(date -uR -d "${run_start_date}")
+run_end_date=$(date -uR -d "${run_end_date}")
+
+# Loop over the number of legs, counting downwards (we put 1).
+for (( ; run_num_legs>0 ; run_num_legs-- ))
+do
+
+    # Check for restart information file and set the current leg start date
+
+    if ! [ -r ${ece_info_file} ]; then
+        leg_is_restart=false
+        leg_start_date=${run_start_date}
+        leg_number=1
+    else
+        leg_is_restart=true
+        . ./${ece_info_file} # set leg start and end date from ece.info file
+        leg_start_date=${leg_end_date}
+        leg_number=$((leg_number+1))
+    fi
+
+    # Compute the end date of the current leg
+    if [ -n "${rst_freq}" ]; then # restart freq is not zero
+        leg_end_date=$(date -uR -d "${leg_start_date} + ${rst_freq}")
+    else
+        leg_end_date=${run_end_date}
+    fi
+
+    if [ $(date -d "${leg_end_date}" +%s) -gt $(date -d "${run_end_date}" +%s) ]; then
+        leg_end_date=${run_end_date}
+    fi
+
+    # Some time variables needed later
+    leg_length_sec=$(( $(date -d "${leg_end_date}" +%s) - $(date -d "${leg_start_date}" +%s) ))
+    leg_start_sec=$(( $(date -d "${leg_start_date}" +%s) - $(date -d "${run_start_date}" +%s) ))
+    leg_end_sec=$(( $(date -d "${leg_end_date}" +%s) - $(date -d "${run_start_date}" +%s) ))
+    leg_start_date_yyyymmdd=$(date -u -d "${leg_start_date}" +%Y%m%d)
+    leg_start_date_yyyy=$(date -u -d "${leg_start_date}" +%Y)
+    leg_end_date_yyyy=$(date -u -d "${leg_end_date}" +%Y)
+    
+    leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
+    step_null=$((32*(${leg_start_dayofyear}-1))) # 32 is number of time steps per day
+
+    # Check whether there's actually time left to simulate - exit otherwise
+    if [ ${leg_length_sec} -le 0 ]; then
+        info "Leg start date equal to or after end of simulation."
+        info "Nothing left to do. Exiting."
+        exit 0
+    fi
+
+    # ------------------------------------------------------------------
+    # *** Prepare the run directory for a run from scratch
+    # ------------------------------------------------------------------
+    if ! $leg_is_restart 
+    then
+        # ---------------------------------------------------------------------
+        # *** Check if run dir is empty. If not, and if we are allowed to do so
+        #     by ${force_run_from_scratch}, remove everything
+        # ---------------------------------------------------------------------
+        if $(ls * >& /dev/null) 
+	    then
+            if ${force_run_from_scratch} 
+            then
+                info "Bye bye, test data! Removing everything in run directory."
+		rm -fr ${run_dir}/*
+            else
+                error "Run directory not empty and \${force_run_from_scratch} not set."
+            fi
+        fi
+
+        # Prepare the run directory
+	    info "Preparing a new run directory."
+	    mkdir -p ${run_dir}/../start
+	    cp -r ${start_dir}/* ${run_dir}/../start
+
+        for((i=1;i<=$NENS;i++))
+        do
+            ENSstr=`printf %02d $i`
+            ENS4str=`printf %04d $i`
+            echo 'preparing files...'${ENS4str}
+
+            if [ ! -d ${run_dir}/${ENSstr} ]; then
+                mkdir -p ${run_dir}/${ENSstr} 
+            fi
+            
+            cd ${run_dir}/${ENSstr}
+    
+            # *** Link executable of model component
+	        cp ${start_dir}/../../bin/fesom.x ${start_dir}/
+            ln -s ${start_dir}/fesom.x .
+            
+            # *** Copy namelist files
+            cp ${start_dir}/namelist.* .
+            
+            sed -i `grep -n ResultPath           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
+            
+            sed -i `grep -n dim_ens              ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                          ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            
+            sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            
+            sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
+            
+            sed -i `grep -n run_length=          ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"        ${run_dir}/${ENSstr}/namelist.config
+            
+            sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
+
+            sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            
+            sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+
+
+            # *** Files needed for FESOM2
+            cp ../../restart_files/fesom.clock .
+            ln -s ../../restart_files/*.nc .
+         done
+    
+    else # if ! $leg_is_restart
+    
+            for((i=1;i<=$NENS;i++))
+            do
+                ENSstr=`printf %02d $i`
+                ENS4str=`printf %04d $i`
+                echo 'preparing namelists...'${ENS4str}
+                cd ${run_dir}/${ENSstr}
+                
+                sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+                sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+            done
+
+    fi # ! $leg_is_restart
+    
+    #-------------------------------------------------------------------
+
+    # continue whith what needs to be done whether it is a restart or not:
+
+    # -------------------------------------------------------------------------
+    # *** Setting up MPI and OMP
+    # -------------------------------------------------------------------------
+    
+    #  Mailbox size
+	export MBX_SIZE=128000000
+
+	#  Increase per processor buffers to reduce retries
+	export MPI_BUFS_PER_PROC=256
+
+	#  Bind your OpenMP threads
+	export OMP_NUM_THREADS=1
+	export KMP_AFFINITY=noverbose,granularity=thread,compact,1
+	#  Limit stacksize - adjust to your programs need
+	export KMP_STACKSIZE=64m
+
+	# Enable ATP on ECMWF HPCF (recommended)
+	# export ATP_ENABLED=1
+
+	ulimit -c unlimited
+
+	# Environment settings to run a MPI/OpenMP parallel program compiled with Intel MPI
+	# export I_MPI_FABRICS=shm:dapl
+	# export I_MPI_FALLBACK=disable
+	# export I_MPI_SLURM_EXT=1
+	# export I_MPI_LARGE_SCALE_THRESHOLD=8192
+	export I_MPI_FABRICS=ofi # for infini-band
+	# export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+
+    # -------------------------------------------------------------------------
+    # *** Start the run
+    # -------------------------------------------------------------------------
+
+    cd ${run_dir}/../start
+    
+    # Use the launch function from the platform configuration file
+    t1=$(date +%s)
+
+    if [ -e mpmd.conf ];then
+      rm mpmd.conf
+    fi
+    
+    # ------------------------------------------------------------------
+    # *** Configure Multiple Program Multiple Data (MPMD)
+    # ------------------------------------------------------------------
+
+    for((i=1;i<=$NENS;i++))
+    do
+      ENSstr=`printf %02d $i`
+      ENS4str=`printf %04d $i`
+      echo 'preparing mpmd.conf...'${ENS4str}
+
+      echo '#!/bin/sh' > fesom${ENSstr}
+      echo 'cd '${run_dir}/${ENSstr} >> fesom${ENSstr}
+      echo ${run_dir}'/'$ENSstr'/fesom.x' >> fesom${ENSstr}
+      chmod +x fesom${ENSstr}
+
+      echo $(((i-1)*($fes_numproc)))'-'$(((i-1)*($fes_numproc)+$fes_numproc-1))' ./fesom'${ENSstr} >> mpmd.conf
+    done
+
+    cat mpmd.conf
+
+    srun -l --propagate=STACK,CORE  --cpu_bind=quiet,cores --multi-prog mpmd.conf > "fesom2.0.out"
+
+    t2=$(date +%s)
+
+    tr=$(date -d "0 -$t1 sec + $t2 sec" +%T)
+
+
+    # -------------------------------------------------------------------------
+    # *** Write the restart control file
+    # -------------------------------------------------------------------------
+
+    for((i=1;i<=$NENS;i++))
+    do
+        ENSstr=`printf %02d $i`
+        ENS4str=`printf %04d $i`
+        cd ${run_dir}/${ENSstr}
+
+        if [ $i -eq 1 ]; then
+            echo "#"                                             | tee -a ${run_dir}/${ece_info_file}
+            echo "# Finished leg at `date '+%F %T'` after ${tr} (hh:mm:ss)" \
+                                                                 | tee -a ${run_dir}/${ece_info_file}
+            echo "leg_number=${leg_number}"                      | tee -a ${run_dir}/${ece_info_file}
+            echo "leg_start_date=\"${leg_start_date}\""          | tee -a ${run_dir}/${ece_info_file}
+            echo "leg_end_date=\"${leg_end_date}\""              | tee -a ${run_dir}/${ece_info_file}
+        fi
+        # Need to reset force_run_from_scratch in order to avoid destroying the next leg
+        force_run_from_scratch=false
+        # Modify namelist so that the next leg will be a PDAF restart:
+        sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true." ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+    done
+    
+done # loop over legs
+
+
+# -----------------------------------------------------------------------------
+# *** Platform dependent finalising of the run
+# -----------------------------------------------------------------------------
+#finalise
+    # This function should execute of any post run functionality, e.g.
+    # platform dependent cleaning or a resubmit
+    
+    # Cleaning of ensemble output:
+    
+    # cd ${run_dir}
+    # if [ ! -d ensemble_means ]; then
+    #    mkdir -v ensemble_means
+    # fi
+    # mkdir ensemble_means/${leg_number}
+    
+    # list of FESOM output files (one file for each variable)
+    # files=(02/*.fesom.2016.nc)
+    # echo ${files[@]}
+    
+    # for file in ${files[@]}
+    # do
+    # remove first 3 letters ("02/") and last 14 letters (".fesom.2016.nc") from filename
+    # remaining: name of variable
+    # vars+=($(echo $file | sed 's/^...//;s/..............$//'))
+    # done
+    # echo ${vars[@]}
+
+    # parallel="/home/ollie/frbunsen/bin/parallel-20220922/src/./parallel"
+
+    # time1=$SECONDS
+
+    # do in parallel:
+    # 1. use one variable from list of fesom output
+    # 2. calculate ensemble mean using 'cdo ensmean'
+    # parallel \
+    # "echo post-processing {} \
+    # && srun --exclusive -N1 -n1 --cpus-per-task 128 cdo -P 128 ensmean ??/{}.fesom.2016.nc ensemble_means/${leg_number}/{}.ensmean.2016.nc" \
+    # ::: ${vars[@]}
+
+    # duration=$(( $SECONDS - time1 ))
+    # echo "Time: $duration"
+    
+    # Delete output of individual ensembles:
+    # rm ??/*.fesom.2016.nc
+
+    # Copy the protocol of this leg:
+    cd ${run_dir}
+    cp ../start/fesom2.0.out fesom2.0.out_${leg_number}
+    
+    # Resubmit next job:
+    IsInLine=$( tail -1 ../start/fesom2.0.out | grep -c 'fesom should stop with exit status = 0')
+
+    if [ $IsInLine -eq 0 ]; then
+            info "Something is wrong, last line of fesom.out reads:"
+            info $( tail -1 ../start/fesom2.0.out)
+            info "Termination of job script."
+    fi
+
+    if [ ${IsInLine} -eq 1 ]  && ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
+     then
+        info "Resubmitting job for leg $((leg_number+1))"
+        # Need to go to dir to find the run script
+        cd ${start_dir}
+        # Submit command
+        sbatch job_albedo_restart
+    fi
+
+exit 0
