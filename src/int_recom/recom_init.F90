@@ -284,10 +284,10 @@ end if
 if (REcoM_Second_Zoo) then
     tr_arr(:,:,25) = tiny                   ! tracer 25 = Zoo2N
     tr_arr(:,:,26) = tiny * Redfield        ! tracer 26 = Zoo2C
-    tr_arr(:,:,27) = tiny                   ! tracer 26 = DetZ2N                              
-    tr_arr(:,:,28) = tiny                   ! tracer 27 = DetZ2C                                    
-    tr_arr(:,:,29) = tiny                   ! tracer 28 = DetZ2Si                            
-    tr_arr(:,:,30) = tiny                   ! tracer 29 = DetZ2Calc 
+    tr_arr(:,:,27) = tiny                   ! tracer 27 = DetZ2N                              
+    tr_arr(:,:,28) = tiny                   ! tracer 28 = DetZ2C                                    
+    tr_arr(:,:,29) = tiny                   ! tracer 29 = DetZ2Si                            
+    tr_arr(:,:,30) = tiny                   ! tracer 30 = DetZ2Calc 
 endif
 
 if (ciso) then

@@ -1022,8 +1022,8 @@ use ver_sinking_recom_benthos_interface
             endif
 end do
 
-if (mype==0) print*, "Benthos_flux1= ", maxval(Benthos_flux(:,1)), "   , ", minval(Benthos_flux(:,1))
-if (mype==0) print*, "Benthos_flux2= ", maxval(Benthos_flux(:,2)), "   , ", minval(Benthos_flux(:,2))
+! if (mype==0) print*, "Benthos_flux1= ", maxval(Benthos_flux(:,1)), "   , ", minval(Benthos_flux(:,1))
+! if (mype==0) print*, "Benthos_flux2= ", maxval(Benthos_flux(:,2)), "   , ", minval(Benthos_flux(:,2))
 
     do n=1, benthos_num
       call exchange_nod(Benthos(:,n))
