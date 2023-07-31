@@ -61,8 +61,6 @@ SUBROUTINE init_pdaf()
 
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
-  USE output_pdaf, &
-       ONLY: write_da, init_output_pdaf ! , write_ens_snapshot
   USE g_PARSUP, &
        ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D
   USE MOD_MESH

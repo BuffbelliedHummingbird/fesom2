@@ -38,7 +38,6 @@ SUBROUTINE init_dim_obs_f_proffile_pdaf(startyr, endyr)
       ONLY: z_n, zbar_n
    USE o_param, &
       ONLY: rad
-   USE output_pdaf
    use g_clock, &
       ONLY: fleapyear, check_fleapyr
    USE IFPORT, &
