@@ -115,7 +115,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         WRITE (*,'(a, i7,3x,a)') 'FESOM-PDAF', step,'Analyze initial state ensemble'
         WRITE (typestr,'(a1)') 'i'
        ELSE
-        WRITE (*,*) 'FESOM-PDAF: This is a PDAF restart.'
+        WRITE (*,*) 'FESOM-PDAF: This is a PDAF restart. No initial fields are written.'
        END IF
      ELSE IF (step>0) THEN
         WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Analyze assimilated state ensemble'
@@ -181,9 +181,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    END DO
    
    CALL MPI_Allreduce(count_lim_salt0_p, count_lim_salt0_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   !IF (mype_filter == 0) &
-   !         WRITE(*, fmt) 'FESOM-PDAF', &
-   !         '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
+   IF (mype_filter == 0) &
+            WRITE(*, *) 'FESOM-PDAF', &
+            '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
    
      
    ! *** Analysed horizontal velocities must be less than a doubling of forecast velocity ***
@@ -210,9 +210,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 !~    END DO
    
 !~    CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   !IF (mype_filter == 0) &
-   !         WRITE(*, fmt) 'FESOM-PDAF', &
-   !         '--- Velocity updates limited to doubling: ', (count_lim_absvel_g(member), member = 1, dim_ens)
+!~    IF (mype_filter == 0) &
+!~             WRITE(*, fmt) 'FESOM-PDAF', &
+!~             '--- Velocity updates limited to doubling: ', (count_lim_absvel_g(member), member = 1, dim_ens)
    
    
    ! *** SSH state update must be <= 2*sigma
@@ -230,9 +230,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    END DO
    
    CALL MPI_Allreduce(count_lim_ssh_p, count_lim_ssh_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   !IF (mype_filter == 0) &
-   !         WRITE(*, fmt) 'FESOM-PDAF', &
-   !         '--- SSH updates limited to 2x standard deviation: ', (count_lim_ssh_g(member), member = 1, dim_ens)
+   IF (mype_filter == 0) &
+            WRITE(*,*) 'FESOM-PDAF', &
+            '--- SSH updates limited to 2x standard deviation: ', (count_lim_ssh_g(member), member = 1, dim_ens)
 
 
    ! *** temperature must be > -2 degC ***
@@ -249,9 +249,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    END DO
    
    CALL MPI_Allreduce(count_lim_tempM2_p, count_lim_tempM2_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   !IF (mype_filter == 0) &
-   !         WRITE(*, fmt) 'FESOM-PDAF', &
-   !         '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
+   IF (mype_filter == 0) &
+            WRITE(*,*) 'FESOM-PDAF', &
+            '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
 
    END IF ! Corrections
 
@@ -464,7 +464,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       
       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'num_day_in_month: ', num_day_in_month(fleap,whichmonth)
       
-      ! include daily state into monthly mean
+      ! include state into monthly mean
       IF ((step - step_null) > 0) THEN
       ! *** analyzed state fields ***
         IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
@@ -498,7 +498,7 @@ IF (.not. write_monthly_mean) THEN
   ELSE IF ((step - step_null) > 0) THEN
         ! *** write analysis state fields ***
         CALL netCDF_out('a',daynew,step,state_p, ens_p,rmse)
-        CALL netCDF_out('m',daynew,step,timemean,ens_p,rmse)
+        CALL netCDF_out('m',daynew,step,timemean,ens_p,rmse) ! Warning: ensemble data for day-averages ('m') not yet available.
   END IF
 
 ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
@@ -510,7 +510,7 @@ ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
   ELSE IF ((step - step_null) > 0) THEN
         ! *** write analysis state fields ***
         CALL netCDF_out('a',write_pos_da,step,monthly_state_a,monthly_state_ens_a,rmse)
-        CALL netCDF_out('m',write_pos_da,step,monthly_state_m,ens_p,rmse)
+        CALL netCDF_out('m',write_pos_da,step,monthly_state_m,monthly_state_ens_a,rmse) ! Warning: ensemble data for day-averages ('m') not yet available. 
   END IF
 END IF ! write_monthly_mean
 
@@ -519,10 +519,5 @@ END IF ! write_monthly_mean
 ! ********************
   IF ((step - step_null) < 0) DEALLOCATE(var_p)
   IF ((step - step_null) > 0) DEALLOCATE(std_p)
-!~   DEALLOCATE(monthly_state_a, monthly_state_f)
-  
-!~ ENDIF ! this_is_pdaf_restart
-
-
 
 END SUBROUTINE prepoststep_pdaf
