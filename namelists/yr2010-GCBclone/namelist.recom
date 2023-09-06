@@ -5,7 +5,7 @@ ldiag_carbon          =.true.
 ldiag_silicate        =.true.
 recom_diag_freq       = 1          !only required for d,h,s cases,  y, m take 1
 recom_diag_freq_unit  = 'm'        !output period: y,  d, h, s 
-recom_logfile_outfreq = 2700       !in recom logfile info. output frequency, # steps
+recom_logfile_outfreq = 224        !in recom logfile info. output frequency, # steps
 /
 
 &pavariables

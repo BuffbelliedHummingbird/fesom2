@@ -38,7 +38,7 @@ NENS=40          # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
-run_start_date="2012-01-01"
+run_start_date="2010-01-01"
 run_end_date="2020-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.

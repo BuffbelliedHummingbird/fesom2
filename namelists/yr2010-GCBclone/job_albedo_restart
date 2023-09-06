@@ -2,19 +2,22 @@
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
 #SBATCH --cpus-per-task=1
-#SBATCH --time=08:00:00 # 7 hours
+#SBATCH --time=12:00:00 # 7 hours
 #SBATCH --hint=nomultithread
 #SBATCH --qos=12h
 #SBATCH --job-name=GCBA2010
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
-#SBATCH -N 9
-#SBATCH --tasks-per-node 96  # using all 128CPus we exceed the maxload limit (>130) of many used nodes when us parallel I/O
+#SBATCH --ntasks=72
 #SBATCH --mail-user=frauke.bunsen@awi.de
 #SBATCH --mail-type=END
 
 # disable hyperthreading
 #SBATCH --hint=nomultithread
+
+## SBATCH -N 9
+## SBATCH --tasks-per-node 96  # using all 128CPus we exceed the maxload limit (>130) of many used nodes when us parallel I/O
+
 
 # Note: If this is not a PDAF-Restart, remove the
 # "rm work/ece.info"
@@ -40,7 +43,7 @@ run_dir=/albedo/work/user/frbunsen/${exp_name}/work/
 
 # Settings:
 NENS=1           # number of ensembles --> namelist.fesom.pdaf
-fes_numproc=864  # ntasks divided by NENS
+fes_numproc=72   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
@@ -185,9 +188,9 @@ do
             
             sed -i `grep -n ResultPath           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             
-            sed -i `grep -n dim_ens              ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                          ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            # sed -i `grep -n dim_ens              ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                          ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
-            sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            # sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
             sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
             
@@ -195,9 +198,9 @@ do
             
             sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
 
-            sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            # sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
-            sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            # sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
 
 
@@ -215,9 +218,9 @@ do
                 echo 'preparing namelists...'${ENS4str}
                 cd ${run_dir}/${ENSstr}
                 
-                sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                # sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
-                sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                # sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
             done
 
@@ -317,7 +320,7 @@ do
         # Need to reset force_run_from_scratch in order to avoid destroying the next leg
         force_run_from_scratch=false
         # Modify namelist so that the next leg will be a PDAF restart:
-        sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true." ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+        # sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true." ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
     done
     
