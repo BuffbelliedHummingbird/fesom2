@@ -4,7 +4,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      ens_p, flag)
 ! 2019-11 - Longjiang Mu - Initial commit for AWI-CM3
 ! 2022-02 - Frauke B     - Adapted for FESOM2.1
-!
+
 ! !USES:
   USE mod_assim_pdaf, &
        ONLY: file_init, path_init, read_inistate, file_inistate, varscale, &
@@ -13,7 +13,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, COMM_filter, abort_parallel
   USE g_PARSUP, &
-       ONLY: MPI_DOUBLE_PRECISION, MPIerr, edim_nod2d, mydim_nod2d
+       ONLY: MPIerr, edim_nod2d, mydim_nod2d
   USE o_arrays, &
        ONLY: eta_n, tr_arr, uv, wvel
   USE i_arrays, &
@@ -23,6 +23,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
+  INCLUDE 'mpif.h'
 
 ! !ARGUMENTS:
   INTEGER, INTENT(in) :: filtertype              ! Type of filter to initialize
@@ -58,6 +59,27 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   INTEGER :: dim_p_phy                 ! Local state dimension (physics part)
   INTEGER :: idx1,idx2                 ! Indeces
   INTEGER, ALLOCATABLE :: idxs(:)
+  
+  INTEGER :: n_treshold_ssh_p,  &
+             n_treshold_temp_p, &
+             n_treshold_salt_p, &
+             n_treshold_sic_p          ! Local counters for treshold-based corrections
+             
+  INTEGER :: n_treshold_ssh_g,  &
+             n_treshold_temp_g, &
+             n_treshold_salt_g, &
+             n_treshold_sic_g          ! Global counters for treshold-based corrections
+             
+             
+             
+! no need to initialize the ensemble in case of restart, just skip this routine:
+  IF (this_is_pdaf_restart) THEN
+      IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF This is a restart, skipping init_ens_pdaf'
+  ELSE
+
+! **********************
+! *** INITIALIZATION ***
+! **********************
 
   dim_p_phy =   dim_fields(id% ssh   ) + &
                 dim_fields(id% u     ) + &
@@ -71,15 +93,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   
   write(mype_string,'(i4.4)') mype_filter 
 
-! no need to initialize the ens in case of restart, just skip this routine:
-  IF (this_is_pdaf_restart) THEN
-      IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF is restarting, skip init_ens_pdaf...'
-  ELSE
-
-! **********************
-! *** INITIALIZATION ***
-! **********************
-
   mype0: IF (mype_filter == 0) THEN
     WRITE (*, '(/a, 8x,a)') 'FESOM-PDAF', 'Generate state ensemble from covariance matrix'
     WRITE (*, '(a, 8x,a)') &
@@ -91,8 +104,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   ALLOCATE(eof_p(dim_p_phy, dim_ens-1))
   ALLOCATE(svals(dim_ens-1))
   ALLOCATE(omega(dim_ens, dim_ens-1))
-
-  write(mype_string,'(i4.4)') mype_filter
 
 ! *************************************************
 ! *** Initialize initial state and covar matrix ***
@@ -149,7 +160,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
         s = s + 1
         stat(s) = NF_GET_VAR_DOUBLE(fileid, id_state, state_p)
      ELSE
-        CALL compute_vel_nodes(mesh_fesom)
         CALL collect_state_PDAF(dim_p, state_p)
      END IF
 
@@ -234,10 +244,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      
    ! Add perturbation to physics part:
    ALLOCATE(idxs(6))
-   ! idxs = (/ id%SSH, id%u, id%v, id%w, id%temp, id%salt, id%a_ice /)
    idxs = (/ id%SSH, id%u, id%v, id%temp, id%salt, id%a_ice /)
    
-   ! DO j = 1,7
    DO j = 1,6
       idx1 = offset(idxs(j))
       idx2 = offset(idxs(j)) + dim_fields(idxs(j))
@@ -245,25 +253,50 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
    ENDDO
 
    ! *** Treshold values ***
-   DO col= 1,dim_ens
+   treshold: DO col= 1,dim_ens
+      
+      ! surface fields
+      n_treshold_ssh_p = 0
+      n_treshold_sic_p = 0
       Do i= 1,myDim_nod2D
           ! SSH: set to +/- 1.7m where larger than that
-          ! (note: control simulation has variability up to -1.34 in Jan; and -1.67 to 1.56 all-year max.)
-          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)
+          ! (note: control simulation has minimum of -1.34 in Jan 2016; and -1.67 to 1.56 full-year max.)
+          IF ( ens_p(i+offset(id% ssh),col) < -1.7 ) n_treshold_ssh_p = n_treshold_ssh_p + 1 ! counter
+          IF ( ens_p(i+offset(id% ssh),col) > +1.7 ) n_treshold_ssh_p = n_treshold_ssh_p + 1 ! counter
+          ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)       ! apply correction
           ! SIC: set to null where negative
           !      set to 1 where larger than that
-          ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)
-          ens_p(i+offset(id% a_ice),col)= min(ens_p(i+offset(id% a_ice),col),1.)
+          IF ( ens_p(i+offset(id% a_ice),col) < 0.0 ) n_treshold_sic_p = n_treshold_sic_p + 1 ! counter
+          IF ( ens_p(i+offset(id% a_ice),col) > 1.0 ) n_treshold_sic_p = n_treshold_sic_p + 1 ! counter
+          ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)              ! apply correction
+          ens_p(i+offset(id% a_ice),col)= min(ens_p(i+offset(id% a_ice),col),1.)              ! apply correction
       END DO
-
+      
+      ! write out correction counters for SSH and sea ice:
+      CALL MPI_Allreduce(n_treshold_ssh_p, n_treshold_ssh_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      CALL MPI_Allreduce(n_treshold_sic_p, n_treshold_sic_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - SSH  - Number of field corrections: ', n_treshold_ssh_g, ' on member ', col
+      IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - SIC  - Number of field corrections: ', n_treshold_sic_g, ' on member ', col
+      
+      ! 3D fields
+      n_treshold_temp_p = 0
+      n_treshold_salt_p = 0
       DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
           ! temp: set to -1.895 Celsius where smaller than that
-          ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)
+          IF ( ens_p(i+offset(id% temp),col) < -1.895D0) n_treshold_temp_p = n_treshold_temp_p + 1 ! counter
+          ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)               ! apply correction
           ! salt: set to null where negative
-          ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)
+          IF ( ens_p(i+offset(id% salt),col) < 0.0) n_treshold_salt_p = n_treshold_salt_p + 1      ! counter
+          ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)                     ! apply correction
       END DO
+      
+      ! write out correction counters for temperature and salinity:
+      CALL MPI_Allreduce(n_treshold_temp_p, n_treshold_temp_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      CALL MPI_Allreduce(n_treshold_salt_p, n_treshold_salt_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - Temp - Number of field corrections: ', n_treshold_temp_g, ' on member ', col
+      IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - Salt - Number of field corrections: ', n_treshold_salt_g, ' on member ', col
 
-   END DO
+   END DO treshold
 
   ELSE checkdim
 
@@ -273,8 +306,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      CALL abort_parallel()
 
   END IF checkdim
-
-
 
 ! ****************
 ! *** clean up ***
