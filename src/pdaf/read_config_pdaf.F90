@@ -148,7 +148,7 @@ ELSE
     atmos_stochasticity_ON = .FALSE.
 ENDIF
 
-IF (write_ens) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE.'
+IF (write_ens) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE. Hint: Activate model ouput in fvom_main.F90 instead.'
 
 ! Observation file prefixes:
 WRITE(year_string,'(i4.4)') yearnew
