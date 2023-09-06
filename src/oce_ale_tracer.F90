@@ -188,7 +188,9 @@ subroutine solve_tracers_ale(mesh)
         if ((toy_ocean) .AND. (TRIM(which_toy)=="soufflet")) call relax_zonal_temp(mesh)
         call exchange_nod(tr_arr(:,:,tr_num))
     end do
+#if defined(__recom)
     call exchange_nod(export)
+#endif
     
     !___________________________________________________________________________
     do tr_num=1, ptracers_restore_total           

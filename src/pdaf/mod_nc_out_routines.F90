@@ -233,7 +233,7 @@ END SUBROUTINE netCDF_init_mm
 SUBROUTINE netCDF_out(writetype, writepos, iteration, state_p, ens_p, rms)
 
 ! ARGUMENTS:
-CHARACTER(len=1), intent(in) :: writetype          ! Write (i) initial, (a) assimilated, (f) forecast fields
+CHARACTER(len=1), intent(in) :: writetype          ! Write (i) initial, (a) assimilated, (f) forecast, (m) daily-average fields
 INTEGER, INTENT(in) :: writepos                    ! Write position
 INTEGER, INTENT(in) :: iteration                   ! Current model time step
 REAL, target, INTENT(in)    :: state_p(dim_state_p)        ! Ensemble mean state vector
