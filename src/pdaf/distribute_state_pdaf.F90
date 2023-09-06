@@ -58,16 +58,6 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   
   REAL, ALLOCATABLE :: U_node_upd(:,:,:) ! Velocity update on nodes
   REAL, ALLOCATABLE :: U_elem_upd(:,:,:) ! Velocity update on elements
-  
-! Local variables for debugging:
-  CHARACTER(len=5)   :: mype_string
-  CHARACTER(len=3)   :: day_string
-  INTEGER :: sshcount_p, sshcount_g, &
-             tcount_p, tcount_g, &
-             scount_p, scount_g
-  LOGICAL :: debugmode
-  
-  debugmode = .false.
 
 ! **********************
 ! *** Initialization ***
@@ -97,20 +87,11 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   ! ***
   
   ! SSH (1)
-  if (debugmode) sshcount_p=0
   DO i = 1, myDim_nod2D
-     if (debugmode .and. (eta_n(i) .ne. state_p(i + offset(id% SSH)))) sshcount_p=sshcount_p+1
      eta_n(i) = state_p(i + offset(id% SSH))
   END DO
   
-  if (debugmode) then
-     CALL MPI_Allreduce(sshcount_p, sshcount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
-     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - SSH  - Number of fields: ', sshcount_g, ' on member ', task_id
-  endif
-  
   ! u (2) and v (3) velocities
-  if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF distribute_state: Interpolate velocity update'
-  
   ! 1. calculate update on nodes, i.e. analysis state (state_p) minus not-yet-updated model state (Unode)
   allocate(U_node_upd(2, mesh_fesom%nl-1, myDim_nod2D+eDim_nod2D))
   U_node_upd = 0.0
@@ -121,42 +102,27 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
       U_node_upd(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) - Unode(2, k, i) ! v
    END DO
   END DO
-  if ((mype_submodel==0) .and. debugmode) WRITE(*,*) 'FESOM-PDAF distribute_state: U_node_upd on member ', task_id, ': ', U_node_upd(:,1:2,1:2)
   
   ! 2. interpolate update from nodes to elements
   allocate(U_elem_upd(2, mesh_fesom%nl-1, myDim_elem2D+eDim_elem2D))
   U_elem_upd = 0.0
 
   call compute_vel_elems(U_node_upd,U_elem_upd)
-  if ((mype_submodel==0) .and. debugmode) WRITE(*,*) 'FESOM-PDAF distribute_state: U_elem_upd on member ', task_id, ': ',  U_elem_upd(:,1:2,1:2)
   
   ! 3. add update to model velocity on elements (UV)
   UV = UV + U_elem_upd
   
   ! 4. adjust diagnostic model velocity on nodes (Unode)
   call compute_vel_nodes(mesh_fesom)
-  
-  ! 1. distribute from state vector onto nodes
-!~   DO i = 1, myDim_nod2D
-!~    DO k = 1, mesh_fesom%nl-1
-!~       Unode(1, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) ! u
-!~       Unode(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) ! v
-!~    END DO
-!~   END DO
-  
-!~   call exchange_nod(Unode(:,:,:))    ! u and v
-  
-!~   ! 2. interpolate from nodes onto elements
-!~   call compute_vel_elems()
-  
 
-!~ ! Element-wise version not interpolated onto nodes:
-!~   DO i = 1, myDim_elem2D
-!~    DO k = 1, mesh_fesom%nl-1
-!~        UV(1,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(2)) ! u
-!~        UV(2,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(3)) ! v
-!~    END DO
-!~   END DO
+
+  ! Element-wise version not interpolated onto nodes. Removed in favor of the above:
+  ! DO i = 1, myDim_elem2D
+  !  DO k = 1, mesh_fesom%nl-1
+  !      UV(1,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(2)) ! u
+  !      UV(2,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(3)) ! v
+  !  END DO
+  ! END DO
 
 
   ! w (4) velocity: not updated and thus no need to distribute.
@@ -167,30 +133,13 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   ! END DO
   
   ! Temp (5) and salt (6)
-  if (debugmode) then
-    scount_p=0
-    tcount_p=0
-  endif
   
   DO i = 1, myDim_nod2D
    DO k = 1, mesh_fesom%nl-1
-   
-      if (debugmode) then
-        if (tr_arr(k, i, 1) .ne. state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp))) tcount_p=tcount_p+1
-        if (tr_arr(k, i, 2) .ne. state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt))) scount_p=scount_p+1
-      endif
-   
       tr_arr(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp)) ! T
       tr_arr(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt)) ! S
    END DO
   END DO
-  
-  if (debugmode) then
-     CALL MPI_Allreduce(tcount_p, tcount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
-     CALL MPI_Allreduce(scount_p, scount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
-     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - Temp - Number of fields: ', tcount_g, ' on member ', task_id
-     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - Salt - Number of fields: ', scount_g, ' on member ', task_id
-  endif
   
   ! Sea-ice concentration is needed in PDAF to not assimilate SST at
   ! sea-ice locations.
