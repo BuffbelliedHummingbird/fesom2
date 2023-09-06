@@ -148,8 +148,7 @@ ELSE
     atmos_stochasticity_ON = .FALSE.
 ENDIF
 
-! No ensemble member monthly means are implemented:
-IF (write_monthly_mean) write_ens=.false.
+IF (write_ens) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE.'
 
 ! Observation file prefixes:
 WRITE(year_string,'(i4.4)') yearnew
@@ -252,6 +251,7 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','this_is_pdaf_restart', this_is_pdaf_restart
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_atm_cov  ', TRIM(path_atm_cov)
 
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'atmos_stochasticity_ON', atmos_stochasticity_ON
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_xwind', disturb_xwind
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_ywind', disturb_ywind
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_humi', disturb_humi
