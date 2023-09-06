@@ -57,7 +57,8 @@ SUBROUTINE init_pdaf()
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
-       init_atmos_ens_stochasticity, init_atmos_stochasticity_output
+       init_atmos_ens_stochasticity, init_atmos_stochasticity_output,&
+       atmos_stochasticity_ON
 
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
@@ -229,7 +230,7 @@ SUBROUTINE init_pdaf()
   file_rawprof_prefix = ''    ! Prefix of file holding rawprofile observations
   file_rawprof_suffix = '.nc' ! Suffix of file holding raw profile observations
 
-! *** Configuration for atmospheric stochaticity:
+! *** Configuration for atmospheric stochasticity:
 disturb_xwind=.true.
 disturb_ywind=.true.
 disturb_humi=.true.
@@ -319,6 +320,34 @@ disturb_mslp=.true.
   CALL init_sfields()
 
 ! *** Specify offset of fields in pe-local state vector ***
+
+!    . . . A . . . . . B . . . . . C . . . . . D
+!         . .         / .         / .         . .
+!        .   .   2   /   .   3   /   .   5   .   .
+! .     .     .     /     .     /     .     .     .
+!  .   .   1   .   /   3   .   /   4   .   .       
+!   . .         . /         . /         . .        
+!    A . . . . . B . . . . . C . . . . . D . . . . 
+!
+!  A:  Internal nodes of left PE
+!  B:  Internal nodes of left PE, simultanesously external nodes of right PE
+!  C:  External nodes of left PE, simultanesously internal nodes of right PE
+!  D:  Internal nodes of right PE
+!  1:  Internal element of left PE, simultanesously wide-halo element of right PE (shares node B with right PE)
+!  2:  Internal element of left PE, simultanesously small-halo element of right PE (shares edge BB with right PE)
+!  3:  Internal (shared) elements of both PEs
+!  4:  Small-halo element of left PE (shares edge CC with left PE), simultanesously internal element of right PE
+!  5:  Wide-halo element of left PE (shares node C with left PE), simultanesously internal element of right PE
+!
+!  myDim_nod2D:      Number of internal nodes (A+B)
+!  eDim_nod2D:       Number of external nodes (C)
+!
+!  myDim_elem2D:     Number of internal elements (1+2+3)
+!  eDim_elem2D:      Number of small-halo elements (4)
+!  xDim_elem2D:      Number of wide-halo elements (5)
+!
+!  mesh_fesom%nl:    Maximum number of fesom levels (1 is air-sea interface)
+!  mesh_fesom%nl-1:  Maximum number of fesom layers (1 is surface layer, 0-5m)
 
   ALLOCATE(dim_fields(nfields))
   dim_fields(id% ssh   )   = myDim_nod2D                     ! 1 SSH
@@ -524,11 +553,13 @@ disturb_mslp=.true.
 ! **** Atmospheric stochasticity  ***
 ! ***********************************
   
-  ! initialize atmospheric stochasticity at (re)start
-  call init_atmos_ens_stochasticity()
-  ! create stochasticity file at beginning of every new year
-  IF (yearnew .ne. yearold) THEN
-     call init_atmos_stochasticity_output()
+  IF (atmos_stochasticity_ON) THEN
+    ! initialize atmospheric stochasticity at (re)start
+    call init_atmos_ens_stochasticity()
+    ! create stochasticity file at beginning of every new year
+    IF (yearnew .ne. yearold) THEN
+       call init_atmos_stochasticity_output()
+    ENDIF
   ENDIF
     
 ! *****************
