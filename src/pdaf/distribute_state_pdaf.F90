@@ -22,24 +22,28 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! 2004-10 - Lars Nerger  - Initial code
 ! 2019-11 - Longjiang Mu - Initial commit for AWI-CM3
 ! 2020-03 - Frauke B     - Added velocities, removed sea-ice (FESOM2.0)
-!
-! !USES:
+
+  !USES:
   USE mod_parallel_pdaf, &
-       ONLY: mype_submodel, mype_world, task_id, mype_model
+       ONLY: mype_submodel, mype_world, task_id, mype_model, npes_model, &
+       COMM_model, MPIerr, mype_filter
   USE mod_assim_pdaf, &
        ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, &
        dim_fields, id, istep_asml, step_null
   USE g_PARSUP, &
-       ONLY: myDim_nod2D, myDim_elem2D 
+       ONLY: myDim_nod2D, myDim_elem2D, &
+             eDim_nod2D, eDim_elem2D 
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, Tsurf, Ssurf, Unode
   USE i_arrays, &
        ONLY: a_ice
-  USE g_comm_auto
   USE g_clock, &
        ONLY: daynew
+  USE g_comm_auto                        ! contains: interface exchange_nod()
 
   IMPLICIT NONE
+  
+  INCLUDE 'mpif.h'
   
 ! ARGUMENTS:
   INTEGER, INTENT(in) :: dim_p           ! PE-local state dimension
@@ -52,20 +56,28 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   INTEGER :: i, k         ! Counter
   INTEGER :: node         ! Node index
   
-! Debugging:
+  REAL, ALLOCATABLE :: U_node_upd(:,:,:) ! Velocity update on nodes
+  REAL, ALLOCATABLE :: U_elem_upd(:,:,:) ! Velocity update on elements
+  
+! Local variables for debugging:
   CHARACTER(len=5)   :: mype_string
   CHARACTER(len=3)   :: day_string
+  INTEGER :: sshcount_p, sshcount_g, &
+             tcount_p, tcount_g, &
+             scount_p, scount_g
+  LOGICAL :: debugmode
+  
+  debugmode = .false.
 
 ! **********************
 ! *** Initialization ***
 ! **********************
-! no need to distibute the ens in case of restart, just skip this routine:
+! no need to distibute the ensemble in case of restart, just skip this routine:
 
   IF (this_is_pdaf_restart .AND. (istep_asml==0)) THEN
     if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf'
   ELSE
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id
-
 
 ! *******************************************
 ! *** Initialize model fields from state  ***
@@ -73,7 +85,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !********************************************
 
   ! *** Dimensions of FESOM arrays:
-  ! * eta_n          (myDim_nod2D + eDim_nod2D)            ! Sea Surface Height
+  ! * eta_n          (myDim_nod2D + eDim_nod2D)            ! Dynamic topography
   ! * UV(1,:,:)      (1, nl-1, myDim_elem2D + eDim_elem2D) ! Velocity u
   ! * UV(2,:,:)      (1, nl-1, myDim_elem2D + eDim_elem2D) ! Velocity v
   ! * wvel           (nl,   myDim_nod2D + eDim_nod2D)      ! Velocity w
@@ -83,26 +95,59 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   ! * unode(2,:,:)   (1, nl-1, myDim_nod2D + eDim_nod2D)   ! Velocity v interpolated on nodes
   ! * a_ice          (myDim_nod2D + eDim_nod2D)            ! Sea-ice concentration
   ! ***
-
+  
   ! SSH (1)
+  if (debugmode) sshcount_p=0
   DO i = 1, myDim_nod2D
+     if (debugmode .and. (eta_n(i) .ne. state_p(i + offset(id% SSH)))) sshcount_p=sshcount_p+1
      eta_n(i) = state_p(i + offset(id% SSH))
   END DO
   
+  if (debugmode) then
+     CALL MPI_Allreduce(sshcount_p, sshcount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
+     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - SSH  - Number of fields: ', sshcount_g, ' on member ', task_id
+  endif
+  
   ! u (2) and v (3) velocities
-  ! 1. distribute from state vector onto nodes
+  if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF distribute_state: Interpolate velocity update'
+  
+  ! 1. calculate update on nodes, i.e. analysis state (state_p) minus not-yet-updated model state (Unode)
+  allocate(U_node_upd(2, mesh_fesom%nl-1, myDim_nod2D+eDim_nod2D))
+  U_node_upd = 0.0
   
   DO i = 1, myDim_nod2D
    DO k = 1, mesh_fesom%nl-1
-      Unode(1, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) ! u
-      Unode(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) ! v
+      U_node_upd(1, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) - Unode(1, k, i) ! u
+      U_node_upd(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) - Unode(2, k, i) ! v
    END DO
   END DO
+  if ((mype_submodel==0) .and. debugmode) WRITE(*,*) 'FESOM-PDAF distribute_state: U_node_upd on member ', task_id, ': ', U_node_upd(:,1:2,1:2)
   
-  call exchange_nod(Unode(:,:,:))    ! u and v
+  ! 2. interpolate update from nodes to elements
+  allocate(U_elem_upd(2, mesh_fesom%nl-1, myDim_elem2D+eDim_elem2D))
+  U_elem_upd = 0.0
+
+  call compute_vel_elems(U_node_upd,U_elem_upd)
+  if ((mype_submodel==0) .and. debugmode) WRITE(*,*) 'FESOM-PDAF distribute_state: U_elem_upd on member ', task_id, ': ',  U_elem_upd(:,1:2,1:2)
   
-  ! 2. interpolate from nodes onto elements
-  call compute_vel_elems()
+  ! 3. add update to model velocity on elements (UV)
+  UV = UV + U_elem_upd
+  
+  ! 4. adjust diagnostic model velocity on nodes (Unode)
+  call compute_vel_nodes(mesh_fesom)
+  
+  ! 1. distribute from state vector onto nodes
+!~   DO i = 1, myDim_nod2D
+!~    DO k = 1, mesh_fesom%nl-1
+!~       Unode(1, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) ! u
+!~       Unode(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) ! v
+!~    END DO
+!~   END DO
+  
+!~   call exchange_nod(Unode(:,:,:))    ! u and v
+  
+!~   ! 2. interpolate from nodes onto elements
+!~   call compute_vel_elems()
   
 
 !~ ! Element-wise version not interpolated onto nodes:
@@ -114,20 +159,38 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !~   END DO
 
 
-  ! w (4) velocity
-  DO i = 1, myDim_nod2D
-   DO k = 1, mesh_fesom%nl
-       wvel(k,i) = state_p((i-1)*mesh_fesom%nl + k + offset(id% w)) ! w
-   END DO
-  END DO
+  ! w (4) velocity: not updated and thus no need to distribute.
+  ! DO i = 1, myDim_nod2D
+  !  DO k = 1, mesh_fesom%nl
+  !      wvel(k,i) = state_p((i-1)*mesh_fesom%nl + k + offset(id% w)) ! w
+  !  END DO
+  ! END DO
   
   ! Temp (5) and salt (6)
+  if (debugmode) then
+    scount_p=0
+    tcount_p=0
+  endif
+  
   DO i = 1, myDim_nod2D
    DO k = 1, mesh_fesom%nl-1
+   
+      if (debugmode) then
+        if (tr_arr(k, i, 1) .ne. state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp))) tcount_p=tcount_p+1
+        if (tr_arr(k, i, 2) .ne. state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt))) scount_p=scount_p+1
+      endif
+   
       tr_arr(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp)) ! T
       tr_arr(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt)) ! S
    END DO
   END DO
+  
+  if (debugmode) then
+     CALL MPI_Allreduce(tcount_p, tcount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
+     CALL MPI_Allreduce(scount_p, scount_g, 1, MPI_INTEGER, MPI_SUM, COMM_model, MPIerr)
+     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - Temp - Number of fields: ', tcount_g, ' on member ', task_id
+     if (mype_model == 0) WRITE(*,*) 'FESOM-PDAF distribute_state - Salt - Number of fields: ', scount_g, ' on member ', task_id
+  endif
   
   ! Sea-ice concentration is needed in PDAF to not assimilate SST at
   ! sea-ice locations.
@@ -140,12 +203,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 
   call exchange_nod(eta_n)            ! SSH
   call exchange_elem(UV(:,:,:))       ! u and v (element-wise)
-  call exchange_nod(wvel)             ! w
+  ! call exchange_nod(wvel)           ! No need as vertical velocities are not distributed.
   call exchange_nod(tr_arr(:,:,1))    ! Temp
   call exchange_nod(tr_arr(:,:,2))    ! Salt
-
-  Tsurf=tr_arr(1,:,1)
-  Ssurf=tr_arr(1,:,2)
   
 ! *********************************
 ! *** Biogeochemistry           ***
@@ -204,6 +264,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !~   call exchange_nod( tr_arr(:,:,22) )
 !~ !  call exchange_nod( GloPCO2surf )
 !~ !  call exchange_nod( GloCO2flux  )
+
+  ! clean up:
+  deallocate(U_node_upd,U_elem_upd)
  
   ENDIF
 END SUBROUTINE distribute_state_pdaf
