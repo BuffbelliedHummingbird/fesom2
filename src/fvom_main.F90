@@ -214,6 +214,7 @@ type(t_mesh),   save,  target  :: mesh
     call timeit(2, 'old')
     call timeit(3, 'new')
     mesh_fesom => mesh
+    call compute_vel_nodes(mesh)
     CALL init_PDAF()
     call timeit(3, 'old')
     call timeit(4, 'new')
@@ -252,7 +253,7 @@ type(t_mesh),   save,  target  :: mesh
 #endif
         call clock
         
-        !___compute horizontal velocity on nodes (originaly on elements)________
+        !___compute horizontal velocity on nodes (originally on elements)________
         call compute_vel_nodes(mesh)
         
         !___model sea-ice step__________________________________________________
