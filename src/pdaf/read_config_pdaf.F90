@@ -47,8 +47,9 @@ SUBROUTINE read_config_pdaf()
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
-       atmos_stochasticity_ON, &
-       varscale_wind, varscale_tair
+       atmos_stochasticity_ON, write_atmos_st, &
+       varscale_wind, varscale_tair, &
+       varscale_humi, varscale_qlw
   USE g_clock, &
        ONLY: yearold, yearnew
 
@@ -99,7 +100,8 @@ SUBROUTINE read_config_pdaf()
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
-       varscale_wind, varscale_tair
+       varscale_wind, varscale_tair, varscale_humi, varscale_qlw, &
+       write_atmos_st
        
 !~   NAMELIST /pdaf_output/
        
@@ -252,6 +254,7 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_atm_cov  ', TRIM(path_atm_cov)
 
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'atmos_stochasticity_ON', atmos_stochasticity_ON
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'write_atmos_st', write_atmos_st
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_xwind', disturb_xwind
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_ywind', disturb_ywind
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_humi', disturb_humi
@@ -263,6 +266,8 @@ WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_snow', disturb_snow
 WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_mslp', disturb_mslp
 WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_wind ', varscale_wind
 WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_tair ', varscale_tair
+WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_humi ', varscale_humi
+WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_qlw  ', varscale_qlw
 
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'

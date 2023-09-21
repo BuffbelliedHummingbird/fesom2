@@ -96,8 +96,10 @@ LOGICAL :: disturb_mslp
 
 LOGICAL :: atmos_stochasticity_ON   ! if any atmospheric fields to be perturbed
 
-REAL :: varscale_wind               ! scaling factors
-REAL :: varscale_tair
+REAL :: varscale_wind = 0.1         ! scaling factors
+REAL :: varscale_tair = 1.0
+REAL :: varscale_humi = 0.5
+REAL :: varscale_qlw  = 0.5
 
 LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospheric fields,
                                     ! i.e. writing output at every time step
@@ -418,10 +420,11 @@ ENDIF
 END IF
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
+! perturb[n+1] = (1 - arc) * perturb[n] + arc * varscale * random
 IF(disturb_xwind) perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xwind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% xwind) : atm_offset(id_atm% xwind) +myDim_nod2D)
 IF(disturb_ywind) perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% ywind) : atm_offset(id_atm% ywind) +myDim_nod2D)
-IF(disturb_humi ) perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% humi ) : atm_offset(id_atm% humi ) +myDim_nod2D)
-IF(disturb_qlw  ) perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% qlw  ) : atm_offset(id_atm% qlw  ) +myDim_nod2D)
+IF(disturb_humi ) perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * varscale_humi * perturbation(atm_offset(id_atm% humi ) : atm_offset(id_atm% humi ) +myDim_nod2D)
+IF(disturb_qlw  ) perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * varscale_qlw  * perturbation(atm_offset(id_atm% qlw  ) : atm_offset(id_atm% qlw  ) +myDim_nod2D)
 IF(disturb_qsr  ) perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% qsr  ) : atm_offset(id_atm% qsr  ) +myDim_nod2D)
 IF(disturb_tair ) perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * varscale_tair * perturbation(atm_offset(id_atm% tair ) : atm_offset(id_atm% tair ) +myDim_nod2D)
 IF(disturb_prec ) perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% prec ) : atm_offset(id_atm% prec ) +myDim_nod2D)
@@ -462,7 +465,7 @@ IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) + perturbation_snow
 IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + perturbation_mslp
 IF (disturb_qsr)   atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + perturbation_qsr  
 
-
+! corrections:
 ! night: shortwave is zero.
 IF(disturb_qsr) THEN
   WHERE(atmdata(i_qsr,:) /= 0)
@@ -484,6 +487,9 @@ ENDIF
 IF(disturb_humi) THEN
   WHERE(atmdata(i_humi,:) <0 )
   atmdata(i_humi,:)=0
+  ENDWHERE
+  WHERE(atmdata(i_humi,:) >1 )
+  atmdata(i_humi,:)=1
   ENDWHERE
 ENDIF
 IF(disturb_qlw) THEN

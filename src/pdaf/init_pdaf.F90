@@ -329,15 +329,15 @@ disturb_mslp=.true.
 !   . .         . /         . /         . .        
 !    A . . . . . B . . . . . C . . . . . D . . . . 
 !
-!  A:  Internal nodes of left PE
-!  B:  Internal nodes of left PE, simultanesously external nodes of right PE
-!  C:  External nodes of left PE, simultanesously internal nodes of right PE
-!  D:  Internal nodes of right PE
-!  1:  Internal element of left PE, simultanesously wide-halo element of right PE (shares node B with right PE)
-!  2:  Internal element of left PE, simultanesously small-halo element of right PE (shares edge BB with right PE)
-!  3:  Internal (shared) elements of both PEs
-!  4:  Small-halo element of left PE (shares edge CC with left PE), simultanesously internal element of right PE
-!  5:  Wide-halo element of left PE (shares node C with left PE), simultanesously internal element of right PE
+!  A:    Internal nodes of left PE
+!  B:    Internal nodes of left PE, simultanesously external nodes of right PE
+!  C:    External nodes of left PE, simultanesously internal nodes of right PE
+!  D:    Internal nodes of right PE
+!  1:    Internal element of left PE, simultanesously wide-halo element of right PE (shares node B with right PE)
+!  2:    Internal element of left PE, simultanesously small-halo element of right PE (shares edge BB with right PE)
+!  3:    Internal (shared) elements of both PEs
+!  4:    Small-halo element of left PE (shares edge CC with left PE), simultanesously internal element of right PE
+!  5:    Wide-halo element of left PE (shares node C with left PE), simultanesously internal element of right PE
 !
 !  myDim_nod2D:      Number of internal nodes (A+B)
 !  eDim_nod2D:       Number of external nodes (C)
