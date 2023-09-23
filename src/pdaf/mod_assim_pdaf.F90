@@ -29,6 +29,7 @@ SAVE
 
 ! Settings for time stepping - available as namelist read-in
 INTEGER :: step_null = 0 ! initial time step of assimilation
+INTEGER :: days_since_DAstart = 1 ! days since start of assimilation (continuous counter through restarts)
 ! Settings for observations - available as command line options
 INTEGER :: delt_obs_ocn     ! time step interval between assimilation steps - Ocean
 INTEGER :: dim_obs          ! Number of observations

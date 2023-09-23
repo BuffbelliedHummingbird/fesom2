@@ -23,7 +23,7 @@ SUBROUTINE read_config_pdaf()
        path_init, file_init, file_inistate, read_inistate, varscale, &
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
-       path_atm_cov, &
+       path_atm_cov, days_since_DAstart, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
@@ -77,6 +77,7 @@ SUBROUTINE read_config_pdaf()
        write_monthly_mean, &
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
+       days_since_DAstart, &
        ! Salt:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
@@ -169,6 +170,7 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_ens     ', dim_ens
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','delt_obs_ocn', delt_obs_ocn
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','step_null   ', step_null
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF', 'days_since_DAstart', days_since_DAstart
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','screen      ', screen
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','incremental ', incremental
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','type_forget ', type_forget

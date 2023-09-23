@@ -21,7 +21,7 @@ MODULE mod_atmos_ens_stochasticity
        ! dimensions:
        ONLY: dim_ens, dim_state_p, &
        ! netCDF file:
-       path_atm_cov
+       path_atm_cov, forget
   USE g_clock, &
        ONLY: cyearnew, cyearold
   USE g_PARSUP, &
@@ -104,6 +104,7 @@ REAL :: varscale_qlw  = 0.5
 LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospheric fields,
                                     ! i.e. writing output at every time step
 
+REAL :: stable_rmse = 0 ! (ocean temperature) ensemble spread after 16 months of assimilation 
 
 CONTAINS
 
@@ -545,8 +546,9 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: i ! counter
     INTEGER :: fileid ! ID of netCDF file
     INTEGER :: stat(500)                    ! auxiliary: status array
-    INTEGER :: dimID_n2D ! dimension ID: nodes
-    INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: dimID_n2D   ! dimension ID: nodes
+    INTEGER :: dimID_step  ! dimension ID: time steps
+    INTEGER :: dimID_dummy ! dummy dimension
     INTEGER :: varID_xwind
     INTEGER :: varID_ywind
     INTEGER :: varID_humi 
@@ -565,6 +567,7 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: varID_restart_prec 
     INTEGER :: varID_restart_snow 
     INTEGER :: varID_restart_mslp
+    INTEGER :: varID_restart_rmse, varID_restart_forget
     INTEGER :: dimarray(2)
     
     
@@ -584,6 +587,8 @@ s = s+1
 stat(s) = NF_DEF_DIM(fileid,'myDim_nod2D', myDim_nod2D, dimID_n2D)
 s = s+1
 stat(s) = NF_DEF_DIM(fileid,'step', NF_UNLIMITED, dimId_step)
+s = s+1
+stat(s) = NF_DEF_DIM(fileid,'dimensionless', 1, dimID_dummy)
 s = s+1
 
 DO i = 1,  s - 1
@@ -636,6 +641,12 @@ IF (disturb_snow ) s = s+1
 IF (disturb_mslp ) stat(s) = NF_DEF_VAR(fileid, 'restart_mslp' , NF_FLOAT, 1, dimID_n2D, varID_restart_mslp )
 IF (disturb_mslp ) s = s+1
 
+! save stable ensemble spread (computed during month 16) and forgetting factor for restart:
+stat(s) = NF_DEF_VAR(fileid, 'restart_rmse'   , NF_FLOAT, 1, dimID_dummy, varID_restart_rmse)
+s = s+1
+stat(s) = NF_DEF_VAR(fileid, 'restart_forget' , NF_FLOAT, 1, dimID_dummy, varID_restart_forget)
+s = s+1
+
 DO i = 1,  s - 1
      IF (stat(i) /= NF_NOERR) THEN
      WRITE(*,*) 'NetCDF error in defining variables in atmos. netCDF file, no.', i
@@ -687,7 +698,7 @@ SUBROUTINE write_atmos_stochasticity_output(istep)
     INTEGER :: i ! counter
     INTEGER :: fileid ! ID of netCDF file
     INTEGER :: stat(500)                    ! auxiliary: status array
-    INTEGER :: dimID_n2D ! dimension ID: nodes
+    INTEGER :: dimID_n2D  ! dimension ID: nodes
     INTEGER :: dimID_step ! dimension ID: time steps
     INTEGER :: varID_xwind
     INTEGER :: varID_ywind
@@ -807,6 +818,7 @@ SUBROUTINE write_atmos_stochasticity_restart()
     INTEGER :: stat(500)  ! auxiliary: status array
     INTEGER :: dimID_n2D  ! dimension ID: nodes
     INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: dimID_dummy ! dummy dimension
     INTEGER :: varID_restart_xwind
     INTEGER :: varID_restart_ywind
     INTEGER :: varID_restart_humi 
@@ -816,6 +828,7 @@ SUBROUTINE write_atmos_stochasticity_restart()
     INTEGER :: varID_restart_prec 
     INTEGER :: varID_restart_snow 
     INTEGER :: varID_restart_mslp
+    INTEGER :: varID_restart_rmse, varID_restart_forget
     
 IF (mype_world==0) THEN
 WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart to netCDF at the end.'
@@ -849,6 +862,11 @@ s=1
  IF (disturb_snow ) s=s+1
  IF (disturb_mslp ) stat(s) = NF_INQ_VARID( fileid, 'restart_mslp' , varID_restart_mslp  )
  IF (disturb_mslp ) s=s+1
+ 
+ stat(s) = NF_INQ_VARID( fileid, 'restart_rmse' ,   varID_restart_rmse )
+ s=s+1
+ stat(s) = NF_INQ_VARID( fileid, 'restart_forget' , varID_restart_forget )
+ s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) &
@@ -874,6 +892,11 @@ s=1
  IF (disturb_snow ) s=s+1
  IF (disturb_mslp ) stat(s) = NF_PUT_VAR_REAL( fileid, varid_restart_mslp,  REAL(perturbation_mslp (:myDim_nod2D),4))
  IF (disturb_mslp ) s=s+1
+ 
+ stat(s) = NF_PUT_VAR_REAL( fileid, varid_restart_rmse,    REAL(stable_rmse,4))
+ s=s+1
+ stat(s) = NF_PUT_VAR_REAL( fileid, varid_restart_forget,  REAL(forget     ,4))
+ s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
@@ -916,6 +939,7 @@ SUBROUTINE read_atmos_stochasticity_restart()
     INTEGER :: stat(500)  ! auxiliary: status array
     INTEGER :: dimID_n2D  ! dimension ID: nodes
     INTEGER :: dimID_step ! dimension ID: time steps
+    INTEGER :: dimID_dummy! dimension ID: dummy
     INTEGER :: varID_restart_xwind
     INTEGER :: varID_restart_ywind
     INTEGER :: varID_restart_humi 
@@ -925,6 +949,8 @@ SUBROUTINE read_atmos_stochasticity_restart()
     INTEGER :: varID_restart_prec 
     INTEGER :: varID_restart_snow 
     INTEGER :: varID_restart_mslp
+    INTEGER :: varID_restart_rmse
+    INTEGER :: varID_restart_forget
     
 ! --- open file:
 fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearold//'.nc'
@@ -959,6 +985,11 @@ IF (disturb_snow ) s=s+1
 IF (disturb_mslp ) stat(s) = NF_INQ_VARID( fileid, 'restart_mslp' , varID_restart_mslp  )
 IF (disturb_mslp ) s=s+1
 
+stat(s) = NF_INQ_VARID( fileid, 'restart_rmse' , varID_restart_rmse )
+s=s+1
+stat(s) = NF_INQ_VARID( fileid, 'restart_forget' , varID_restart_forget )
+s=s+1
+
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) &
   WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity restart variable IDs at restart, no.', i
@@ -983,6 +1014,11 @@ IF (disturb_snow ) stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_snow,  per
 IF (disturb_snow ) s=s+1
 IF (disturb_mslp ) stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_mslp,  perturbation_mslp (:myDim_nod2D))
 IF (disturb_mslp ) s=s+1
+
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_rmse,   stable_rmse)
+s=s+1
+stat(s) = NF_GET_VAR_DOUBLE( fileid, varid_restart_forget, forget)
+s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN

@@ -28,7 +28,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        depth_excl, depth_excl_no, this_is_pdaf_restart, mesh_fesom, &
        dim_fields, dim_fields_glob, offset, offset_glob, nfields, id, &
        timemean, monthly_state_m, delt_obs_ocn, &
-       monthly_state_ens_f, monthly_state_ens_a
+       monthly_state_ens_f, monthly_state_ens_a, days_since_DAstart, forget
+  USE mod_atmos_ens_stochasticity, &
+      ONLY: stable_rmse
   USE g_PARSUP, &
        ONLY: MPI_DOUBLE_PRECISION, MPI_SUM, MPIerr, MPI_STATUS_SIZE, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
@@ -76,8 +78,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   INTEGER :: i, j,k, member, ed    ! Counters
   REAL :: invdim_ens                ! Inverse ensemble size
   REAL :: invdim_ensm1              ! Inverse of ensemble size minus 1 
-  REAL :: rmse_p(nfields)                ! PE-local estimated rms errors
-  REAL :: rmse(nfields)                  ! Global estimated rms errors
+  REAL :: rmse_p(nfields)                ! PE-local ensemble spread
+  REAL :: rmse(nfields)                  ! Global ensemble spread
   REAL :: diffm                  ! temporary 
   CHARACTER(len=1) :: typestr       ! Character indicating call type
   REAL :: min_eff_dim_obs, max_eff_dim_obs       ! Stats on effective observation dimensions
@@ -363,6 +365,77 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
           'FESOM-PDAF', rmse(1), rmse(2), rmse(3), rmse(4), rmse(5), rmse(6), 'RMSe-', typestr,&
           'FESOM-PDAF', ('-',i=1,66)
   END IF
+  
+! *******************************
+! *** Reset forgetting factor ***
+! *******************************
+  
+  
+  IF (step<0) THEN
+  ! forecast phase   
+     
+     IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' days_since_DAstart ', days_since_DAstart
+     
+     ! reset forgetting factor:
+     IF     (days_since_DAstart==  1) THEN ! set value for 1st half-month of assimilation
+       forget=0.95
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' Resetting forget to ', forget, ' at day ', days_since_DAstart
+       
+     ELSEIF (days_since_DAstart== 16) THEN ! set value for 2nd half of 1st month of assimilation
+       forget=0.96
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' Resetting forget to ', forget, ' at day ', days_since_DAstart
+       
+     ELSEIF (days_since_DAstart== 32) THEN ! set value for 2nd month of assimilation
+       forget=0.97
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' Resetting forget to ', forget, ' at day ', days_since_DAstart
+       
+     ELSEIF (days_since_DAstart== 60) THEN ! set value for 3rd month of assimilation
+       forget=0.98
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget to ', forget, ' at day ', days_since_DAstart
+       
+     ELSEIF (days_since_DAstart== 90) THEN ! set value for 4th-17th months of assimilation
+       forget=0.99
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget to ', forget, ' at day ', days_since_DAstart
+     
+     ! during month 17, save temperature ensemble spread (note: it is written with atmospheric perturbation to restart files)
+     ELSEIF ((days_since_DAstart >= 485) .and. (days_since_DAstart <= 516)) THEN
+       stable_rmse = stable_rmse + rmse(id %temp)/31
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' Saving ensemble spread to adapt forget at day ', days_since_DAstart
+       
+     ! after month 17, the forgetting factor is reset whenever the ensemble spread becomes too large or small:
+     ELSEIF ((days_since_DAstart >= 516) .and. (rmse(id%temp)> stable_rmse+0.0025)) THEN
+       forget=1.00
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget ',&
+                                      'Current RMSE: ', rmse(id %temp),&
+                                      ' stable RMSE: ', stable_rmse,&
+                                      ' new forget: ', forget
+       
+     ELSEIF ((days_since_DAstart >= 516) .and. (rmse(id%temp)< stable_rmse-0.0025)) THEN
+       forget=0.99
+       CALL PDAF_reset_forget(forget)
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget ',&
+                                      'Current RMSE: ', rmse(id %temp),&
+                                      ' stable RMSE: ', stable_rmse,&
+                                      ' new forget: ', forget
+       
+     ELSE
+       IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' not resetting forget ',&
+                                      'Current RMSE: ', rmse(id %temp),&
+                                      ' stable RMSE: ', stable_rmse,&
+                                      'forget', forget
+     
+     ENDIF ! (whether to reset forgetting factor)
+     
+     ! count upwards during daily forecast phase:
+     days_since_DAstart=days_since_DAstart+1
+     
+  ENDIF ! (forecast phase)
 
 
 ! ***************************************************************
@@ -486,7 +559,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
 ! *** write initial state fields ***
 IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
-      CALL netCDF_out('i',daynew,step,state_p,ens_p,rmse)
+      CALL netCDF_out('i',daynew,step,state_p,ens_p,rmse,forget)
 ENDIF
 
 IF (.not. write_monthly_mean) THEN
@@ -494,11 +567,11 @@ IF (.not. write_monthly_mean) THEN
   write_pos_da = daynew
   IF ((step - step_null) < 0) THEN
         ! *** write forecast state fields ***
-        CALL netCDF_out('f',daynew,step,state_p,ens_p,rmse)
+        CALL netCDF_out('f',daynew,step,state_p,ens_p,rmse,forget)
   ELSE IF ((step - step_null) > 0) THEN
         ! *** write analysis state fields ***
-        CALL netCDF_out('a',daynew,step,state_p, ens_p,rmse)
-        CALL netCDF_out('m',daynew,step,timemean,ens_p,rmse) ! Warning: ensemble data for day-averages ('m') not yet available.
+        CALL netCDF_out('a',daynew,step,state_p, ens_p,rmse,forget)
+        CALL netCDF_out('m',daynew,step,timemean,ens_p,rmse,forget) ! Warning: ensemble data for day-averages ('m') not yet available.
   END IF
 
 ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
@@ -506,11 +579,11 @@ ELSEIF (write_monthly_mean .and. now_to_write_monthly) THEN
   write_pos_da = whichmonth
   IF ((step - step_null) < 0) THEN
         ! *** write forecast state fields ***
-        CALL netCDF_out('f',write_pos_da,step,monthly_state_f,monthly_state_ens_f,rmse)
+        CALL netCDF_out('f',write_pos_da,step,monthly_state_f,monthly_state_ens_f,rmse,forget)
   ELSE IF ((step - step_null) > 0) THEN
         ! *** write analysis state fields ***
-        CALL netCDF_out('a',write_pos_da,step,monthly_state_a,monthly_state_ens_a,rmse)
-        CALL netCDF_out('m',write_pos_da,step,monthly_state_m,monthly_state_ens_a,rmse) ! Warning: ensemble data for day-averages ('m') not yet available. 
+        CALL netCDF_out('a',write_pos_da,step,monthly_state_a,monthly_state_ens_a,rmse,forget)
+        CALL netCDF_out('m',write_pos_da,step,monthly_state_m,monthly_state_ens_a,rmse,forget) ! Warning: ensemble data for day-averages ('m') not yet available. 
   END IF
 END IF ! write_monthly_mean
 
