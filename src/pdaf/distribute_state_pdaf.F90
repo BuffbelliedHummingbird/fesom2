@@ -189,6 +189,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !~ !  DO i = 1, myDim_nod2D
 !~ !     GloPCO2surf(i) = state_p(i + offset(id% pCO2s)) ! diagnostic field (not distributed to the model. See int_recom/recom/gasx.F90)
 !~ !     GloCO2flux(i)  = state_p(i + offset(id% CO2f )) ! diagnostic field (not distributed to the model. See int_recom/recom/gasx.F90)
+!~ !     alphaCO2 and PistonVel are also diagnostic fields.
 !~ !  END DO
  
 !~ ! Initialize external nodes:

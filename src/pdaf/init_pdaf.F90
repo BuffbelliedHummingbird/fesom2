@@ -308,6 +308,8 @@ disturb_mslp=.true.
 !~   id% TOC    = 31
   id% PhyCalc= 29
   id% export = 30
+  id% alphaCO2  = 31
+  id% PistonVel = 32
   
   nfields = 30
 
@@ -315,7 +317,7 @@ disturb_mslp=.true.
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 30
+  bgcmax = 32
   
   CALL init_sfields()
 

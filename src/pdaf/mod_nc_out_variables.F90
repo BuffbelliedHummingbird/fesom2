@@ -315,6 +315,22 @@ sfields(id% export) % units = 'mmol m-2 day-1'
 sfields(id% export) % updated = .false.
 sfields(id% export) % bgc = .true.
 
+! Solubility of CO2
+sfields(id% alphaCO2) % ndims = 1
+sfields(id% alphaCO2) % variable = 'alphaCO2'
+sfields(id% alphaCO2) % long_name = 'solubility of surface CO2'
+sfields(id% alphaCO2) % units = 'mol kg-1 atm-1'
+sfields(id% alphaCO2) % updated = .false.
+sfields(id% alphaCO2) % bgc = .true.
+
+! Piston velocity
+sfields(id% PistonVel) % ndims = 1
+sfields(id% PistonVel) % variable = 'Kw660'
+sfields(id% PistonVel) % long_name = 'air-sea piston velocity'
+sfields(id% PistonVel) % units = 'm/s'
+sfields(id% PistonVel) % updated = .false.
+sfields(id% PistonVel) % bgc = .true.
+
 END SUBROUTINE init_sfields
   
   

@@ -149,6 +149,8 @@ TYPE field_ids
    !   INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
    INTEGER :: PhyCalc
    INTEGER :: export
+   INTEGER :: alphaCO2
+   INTEGER :: PistonVel
 END TYPE field_ids
 
 ! Type variable holding field IDs in state vector

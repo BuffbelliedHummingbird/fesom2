@@ -31,7 +31,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1
   USE REcoM_GloVar, &
-       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export
+       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export, PistonVelocity, alphaCO2
   USE i_arrays, &
        ONLY: a_ice
   USE mod_parallel_pdaf, &
@@ -133,9 +133,12 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
            state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))= tr_arr(k, i, 22) ! small phytoplankton CaCO2
         ENDDO
         ! 2D-fields
-        state_p(i + offset(id% pCO2s )) = GloPCO2surf(i) ! surface ocean partial pressure CO2
-        state_p(i + offset(id% CO2f ))  = GloCO2flux(i)  ! CO2 flux (from atmosphere into ocean)
-        state_p(i + offset(id% export)) = export(i)      ! Export through particle sinking
+        state_p(i + offset(id% pCO2s ))    = GloPCO2surf(i)    ! surface ocean partial pressure CO2
+        state_p(i + offset(id% CO2f ))     = GloCO2flux(i)     ! CO2 flux (from atmosphere into ocean)
+        state_p(i + offset(id% export))    = export(i)         ! Export through particle sinking
+        state_p(i + offset(id% alphaCO2))  = alphaCO2(i)       ! Solubility of CO2
+        state_p(i + offset(id% PistonVel)) = PistonVelocity(i) ! Air-sea gas transfer velocity
+
    ENDDO
    
 !~    ! derived fields:
