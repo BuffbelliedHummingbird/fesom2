@@ -49,7 +49,8 @@ INTEGER :: dimID_nod2, dimID_iter, &
 INTEGER :: dimIDs(3)
 INTEGER :: varid_nod2, varid_iter, &
            varid_nz, varid_nz1, &
-           varid_lon, varid_lat
+           varid_lon, varid_lat, &
+           varid_forget
 INTEGER :: ndims
 INTEGER :: nlay
 
@@ -230,7 +231,7 @@ END SUBROUTINE netCDF_init_mm
 ! ***                          ***
 ! ********************************
 
-SUBROUTINE netCDF_out(writetype, writepos, iteration, state_p, ens_p, rms)
+SUBROUTINE netCDF_out(writetype, writepos, iteration, state_p, ens_p, rms, forget)
 
 ! ARGUMENTS:
 CHARACTER(len=1), intent(in) :: writetype          ! Write (i) initial, (a) assimilated, (f) forecast, (m) daily-average fields
@@ -239,6 +240,7 @@ INTEGER, INTENT(in) :: iteration                   ! Current model time step
 REAL, target, INTENT(in)    :: state_p(dim_state_p)        ! Ensemble mean state vector
 REAL, target, INTENT(in)    :: ens_p(dim_state_p, dim_ens) ! Ensemble states
 REAL, INTENT(in) :: rms(nfields)                   ! RMS ensemble spread
+REAL, INTENT(in) :: forget                         ! Forgetting factor
 
 ! Local variables:
 REAL, pointer :: state_ptr(:)                      ! Points to state vector (mean or ensemble member state)
@@ -299,6 +301,12 @@ DO member=0, dim_ens
                                  start=(/ writepos /)))
       call check( nf90_put_var  (fileid_bgc, varid_iter, iteration, &
                                  start=(/ writepos /)))
+                                 
+      IF (member==0) THEN
+        call check( nf90_inq_varid(fileid_phy, "forget", varid_forget))
+        call check( nf90_put_var  (fileid_phy, varid_forget, REAL(forget,4), &
+                                   start=(/ writepos /)))
+      ENDIF ! member
     ENDIF ! writetype
   ENDIF ! writepe
 
@@ -481,6 +489,16 @@ DO i = istart, iend ! state fields
     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
 
   ENDDO ! state fields
+  
+! ***************************
+! define forget
+! ***************************
+
+! define variable
+call check( NF90_DEF_VAR(fileid,'forget', NF90_FLOAT, dimID_iter, varID_forget))
+! variable description
+call check( nf90_put_att(fileid, varID_forget, 'long_name', 'variable forgetting factor, snapshots'))
+
 
 ! close file
 call check (nf90_close(fileid))
