@@ -311,13 +311,13 @@ disturb_mslp=.true.
   id% alphaCO2  = 31
   id% PistonVel = 32
   
-  nfields = 30
+  nfields = 32
 
   phymin = 1
   phymax = 8
   
   bgcmin = 9
-  bgcmax = 32
+  bgcmax = nfields
   
   CALL init_sfields()
 
