@@ -35,6 +35,9 @@ SUBROUTINE read_config_pdaf()
   USE obs_sss_smos_pdafomi, &
        ONLY: assim_o_sss, rms_obs_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        sss_exclude_ice, sss_exclude_diff, bias_obs_sss, sss_fixed_rmse
+  USE obs_sss_cci_pdafomi, &
+       ONLY: assim_o_sss_cci, rms_obs_sss_cci, path_obs_sss_cci, file_sss_cci_prefix, file_sss_cci_suffix, &
+       sss_cci_exclude_ice, sss_cci_exclude_diff, bias_obs_sss_cci, sss_cci_fixed_rmse
   USE obs_ssh_cmems_pdafomi, &
        ONLY: assim_o_ssh, rms_obs_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
        ssh_exclude_ice, ssh_exclude_diff, bias_obs_ssh, ssh_fixed_rmse, lradius_ssh
@@ -70,7 +73,7 @@ SUBROUTINE read_config_pdaf()
        n_modeltasks, peak_obs_error, use_global_obs, &
        path_init, file_init, step_null, printconfig, &
        file_inistate, read_inistate, write_ens, varscale, &
-       type_trans, type_sqrt, dim_lag, bias_obs_sst, &
+       type_trans, type_sqrt, dim_lag, &
        loctype, loc_ratio, delt_obs_ocn, &     
        dim_obs_max, &
        twin_experiment, &
@@ -78,16 +81,20 @@ SUBROUTINE read_config_pdaf()
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        days_since_DAstart, &
-       ! Salt:
+       ! Salt SMOS:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
        sss_exclude_ice, sss_exclude_diff, &
+       ! Salt CCI:
+       ASSIM_o_sss_cci, path_obs_sss_cci, file_sss_cci_prefix, file_sss_cci_suffix, &
+       rms_obs_sss_cci, sss_cci_fixed_rmse, &
+       sss_cci_exclude_ice, sss_cci_exclude_diff, &
        ! SSH:
        ASSIM_o_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
        rms_obs_ssh, ssh_fixed_rmse, bias_obs_ssh, lradius_ssh, &
        ! SST:
        ASSIM_o_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
-       rms_obs_sst, sst_fixed_rmse, &
+       rms_obs_sst, sst_fixed_rmse, bias_obs_sst, &
        sst_exclude_ice, sst_exclude_diff, &
        ! Profiles:
        ASSIM_o_en4_t, ASSIM_o_en4_S, &
@@ -158,6 +165,7 @@ WRITE(year_string,'(i4.4)') yearnew
 
 file_sst_prefix = 'OSTIA_SST_'//TRIM(year_string)//'0101_'//TRIM(year_string)//'1231_daily_dist72_'
 file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
+file_sss_cci_prefix = 'CCI_SSS_'//TRIM(year_string)//'_dist72_'
 
 ! *** Print configuration variables ***
   showconf: IF (printconfig .AND. mype_model==0 .AND. task_id==1) THEN
@@ -208,6 +216,7 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_rawprof_suffix ', TRIM(file_rawprof_suffix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','DAoutput_path ', TRIM(DAoutput_path)
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sss   ', assim_o_sss
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sss_cci', assim_o_sss_cci
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_ssh   ', assim_o_ssh
 !~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sic   ', assim_o_sic
 !~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sit   ', assim_o_sit
@@ -218,6 +227,7 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_en4_s ', assim_o_en4_s
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sst ', rms_obs_sst
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sss ', rms_obs_sss
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sss_cci ', rms_obs_sss_cci
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_ssh ', rms_obs_ssh
 !~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sic ', rms_obs_sic
 !~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sit ', rms_obs_sit
@@ -233,9 +243,13 @@ file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ssh_fixed_rmse', ssh_fixed_rmse
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sst_fixed_rmse', sst_fixed_rmse
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sss_fixed_rmse', sss_fixed_rmse
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sss_cci_fixed_rmse', sss_cci_fixed_rmse
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sss     ', TRIM(path_obs_sss)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_prefix  ', TRIM(file_sss_prefix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_suffix  ', TRIM(file_sss_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sss_cci ', TRIM(path_obs_sss_cci)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_cci_prefix  ', TRIM(file_sss_cci_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_cci_suffix  ', TRIM(file_sss_cci_suffix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_ssh     ', TRIM(path_obs_ssh)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_prefix  ', TRIM(file_ssh_prefix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_suffix  ', TRIM(file_ssh_suffix)

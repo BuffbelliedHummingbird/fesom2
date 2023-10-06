@@ -42,6 +42,9 @@ SUBROUTINE init_pdaf()
   USE obs_sss_smos_pdafomi, &
        ONLY: assim_o_sss, rms_obs_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        sss_exclude_ice, sss_exclude_diff, bias_obs_sss, sss_fixed_rmse
+  USE obs_sss_cci_pdafomi, &
+       ONLY: assim_o_sss_cci, rms_obs_sss_cci, path_obs_sss_cci, file_sss_cci_prefix, file_sss_cci_suffix, &
+       sss_cci_exclude_ice, sss_cci_exclude_diff, bias_obs_sss_cci, sss_cci_fixed_rmse
   USE obs_ssh_cmems_pdafomi, &
        ONLY: assim_o_ssh, rms_obs_ssh, path_obs_ssh, file_ssh_prefix, file_ssh_suffix, &
        ssh_exclude_ice, ssh_exclude_diff, bias_obs_ssh, ssh_fixed_rmse
@@ -172,9 +175,10 @@ SUBROUTINE init_pdaf()
                    ! (2) generate global profile file
                    
 ! *** Set assimilation variables
-  assim_o_sst   = .false.
-  assim_o_sss   = .false.
-  assim_o_ssh   = .false.
+  assim_o_sst     = .false.
+  assim_o_sss     = .false.
+  assim_o_sss_cci = .false.
+  assim_o_ssh     = .false.
 
   write_ens = .false.
   
@@ -183,7 +187,8 @@ SUBROUTINE init_pdaf()
 ! *** specifications for observations ***
   ! This error is the standard deviation for the Gaussian distribution 
   rms_obs_sst = 0.8 ! error for satellite SST observations
-  rms_obs_sss = 0.5 ! error for satellite SSS observations
+  rms_obs_sss = 0.5 ! error for satellite SSS observations (SMOS)
+  rms_obs_sss_cci = 0.5 ! error for satellite SSS observations (CCI)
   rms_obs_ssh = 0.05 ! error for satellite SSH observations
   rms_obs_T = 0.8    ! error for temperature profile observations
   rms_obs_S = 0.5    ! error for salinity profile observations
@@ -216,7 +221,11 @@ SUBROUTINE init_pdaf()
   
   path_obs_sss = ''        
   file_sss_suffix = '.nc'  
-  path_obs_ssh = ''        
+  file_sss_prefix = ''
+
+  path_obs_sss_cci = ''
+  file_sss_cci_suffix = '.nc'
+  file_sss_cci_prefix = ''  
   
   path_obs_ssh = ''
   file_ssh_prefix = ''     

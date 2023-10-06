@@ -39,7 +39,7 @@ fes_numproc=72   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2020-01-01"
+run_end_date="2012-01-01" # "2020-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
@@ -126,6 +126,9 @@ do
     
     leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
     step_null=$((32*(${leg_start_dayofyear}-1))) # 32 is number of time steps per day
+
+    # Compute days since beginning of first leg:
+    days_since_DAstart=$(( ($(date -d "${leg_start_date}" +%s) - $(date -d "${run_start_date}" +%s))/86400+1))
 
     # Check whether there's actually time left to simulate - exit otherwise
     if [ ${leg_length_sec} -le 0 ]; then
@@ -220,7 +223,17 @@ do
     
     #-------------------------------------------------------------------
 
-    # continue whith what needs to be done whether it is a restart or not:
+    # continue with what needs to be done whether it is a restart or not:
+
+    for((i=1;i<=$NENS;i++))
+    do
+        ENSstr=`printf %02d $i`
+        ENS4str=`printf %04d $i`
+
+        cd ${run_dir}/${ENSstr}
+
+        sed -i `grep -n days_since_DAstart            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c days_since_DAstart=${days_since_DAstart}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+    done
 
     # -------------------------------------------------------------------------
     # *** Setting up MPI and OMP
