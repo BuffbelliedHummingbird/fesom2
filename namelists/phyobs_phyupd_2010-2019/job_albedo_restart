@@ -7,7 +7,7 @@
 #SBATCH --hint=nomultithread
 #SBATCH --qos=12h
 
-#SBATCH --job-name=2010-19
+#SBATCH --job-name=CCI-S-ON
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -39,7 +39,7 @@ fes_numproc=72   # ntasks divided by NENS
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2012-01-01"
+run_end_date="2021-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.

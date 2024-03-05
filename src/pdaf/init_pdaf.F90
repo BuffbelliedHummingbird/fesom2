@@ -198,8 +198,8 @@ SUBROUTINE init_pdaf()
   sst_exclude_ice = .true.  ! Exclude SST observations at point with sea ice and T>0
   sst_exclude_diff = 0.0     ! Exclude SST observations if difference from ensemble mean is >sst_exclude_diff
   prof_exclude_diff = 0.0    ! Exclude profile T observations if difference from ensemble mean is >prof_exclude_diff
-!~   use_global_obs = .true.    ! Use global full obs. or full obs. limited to process domains
-  use_global_obs = 1
+!~   use_global_obs = .true.
+  use_global_obs = 1 ! Use global full obs. (1) or full obs. limited to process domains (0)
   twin_experiment = .false.  ! Whether to run a twin experiment assimilating synthetic observations
   dim_obs_max = 80000        ! Expected maximum number of observations for synthetic obs.
 
@@ -312,15 +312,18 @@ disturb_mslp=.true.
   id% NPPd   = 26
 !~   id% TChl   = 27
 !~   id% TDN    = 28
-  id% HetC   = 27
+  id% Zo1C   = 27
   id% DetC   = 28
 !~   id% TOC    = 31
   id% PhyCalc= 29
   id% export = 30
   id% alphaCO2  = 31
   id% PistonVel = 32
+  id% Zo1N   = 33
+  id% Zo2C   = 34
+  id% Zo2N   = 35
   
-  nfields = 32
+  nfields = 35
 
   phymin = 1
   phymax = 8
@@ -571,6 +574,12 @@ disturb_mslp=.true.
     IF (yearnew .ne. yearold) THEN
        call init_atmos_stochasticity_output()
     ENDIF
+  ENDIF
+  
+  ! in case of restart, reset forget to 0.99 or 1.00
+  ! note: at restarts, forgetting factor is saved and read with atmospheric stochasticity
+  IF (this_is_pdaf_restart) THEN
+    CALL PDAF_reset_forget(forget)
   ENDIF
     
 ! *****************

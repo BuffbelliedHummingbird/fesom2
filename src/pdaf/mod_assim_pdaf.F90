@@ -144,7 +144,10 @@ TYPE field_ids
    INTEGER :: NPPd
    !   INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
    !   INTEGER :: TDN    ! Total dissolved N = DIN + DON
-   INTEGER :: HetC
+   INTEGER :: Zo1C
+   INTEGER :: Zo1N
+   INTEGER :: Zo2C
+   INTEGER :: Zo2N
    INTEGER :: DetC
    !   INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
    INTEGER :: PhyCalc

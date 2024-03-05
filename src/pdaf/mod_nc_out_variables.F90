@@ -275,14 +275,6 @@ sfields(id% NPPd) % bgc = .true.
 !~ sfields(id% TDN) % updated = .false.
 !~ sfields(id% TDN) % bgc = .true.
 
-! HetC
-sfields(id% HetC) % ndims = 2
-sfields(id% HetC) % variable = 'HetC'
-sfields(id% HetC) % long_name = 'carbon in heterotrophs'
-sfields(id% HetC) % units = 'mmol C m-3'
-sfields(id% HetC) % updated = .false.
-sfields(id% HetC) % bgc = .true.
-
 ! DetC
 sfields(id% DetC) % ndims = 2
 sfields(id% DetC) % variable = 'DetC'
@@ -330,6 +322,38 @@ sfields(id% PistonVel) % long_name = 'air-sea piston velocity'
 sfields(id% PistonVel) % units = 'm/s'
 sfields(id% PistonVel) % updated = .false.
 sfields(id% PistonVel) % bgc = .true.
+
+! Zo1C
+sfields(id% Zo1C) % ndims = 2
+sfields(id% Zo1C) % variable = 'Zo1C'
+sfields(id% Zo1C) % long_name = 'carbon in small zooplankton'
+sfields(id% Zo1C) % units = 'mmol C m-3'
+sfields(id% Zo1C) % updated = .false.
+sfields(id% Zo1C) % bgc = .true.
+
+! Zo1N
+sfields(id% Zo1N) % ndims = 2
+sfields(id% Zo1N) % variable = 'Zo1N'
+sfields(id% Zo1N) % long_name = 'nitrogen in small zooplankton'
+sfields(id% Zo1N) % units = 'mmol C m-3'
+sfields(id% Zo1N) % updated = .false.
+sfields(id% Zo1N) % bgc = .true.
+
+! Zo2C
+sfields(id% Zo2C) % ndims = 2
+sfields(id% Zo2C) % variable = 'Zo2C'
+sfields(id% Zo2C) % long_name = 'carbon in macrozooplankton'
+sfields(id% Zo2C) % units = 'mmol C m-3'
+sfields(id% Zo2C) % updated = .false.
+sfields(id% Zo2C) % bgc = .true.
+
+! Zo2N
+sfields(id% Zo2N) % ndims = 2
+sfields(id% Zo2N) % variable = 'Zo2N'
+sfields(id% Zo2N) % long_name = 'nitrogen in macrozooplankton'
+sfields(id% Zo2N) % units = 'mmol C m-3'
+sfields(id% Zo2N) % updated = .false.
+sfields(id% Zo2N) % bgc = .true.
 
 END SUBROUTINE init_sfields
   

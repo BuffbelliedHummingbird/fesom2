@@ -276,7 +276,7 @@ end if
 
 
 !!#ifdef REcoM_calcification
-    tr_arr(:,:,22) = tiny !cPhyN * 0.25d0        ! tracer 22 = PhyCalc
+    tr_arr(:,:,22) = tiny !cPhyN * 0.25d0  ! tracer 22 = PhyCalc
     tr_arr(:,:,23) = tiny                  ! tracer 23 = DetCalc
 !!#endif
     !tr_arr(:,:,24)                        ! tracer 24 = Oxy     ! read from the file

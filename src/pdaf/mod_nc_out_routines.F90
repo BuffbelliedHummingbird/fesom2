@@ -153,13 +153,13 @@ call check(NF90_CREATE(trim(filename),NF90_NETCDF4,fileid))
 call check( NF90_DEF_DIM(fileid, 'nod2', mesh_fesom%nod2d, dimID_nod2))
 call check( NF90_DEF_DIM(fileid, 'nz',   mesh_fesom%nl,    dimID_nz))
 call check( NF90_DEF_DIM(fileid, 'nz1',  mesh_fesom%nl-1,  dimID_nz1))
-call check( NF90_DEF_DIM(fileid, 'iter', NF90_UNLIMITED,   dimID_iter))
+call check( NF90_DEF_DIM(fileid, 'time', NF90_UNLIMITED,   dimID_iter))
 
 ! dimension variables
 call check( nf90_def_var(fileid, 'nod2', NF90_INT,   dimID_nod2, varid_nod2))
 call check( nf90_def_var(fileid, 'nz',   NF90_FLOAT, dimID_nz,   varid_nz))
 call check( nf90_def_var(fileid, 'nz1',  NF90_FLOAT, dimID_nz1,  varid_nz1))
-call check( nf90_def_var(fileid, 'iter', NF90_INT,   dimID_iter, varid_iter))
+call check( nf90_def_var(fileid, 'time', NF90_INT,   dimID_iter, varid_iter))
 
 call check( nf90_def_var(fileid, 'lon', NF90_FLOAT,   dimID_nod2, varid_lon))
 call check( nf90_def_var(fileid, 'lat', NF90_FLOAT,   dimID_nod2, varid_lat))
@@ -294,8 +294,8 @@ DO member=0, dim_ens
   
     ! Non field-specific writing:
     IF (writetype=='a') THEN
-      call check( nf90_inq_varid(fileid_phy, "iter", varid_iter))
-      call check( nf90_inq_varid(fileid_bgc, "iter", varid_iter))
+      call check( nf90_inq_varid(fileid_phy, "time", varid_iter))
+      call check( nf90_inq_varid(fileid_bgc, "time", varid_iter))
       
       call check( nf90_put_var  (fileid_phy, varid_iter, iteration, &
                                  start=(/ writepos /)))
@@ -432,7 +432,7 @@ integer, intent(in) :: iend                ! Last field in state vector
 call check( nf90_open(TRIM(filename), nf90_write, fileid))
 
 ! inquire dimension ID
-call check( nf90_inq_dimid( fileid, "iter", dimID_iter))
+call check( nf90_inq_dimid( fileid, "time", dimID_iter))
 call check( nf90_inq_dimid( fileid, "nod2", dimID_nod2))
 call check( nf90_inq_dimid( fileid, "nz",   dimID_nz))
 call check( nf90_inq_dimid( fileid, "nz1",  dimID_nz1))
