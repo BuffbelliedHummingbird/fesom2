@@ -194,6 +194,8 @@ LOGICAL :: this_is_pdaf_restart = .false.
 
 CHARACTER(len=120) :: path_atm_cov
 
+LOGICAL :: assimilateBGC = .false. ! whether to do a BGC assimilation step
+
 ! Other variables - NOT available as command line options / in the namelist:
 REAL    :: time      ! model time
 INTEGER, ALLOCATABLE :: offset(:)          ! PE-local offsets of fields in state vector

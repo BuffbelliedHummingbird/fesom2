@@ -38,6 +38,12 @@ SUBROUTINE init_pdaf()
        debug_id_depth, debug_id_nod2, ens_member_debug, &
        ! EN4 profile data processing:
        proffiles_o, path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix
+  ! BGC parameter perturbation:
+  USE mod_perturbation_pdaf, &
+       ONLY: perturb_scale, perturb_parameters, perturb_lognormal
+  USE recom_config, &
+       ONLY: alfa, alfa_d, P_cm, P_cm_d, Chl2N_max, Chl2N_max_d, &
+       deg_Chl, deg_Chl_d, graz_max, graz_max2, grazEff, grazEff2
        
   USE obs_sss_smos_pdafomi, &
        ONLY: assim_o_sss, rms_obs_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
@@ -66,7 +72,7 @@ SUBROUTINE init_pdaf()
   USE mod_obs_f_pdaf, &
        ONLY: get_domain_limits_unstr
   USE g_PARSUP, &
-       ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D
+       ONLY: myDim_nod2D, MPI_COMM_FESOM, myList_edge2D, myDim_edge2D, myDim_elem2D, mype
   USE MOD_MESH
   USE g_clock, &
        ONLY: timeold, daynew, cyearold, yearnew, yearold
@@ -98,6 +104,8 @@ SUBROUTINE init_pdaf()
   INTEGER :: doexit, steps     ! Not used in this implementation
   REAL    :: timenow           ! Not used in this implementation
   INTEGER :: show_cpus_for_barrier
+  INTEGER :: iseed(4)          ! Seed for random number generation to perturb BGC parameters
+  REAL    :: dummy
 
   ! External subroutines
   EXTERNAL :: init_ens_pdaf            ! Ensemble initialization
@@ -105,6 +113,8 @@ SUBROUTINE init_pdaf()
                                        ! and dimension of next observation
        distribute_state_pdaf, &        ! Routine to distribute a state vector to model fields
        prepoststep_pdaf                ! User supplied pre/poststep routine
+
+  dummy = 2.0
 
 ! ***************************
 ! ***   Initialize PDAF   ***
@@ -310,11 +320,8 @@ disturb_mslp=.true.
   id% PAR    = 24
   id% NPPn   = 25
   id% NPPd   = 26
-!~   id% TChl   = 27
-!~   id% TDN    = 28
   id% Zo1C   = 27
   id% DetC   = 28
-!~   id% TOC    = 31
   id% PhyCalc= 29
   id% export = 30
   id% alphaCO2  = 31
@@ -463,6 +470,139 @@ disturb_mslp=.true.
   
   ALLOCATE(timemean(dim_state_p))
   timemean = 0.0
+  
+! *************************************************
+! *** Perturb model parameters for ensemble run ***
+! *************************************************
+! Selected paramenters
+! alfa       = 0.14   ! Initial slope of P I curve small phytoplankton
+! alfa_d     = 0.19   ! Initial slope of P I curve Diatoms
+! P_cm        = 3.0   ! Small phytoplankton maximum rate of phtotosynthesis
+! P_cm_d      = 3.5   ! Diatom maximum rate of phtotosynthesis
+! Chl2N_max   = 3.78  ! Small phytoplankton maximum Chlorophyll a to nitrogen ratio
+! Chl2N_max_d = 4.2   ! Diatom maximum Chlorophyll a to nitrogen ratio
+! deg_Chl     = 0.1   ! degradation rate constant
+! deg_Chl_d   = 0.1   ! degradation rate constant
+! graz_max, graz_max2 ! maximum grazing rates
+! grazEff, grazEff2   ! grazing effeciency of ZooPlankton
+
+IF (perturb_parameters) THEN
+
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Perturbing BGC parameters'
+
+        ! iseed is the seed of the random number generator
+        ! be aware that elements must be between 0 and 4095,
+        ! and ISEED(4) must be odd.
+
+        ! alfa
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'alfa  = ', alfa, ' (unperturbed)'
+        iseed(1)=1
+        iseed(2)=3
+        iseed(3)=31+task_id ! different seed for each ensemble member
+        iseed(4)=37
+        CALL perturb_lognormal(alfa, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'alfa  = ', alfa, ' on task ', task_id
+        
+        ! alfa_d
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'alfa_d  = ', alfa_d, ' (unperturbed)'
+        iseed(1)=2
+        iseed(2)=5
+        iseed(3)=29+task_id
+        iseed(4)=41
+        CALL perturb_lognormal(alfa_d, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'alfa_d  = ', alfa_d, ' on task ', task_id
+       
+        ! P_cm
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'P_cm  = ', P_cm, ' (unperturbed)'
+        iseed(1)=2
+        iseed(2)=4
+        iseed(3)=23 + task_id
+        iseed(4)=43
+        CALL perturb_lognormal(P_cm, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'P_cm  = ', P_cm, ' on task ', task_id
+        
+        ! P_cm_d
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'P_cm_d  = ', P_cm_d, ' (unperturbed)'
+        iseed(1)=7
+        iseed(2)=4
+        iseed(3)=19 + task_id
+        iseed(4)=47
+        CALL perturb_lognormal(P_cm_d, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'P_cm_d  = ', P_cm_d, ' on task ', task_id
+        
+        ! Chl2N_max
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'Chl2N_max  = ', Chl2N_max, ' (unperturbed)'
+        iseed(1)=14
+        iseed(2)=15
+        iseed(3)=17 + task_id
+        iseed(4)=53
+        CALL perturb_lognormal(Chl2N_max, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'Chl2N_max  = ', Chl2N_max, ' on task ', task_id
+        
+        ! Chl2N_max_d
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'Chl2N_max_d  = ', Chl2N_max_d, ' (unperturbed)'
+        iseed(1)=15
+        iseed(2)=16
+        iseed(3)=13 + task_id
+        iseed(4)=59
+        CALL perturb_lognormal(Chl2N_max_d,perturb_scale,iseed)
+        IF (mype_model==0) WRITE(*,*) 'Chl2N_max_d  = ', Chl2N_max_d, ' on task ', task_id
+        
+        ! deg_Chl
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'deg_Chl  = ', deg_Chl, ' (unperturbed)'
+        iseed(1)=8
+        iseed(2)=6
+        iseed(3)=11 + task_id
+        iseed(4)=61
+        CALL perturb_lognormal(deg_Chl, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'deg_Chl  = ', deg_Chl, ' on task ', task_id
+        
+        ! deg_Chl_d
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'deg_Chl_d  = ', deg_Chl_d, ' (unperturbed)'
+        iseed(1)=104
+        iseed(2)=97
+        iseed(3)=7 + task_id
+        iseed(4)=67
+        CALL perturb_lognormal(deg_Chl_d, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'deg_Chl_d  = ', deg_Chl_d, ' on task ', task_id
+        
+        ! graz_max
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'graz_max  = ', graz_max, ' (unperturbed)'
+        iseed(1)=33
+        iseed(2)=16
+        iseed(3)=3 + task_id
+        iseed(4)=73
+        CALL perturb_lognormal(graz_max, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'graz_max  = ', graz_max, ' on task ', task_id
+        
+        ! graz_max2
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'graz_max2  = ', graz_max2, ' (unperturbed)'
+        iseed(1)=3
+        iseed(2)=6
+        iseed(3)=5 + task_id
+        iseed(4)=71
+        CALL perturb_lognormal(graz_max2, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'graz_max2  = ', graz_max2, ' on task ', task_id
+
+        ! grazEff
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'grazEff  = ', grazEff, ' (unperturbed)'
+        iseed(1)=2
+        iseed(2)=1
+        iseed(3)=6+3*task_id
+        iseed(4)=13
+        CALL perturb_lognormal(grazEff, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'grazEff  = ', grazEff, ' on task ', task_id
+        
+        ! grazEff2
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'grazEff2  = ', grazEff2, ' (unperturbed)'
+        iseed(1)=6
+        iseed(2)=3
+        iseed(3)=97+101*task_id
+        iseed(4)=11
+        CALL perturb_lognormal(grazEff2, perturb_scale, iseed)
+        IF (mype_model==0) WRITE(*,*) 'grazEff2  = ', grazEff2, ' on task ', task_id
+
+ENDIF
 
 
 ! *****************************************************

@@ -23,7 +23,7 @@ SUBROUTINE read_config_pdaf()
        path_init, file_init, file_inistate, read_inistate, varscale, &
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
-       path_atm_cov, days_since_DAstart, &
+       path_atm_cov, days_since_DAstart, assimilateBGC, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
@@ -55,6 +55,8 @@ SUBROUTINE read_config_pdaf()
        varscale_humi, varscale_qlw
   USE g_clock, &
        ONLY: yearold, yearnew
+  USE mod_perturbation_pdaf, &
+       ONLY: perturb_scale, perturb_parameters
 
 
   IMPLICIT NONE
@@ -103,7 +105,11 @@ SUBROUTINE read_config_pdaf()
        path_obs_rawprof, file_rawprof_prefix, proffiles_o, &
        start_year_o, end_year_o, &
        ! Atmosphere cov:
-       path_atm_cov
+       path_atm_cov, &
+       ! BGC parameter perturbation:
+       perturb_scale, perturb_parameters, &
+       ! BioGeoChemistry:
+       assimilateBGC
 
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -285,14 +291,21 @@ WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_tair ', varscale_tair
 WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_humi ', varscale_humi
 WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_qlw  ', varscale_qlw
 
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'perturb_parameters', perturb_parameters
+WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'perturb_scale', perturb_scale
+
+WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'assimilateBGC', assimilateBGC
+
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'
 
   END IF showconf
 
 END SUBROUTINE read_config_pdaf
+
+
+
 ! ==============================================================================
-!BOP
 !
 ! !ROUTINE: add_slash --- Add trailing slash to path string
 !
@@ -308,7 +321,6 @@ SUBROUTINE add_slash(path)
 
 ! !ARGUMENTS:
   CHARACTER(len=100) :: path  ! String holding the path
-!EOP
 
 ! *** Local variables ***
   INTEGER :: strlength
