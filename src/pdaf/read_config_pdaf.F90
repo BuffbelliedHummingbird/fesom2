@@ -13,7 +13,7 @@ SUBROUTINE read_config_pdaf()
        ONLY: mype_model, n_modeltasks, task_id
   USE mod_assim_pdaf, & ! Variables for assimilation
        ONLY: dim_state, dim_state_p, dim_ens, dim_lag, &
-       offset, screen, filtertype, subtype, dim_ens, &
+       offset, screen, filtertype, subtype, &
        delt_obs_ocn, &
        dim_bias, DA_couple_type,write_monthly_mean, &
        incremental, type_forget, peak_obs_error, &
@@ -23,7 +23,7 @@ SUBROUTINE read_config_pdaf()
        path_init, file_init, file_inistate, read_inistate, varscale, &
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
-       path_atm_cov, days_since_DAstart, assimilateBGC, &
+       path_atm_cov, days_since_DAstart, assimilateBGC, assimilatePHY, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
@@ -69,7 +69,7 @@ SUBROUTINE read_config_pdaf()
   CHARACTER(len=4) :: year_string          ! Current year as string
   
        
-  NAMELIST /pdaf/ filtertype, subtype, dim_ens, screen, &
+  NAMELIST /pdaf/ filtertype, subtype, screen, &
        incremental, type_forget, forget, dim_bias, &
        local_range, locweight, srange, DA_couple_type, &
        n_modeltasks, peak_obs_error, use_global_obs, &
@@ -82,7 +82,7 @@ SUBROUTINE read_config_pdaf()
        write_monthly_mean, &
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
-       days_since_DAstart, &
+       days_since_DAstart, assimilatePHY, &
        ! Salt SMOS:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
@@ -116,9 +116,7 @@ SUBROUTINE read_config_pdaf()
        disturb_prec, disturb_snow, disturb_mslp, &
        varscale_wind, varscale_tair, varscale_humi, varscale_qlw, &
        write_atmos_st
-       
-!~   NAMELIST /pdaf_output/
-       
+              
 ! ****************************************************
 ! ***   Initialize PDAF parameters from namelist   ***
 ! ****************************************************
@@ -135,10 +133,6 @@ SUBROUTINE read_config_pdaf()
   OPEN(30,file=nmlfile)
   READ(30,NML=atmos_stoch)
   CLOSE(30)
-  
-!~   OPEN(40,file=nmlfile)
-!~   READ(40,NML=pdaf_output)
-!~   CLOSE(40)
 
 ! *** Add trailing slash to paths ***
   CALL add_slash(path_obs_sst)
@@ -176,125 +170,124 @@ file_sss_cci_prefix = 'CCI_SSS_'//TRIM(year_string)//'_dist72_'
 ! *** Print configuration variables ***
   showconf: IF (printconfig .AND. mype_model==0 .AND. task_id==1) THEN
 
-     WRITE (*,'(/a,1x,a)') 'FESOM-PDAF','-- Overview of PDAF configuration --'
-     WRITE (*,'(a,3x,a)') 'FESOM-PDAF','PDAF [namelist: pdaf]:'
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','filtertype  ', filtertype
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','subtype     ', subtype
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','n_modeltasks', n_modeltasks
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_ens     ', dim_ens
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','delt_obs_ocn', delt_obs_ocn
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','step_null   ', step_null
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF', 'days_since_DAstart', days_since_DAstart
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','screen      ', screen
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','incremental ', incremental
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','type_forget ', type_forget
-     WRITE (*,'(a,5x,a,f10.4)') 'FESOM-PDAF','forget      ', forget
-     WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','varscale   ', varscale
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_bias    ', dim_bias
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','type_trans  ', type_trans
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','local_range ', local_range
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','locweight   ', locweight
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','loctype     ', loctype
-     WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','srange      ', srange
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','lradius_ssh ', lradius_ssh
-     WRITE (*,'(a,5x,a,es10.2)') 'FESOM-PDAF','loc_ratio   ', loc_ratio
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','proffiles_o  ', proffiles_o
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','start_year_o ', start_year_o
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','end_year_o   ', end_year_o
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','peak_obs_error', peak_obs_error
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','bias_obs_sst  ', bias_obs_sst
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','bias_obs_prof ', bias_obs_prof
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sst_exclude_ice', sst_exclude_ice
-     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF','sst_exclude_diff', sst_exclude_diff
-     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF','prof_exclude_diff', prof_exclude_diff
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','use_global_obs', use_global_obs
-     WRITE (*,'(a,5x,a,i10)')     'FESOM-PDAF','use_global_obs', use_global_obs
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_lag     ', dim_lag
-     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','DA_couple_type  ', DA_couple_type
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sst     ', TRIM(path_obs_sst)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sst_prefix  ', TRIM(file_sst_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sst_suffix  ', TRIM(file_sst_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_prof    ', TRIM(path_obs_prof)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_prof_prefix ', TRIM(file_prof_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_prof_suffix ', TRIM(file_prof_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_rawprof    ', TRIM(path_obs_rawprof)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_rawprof_prefix ', TRIM(file_rawprof_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_rawprof_suffix ', TRIM(file_rawprof_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','DAoutput_path ', TRIM(DAoutput_path)
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sss   ', assim_o_sss
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sss_cci', assim_o_sss_cci
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_ssh   ', assim_o_ssh
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sic   ', assim_o_sic
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sit   ', assim_o_sit
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_siu   ', assim_o_siu
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_siv   ', assim_o_siv
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_sst   ', assim_o_sst
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_en4_t ', assim_o_en4_t
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','assim_o_en4_s ', assim_o_en4_s
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sst ', rms_obs_sst
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sss ', rms_obs_sss
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sss_cci ', rms_obs_sss_cci
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_ssh ', rms_obs_ssh
-!~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sic ', rms_obs_sic
-!~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_sit ', rms_obs_sit
-!~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_siu ', rms_obs_siu
-!~      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_siv ', rms_obs_siv
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_T   ', rms_obs_T
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','rms_obs_S   ', rms_obs_S
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF','bias_obs_ssh', bias_obs_ssh
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sic_fixed_rmse', sic_fixed_rmse
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sit_fixed_rmse', sit_fixed_rmse
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','siu_fixed_rmse', siu_fixed_rmse
-!~      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','siv_fixed_rmse', siv_fixed_rmse
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ssh_fixed_rmse', ssh_fixed_rmse
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sst_fixed_rmse', sst_fixed_rmse
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sss_fixed_rmse', sss_fixed_rmse
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','sss_cci_fixed_rmse', sss_cci_fixed_rmse
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sss     ', TRIM(path_obs_sss)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_prefix  ', TRIM(file_sss_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_suffix  ', TRIM(file_sss_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_sss_cci ', TRIM(path_obs_sss_cci)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_cci_prefix  ', TRIM(file_sss_cci_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_sss_cci_suffix  ', TRIM(file_sss_cci_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_obs_ssh     ', TRIM(path_obs_ssh)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_prefix  ', TRIM(file_ssh_prefix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_ssh_suffix  ', TRIM(file_ssh_suffix)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_init   ', TRIM(path_init)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_init   ', TRIM(file_init)
+     ! Overview of PDAF configuration
+     WRITE (*,'(/a,1x,a)')      'FESOM-PDAF',   '-- Overview of PDAF configuration --'
+     WRITE (*,'(a,3x,a)')       'FESOM-PDAF',   'PDAF [namelist: pdaf]:'
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'filtertype  ',         filtertype
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'subtype     ',         subtype
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'n_modeltasks',         n_modeltasks
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'dim_ens     ',         dim_ens
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'delt_obs_ocn',         delt_obs_ocn
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'step_null   ',         step_null
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'days_since_DAstart',   days_since_DAstart
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'screen      ',         screen
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'incremental ',         incremental
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'type_forget ',         type_forget
+     WRITE (*,'(a,5x,a,f10.4)') 'FESOM-PDAF',   'forget      ',         forget
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale    ',         varscale
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'dim_bias    ',         dim_bias
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'type_trans  ',         type_trans
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'local_range ',         local_range
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'locweight   ',         locweight
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'loctype     ',         loctype
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'srange      ',         srange
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'loc_ratio   ',         loc_ratio
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'peak_obs_error',       peak_obs_error
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'use_global_obs',       use_global_obs
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'dim_lag     ',         dim_lag
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'DA_couple_type  ',     DA_couple_type
+     
+     ! Pre-processing of TS-profile data
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'proffiles_o  ',        proffiles_o
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'start_year_o ',        start_year_o
+     WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'end_year_o   ',        end_year_o
+     
+     ! Physics observation-type settings
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'bias_obs_sst  ',       bias_obs_sst
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'bias_obs_prof ',       bias_obs_prof
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'sst_exclude_ice',      sst_exclude_ice
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'sst_exclude_diff',     sst_exclude_diff
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'prof_exclude_diff',    prof_exclude_diff
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_sst     ',    TRIM(path_obs_sst)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sst_prefix  ',    TRIM(file_sst_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sst_suffix  ',    TRIM(file_sst_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_prof    ',    TRIM(path_obs_prof)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_prof_prefix ',    TRIM(file_prof_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_prof_suffix ',    TRIM(file_prof_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_rawprof    ', TRIM(path_obs_rawprof)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_rawprof_prefix ', TRIM(file_rawprof_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_rawprof_suffix ', TRIM(file_rawprof_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'DAoutput_path ',       TRIM(DAoutput_path)
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_sss   ',       assim_o_sss
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_sss_cci',      assim_o_sss_cci
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_ssh   ',       assim_o_ssh
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_sst   ',       assim_o_sst
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_en4_t ',       assim_o_en4_t
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_en4_s ',       assim_o_en4_s
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_sst ',         rms_obs_sst
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_sss ',         rms_obs_sss
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_sss_cci ',     rms_obs_sss_cci
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_ssh ',         rms_obs_ssh
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'lradius_ssh ',         lradius_ssh
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_T   ',         rms_obs_T
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'rms_obs_S   ',         rms_obs_S
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'bias_obs_ssh',         bias_obs_ssh
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'ssh_fixed_rmse',       ssh_fixed_rmse
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'sst_fixed_rmse',       sst_fixed_rmse
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'sss_fixed_rmse',       sss_fixed_rmse
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'sss_cci_fixed_rmse',   sss_cci_fixed_rmse
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_sss     ',    TRIM(path_obs_sss)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sss_prefix  ',    TRIM(file_sss_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sss_suffix  ',    TRIM(file_sss_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_sss_cci ',    TRIM(path_obs_sss_cci)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sss_cci_prefix',  TRIM(file_sss_cci_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_sss_cci_suffix',  TRIM(file_sss_cci_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_ssh     ',    TRIM(path_obs_ssh)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_ssh_prefix  ',    TRIM(file_ssh_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_ssh_suffix  ',    TRIM(file_ssh_suffix)
+     
+     ! Physics initial ensemble covariance
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_init   ',         TRIM(file_init)
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'this_is_pdaf_restart', this_is_pdaf_restart
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
+     
+     ! Twin experiment
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'twin_experiment', twin_experiment
      IF (filtertype==100 .or. twin_experiment) THEN
         WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF','dim_obs_max ', dim_obs_max
      END IF
      IF (read_inistate) THEN
         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_inistate ', TRIM(file_inistate)
      ENDIF
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_ens            ', write_ens
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','write_monthly_mean', write_monthly_mean
      
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','twin_experiment', twin_experiment
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF','this_is_pdaf_restart', this_is_pdaf_restart
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','path_atm_cov  ', TRIM(path_atm_cov)
+     ! Output
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_ens            ',write_ens
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_monthly_mean',   write_monthly_mean
 
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'atmos_stochasticity_ON', atmos_stochasticity_ON
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'write_atmos_st', write_atmos_st
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_xwind', disturb_xwind
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_ywind', disturb_ywind
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_humi', disturb_humi
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_qlw', disturb_qlw
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_qsr', disturb_qsr
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_tair', disturb_tair
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_prec', disturb_prec
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_snow', disturb_snow
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'disturb_mslp', disturb_mslp
-WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_wind ', varscale_wind
-WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_tair ', varscale_tair
-WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_humi ', varscale_humi
-WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'varscale_qlw  ', varscale_qlw
-
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'perturb_parameters', perturb_parameters
-WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF', 'perturb_scale', perturb_scale
-
-WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF', 'assimilateBGC', assimilateBGC
+     ! Atmospheric perturbation
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_atm_cov  ',       TRIM(path_atm_cov)
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'atmos_stochasticity_ON',atmos_stochasticity_ON
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_atmos_st',       write_atmos_st
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_xwind',        disturb_xwind
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_ywind',        disturb_ywind
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_humi',         disturb_humi
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_qlw',          disturb_qlw
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_qsr',          disturb_qsr
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_tair',         disturb_tair
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_prec',         disturb_prec
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_snow',         disturb_snow
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'disturb_mslp',         disturb_mslp
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale_wind ',       varscale_wind
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale_tair ',       varscale_tair
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale_humi ',       varscale_humi
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale_qlw  ',       varscale_qlw
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'perturb_parameters',   perturb_parameters
+     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'perturb_scale',        perturb_scale
+     
+     ! Updated state variables
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assimilatePHY',        assimilatePHY
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assimilateBGC',        assimilateBGC
 
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'

@@ -57,6 +57,8 @@ INTEGER :: nlay
 REAL, allocatable :: lon(:)
 REAL, allocatable :: lat(:)
 
+LOGICAL, private :: DEBUGOUTPUT = .true.
+
 CONTAINS
 
 
@@ -192,7 +194,7 @@ DO j = 1, 3 ! ini / forc / ana
   DO i = istart, iend ! state fields
     
     ! don't write analysis for not-updated variables
-    IF ((j==3) .and. (.not. (sfields(i)% updated))) CYCLE
+    IF ((.not. DEBUGOUTPUT) .and. (j==3) .and. (.not. (sfields(i)% updated))) CYCLE
     
     ! set dimensions according to field before defining variables
     dimIDs(1) = dimID_nod2
@@ -314,7 +316,7 @@ DO member=0, dim_ens
   DO i=1, nfields
     
     ! don't write analysis of not-updated variables
-    IF ((writetype=='a') .and. (.not. (sfields(i)% updated))) CYCLE
+    IF ((.not. DEBUGOUTPUT) .and. (writetype=='a') .and. (.not. (sfields(i)% updated))) CYCLE
     
     ! physics or biogeochemistry?
     IF (sfields(i)% bgc) THEN
@@ -444,7 +446,7 @@ DO j = 1, 3 ! ini / forc / ana
   DO i = istart, iend ! state fields
     
     ! don't write analysis of not-updated variables
-    IF ((j==3) .and. (.not. (sfields(i)% updated))) CYCLE
+    IF ((.not. DEBUGOUTPUT) .and. (j==3) .and. (.not. (sfields(i)% updated))) CYCLE
     ! set dimension
     IF (j==1) THEN
       ! initial RMS

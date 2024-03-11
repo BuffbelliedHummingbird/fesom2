@@ -195,6 +195,7 @@ LOGICAL :: this_is_pdaf_restart = .false.
 CHARACTER(len=120) :: path_atm_cov
 
 LOGICAL :: assimilateBGC = .false. ! whether to do a BGC assimilation step
+LOGICAL :: assimilatePHY = .false. ! whether to do a physics assimilation step
 
 ! Other variables - NOT available as command line options / in the namelist:
 REAL    :: time      ! model time
@@ -203,6 +204,9 @@ INTEGER, ALLOCATABLE :: dim_fields(:)      ! PE-local dimensions of fields in st
 INTEGER, ALLOCATABLE :: offset_glob(:)     ! Global offsets of fields in state vector
 INTEGER, ALLOCATABLE :: dim_fields_glob(:) ! Global dimensions of fields in state vector
 REAL :: coords_l(2)                        ! Coordinates of local analysis domain
+INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (i.e. field of vertical water column at 1 node)
+INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
+
 ! REAL, PARAMETER :: pi=3.141592653589793
 REAL, ALLOCATABLE :: state_fcst(:,:) ! State prior to assimilation, which is saved to use for correction
 REAL, ALLOCATABLE :: var_p(:)        ! Estimated local model state variances

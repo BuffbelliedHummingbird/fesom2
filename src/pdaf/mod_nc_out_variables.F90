@@ -2,7 +2,10 @@ MODULE mod_nc_out_variables
 
 ! USES:
 USE mod_assim_pdaf, &
-   ONLY: id, nfields
+   ONLY: id, nfields, assimilateBGC, assimilatePHY, &
+         phymin, phymax, bgcmin, bgcmax
+USE mod_parallel_pdaf, &
+   ONLY: writepe
 
 IMPLICIT NONE
 
@@ -34,6 +37,43 @@ type(state_field), allocatable :: sfields(:) ! Type variable holding the
 CONTAINS
 
 SUBROUTINE init_sfields()
+
+! Local variables:
+CHARACTER(len=100) :: nmlfile ='namelist.fesom.pdaf'    ! name of namelist file
+LOGICAL            :: upd_ssh , &
+                      upd_u   , &
+                      upd_v   , &
+                      upd_w   , &
+                      upd_temp, &
+                      upd_salt, &
+                      upd_ice , &
+                      upd_MLD1, &
+                      upd_PhyChl   , &
+                      upd_DiaChl   , &
+                      upd_DIC      , &
+                      upd_DOC      , &
+                      upd_Alk      , &
+                      upd_DIN      , &
+                      upd_DON      , &
+                      upd_O2       , &
+                      upd_pCO2s    , &
+                      upd_CO2f     , &
+                      upd_DiaN     , &
+                      upd_DiaC     , &
+                      upd_PAR      , &
+                      upd_NPPn     , &
+                      upd_NPPd     , &
+                      upd_DetC     , &
+                      upd_PhyCalc  , &
+                      upd_export   , &
+                      upd_alphaCO2 , &
+                      upd_PistonVel, &
+                      upd_Zo1C     , &
+                      upd_Zo1N     , &
+                      upd_Zo2C     , &
+                      upd_Zo2N
+INTEGER            :: b,p ! counters
+
 ALLOCATE(sfields(nfields))
 
 ! SSH
@@ -78,6 +118,7 @@ sfields(id% temp) % nz1 = .true.
 sfields(id% temp) % variable = 'T'
 sfields(id% temp) % long_name = 'Temperature'
 sfields(id% temp) % units = 'degC'
+sfields(id% temp) % updated = .true.
 sfields(id% temp) % bgc = .false.
 
 
@@ -243,7 +284,7 @@ sfields(id% PAR) % units = 'W m-2'
 sfields(id% PAR) % updated = .false.
 sfields(id% PAR) % bgc = .true.
 
-! NNPn
+! NPPn
 sfields(id% NPPn) % ndims = 2
 sfields(id% NPPn) % variable = 'NPPn'
 sfields(id% NPPn) % long_name = 'mean net primary production small phytoplankton'
@@ -354,6 +395,99 @@ sfields(id% Zo2N) % long_name = 'nitrogen in macrozooplankton'
 sfields(id% Zo2N) % units = 'mmol C m-3'
 sfields(id% Zo2N) % updated = .false.
 sfields(id% Zo2N) % bgc = .true.
+
+! ************************************************
+! ***   Read updated variables from namelist   ***
+! ************************************************
+
+! *** Read namelist file ***
+  IF (writepe) WRITE(*,*) 'Read namelist file for updated variables: ',nmlfile
+  
+  NAMELIST /updated/ &
+     upd_ssh , &
+     upd_ssh , &
+     upd_u   , &
+     upd_v   , &
+     upd_w   , &
+     upd_temp, &
+     upd_salt, &
+     upd_ice , &
+     upd_MLD1, &
+     upd_PhyChl   , &
+     upd_DiaChl   , &
+     upd_DIC      , &
+     upd_DOC      , &
+     upd_Alk      , &
+     upd_DIN      , &
+     upd_DON      , &
+     upd_O2       , &
+     upd_pCO2s    , &
+     upd_CO2f     , &
+     upd_DiaN     , &
+     upd_DiaC     , &
+     upd_PAR      , &
+     upd_NPPn     , &
+     upd_NPPd     , &
+     upd_DetC     , &
+     upd_PhyCalc  , &
+     upd_export   , &
+     upd_alphaCO2 , &
+     upd_PistonVel, &
+     upd_Zo1C     , &
+     upd_Zo1N     , &
+     upd_Zo2C     , &
+     upd_Zo2N
+     
+
+  OPEN  (20,file=nmlfile)
+  READ  (20,NML=updated)
+  CLOSE (20)
+  
+  sfields(id% ssh      ) % updated = upd_ssh
+  sfields(id% ssh      ) % updated = upd_ssh
+  sfields(id% u        ) % updated = upd_u
+  sfields(id% v        ) % updated = upd_v
+  sfields(id% w        ) % updated = upd_w
+  sfields(id% temp     ) % updated = upd_temp
+  sfields(id% salt     ) % updated = upd_salt
+  sfields(id% a_ice    ) % updated = upd_ice
+  sfields(id% MLD1     ) % updated = upd_MLD1
+  sfields(id% PhyChl   ) % updated = upd_PhyChl
+  sfields(id% DiaChl   ) % updated = upd_DiaChl
+  sfields(id% DIC      ) % updated = upd_DIC
+  sfields(id% DOC      ) % updated = upd_DOC
+  sfields(id% Alk      ) % updated = upd_Alk
+  sfields(id% DIN      ) % updated = upd_DIN
+  sfields(id% DON      ) % updated = upd_DON
+  sfields(id% O2       ) % updated = upd_O2
+  sfields(id% pCO2s    ) % updated = upd_pCO2s
+  sfields(id% CO2f     ) % updated = upd_CO2f
+  sfields(id% DiaN     ) % updated = upd_DiaN
+  sfields(id% DiaC     ) % updated = upd_DiaC
+  sfields(id% PAR      ) % updated = upd_PAR
+  sfields(id% NPPn     ) % updated = upd_NPPn
+  sfields(id% NPPd     ) % updated = upd_NPPd
+  sfields(id% DetC     ) % updated = upd_DetC
+  sfields(id% PhyCalc  ) % updated = upd_PhyCalc
+  sfields(id% export   ) % updated = upd_export
+  sfields(id% alphaCO2 ) % updated = upd_alphaCO2
+  sfields(id% PistonVel) % updated = upd_PistonVel
+  sfields(id% Zo1C     ) % updated = upd_Zo1C
+  sfields(id% Zo1N     ) % updated = upd_Zo1N
+  sfields(id% Zo2C     ) % updated = upd_Zo2C
+  sfields(id% Zo2N     ) % updated = upd_Zo2N
+  
+  ! If BGC or physics are not assimilated,
+  ! do not update the respective part of state vector.  
+  IF (.not. assimilatePHY) THEN
+     do p=phymin,phymax
+       sfields(p) % updated = .false.
+     enddo
+  ELSEIF (.not. assimilateBGC) THEN
+     do b=bgcmin,bgcmax
+       sfields(b) % updated = .false.
+     enddo
+  ENDIF
 
 END SUBROUTINE init_sfields
   

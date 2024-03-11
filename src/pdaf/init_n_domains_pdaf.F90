@@ -30,12 +30,15 @@ SUBROUTINE init_n_domains_pdaf(step, n_domains_p)
 ! *** Arguments ***
   INTEGER, INTENT(in)  :: step        ! Current time step
   INTEGER, INTENT(out) :: n_domains_p ! Process-local number of analysis domains
+  
+! *** Local ***
+  INTEGER :: sweeps = 1
 
 
 ! ************************************
 ! *** Initialize number of domains ***
 ! ************************************
 
-  n_domains_p = myDim_nod2D
+  n_domains_p = sweeps * myDim_nod2D
 
 END SUBROUTINE init_n_domains_pdaf

@@ -20,7 +20,8 @@
 SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
 
   USE mod_assim_pdaf, &           ! Variables for assimilation
-       ONLY: id_lstate_in_pstate, ens_member_debug
+       ONLY: id_lstate_in_pstate, ens_member_debug, &
+             nfields, dim_fields_l, offset_l
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, mype_model
   USE PDAFomi, &
@@ -37,16 +38,18 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
   REAL, INTENT(inout) :: state_p(dim_p) !< Process-local full state vector 
   
 ! *** Local variables *** 
-  INTEGER :: i                    !< Counter
+  INTEGER :: i, ifield            !< Counters
   INTEGER :: memberid             !< Ensemble member
   CHARACTER(LEN=17) :: filename   !< Filename for debugging output
   
 ! **************************************************
 ! *** Initialize elements of global state vector ***
 ! **************************************************
-
-  DO i = 1, dim_l
-     state_p(id_lstate_in_pstate(i)) = state_l(i)
+  
+  DO ifield = 1, nfields
+     DO i = offset_l(ifield)+1, offset_l(ifield)+dim_fields_l(ifield)
+       state_p(id_lstate_in_pstate(i)) = state_l(i)
+     END DO
   END DO
   
 !~   IF ((mype_model==55) .AND. (domain==669)) THEN

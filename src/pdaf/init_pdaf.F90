@@ -34,6 +34,8 @@ SUBROUTINE init_pdaf()
        offset_glob, dim_fields_glob, nfields, id, &
        phymin, phymax, bgcmin, bgcmax, &
        path_atm_cov, this_is_pdaf_restart, timemean, &
+       ! Domain-local:
+       offset_l, dim_fields_l, &
        ! Debugging:
        debug_id_depth, debug_id_nod2, ens_member_debug, &
        ! EN4 profile data processing:
@@ -407,6 +409,10 @@ disturb_mslp=.true.
   enddo
   
   dim_state_p = sum(dim_fields)
+  
+! *** Domain/node-local dimensions ***
+    ALLOCATE(dim_fields_l(nfields)) ! Field dimensions for node-local domain; their value is set in init_dim_l_pdaf.
+    ALLOCATE(offset_l(nfields))     ! Field offsets for node-local domain; their value is set in init_dim_l_pdaf.
 
 ! *** Specify offset of fields in global state vector ***
 

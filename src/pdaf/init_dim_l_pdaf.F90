@@ -24,11 +24,12 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
              id, &                         ! Field IDs in state vector
              coords_l, &                   ! Coordinates of local analysis domain
              mesh_fesom, &                 
-             nfields, bgcmin, bgcmax
+             nfields, bgcmin, bgcmax, phymin, phymax, &
                                           ! mesh_fesom % coord_nod2D, & ! vertex coordinates in radian measure
                                           ! mesh_fesom % nlevels, &     ! number of levels at (below) elem     considering bottom topography
                                           ! mesh_fesom % nlevels_nod2D  ! number of levels at (below) vertices considering bottom topography
                                           ! mesh_fesom % nl             ! number of levels not considering bottom topography
+             dim_fields_l, offset_l       ! Domain local (at 1 node) field dimensions
     USE PDAFomi, &
         ONLY: PDAFomi_set_debug_flag
     USE mod_parallel_pdaf, &
@@ -57,10 +58,10 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   INTEGER, INTENT(out) :: dim_l    ! Local state dimension
 
 ! *** Local variables ***
-  INTEGER :: nlay                              ! Number of layers for current domain
-  INTEGER :: dim_fields_l(nfields)             ! Field dimensions for current domain
-  INTEGER :: offset_l(nfields)                 ! Field offsets for current domain
-  INTEGER :: i, b                              ! Counters
+  INTEGER :: nlay                                ! Number of layers for current domain
+  ! INTEGER :: dim_fields_l(nfields)             ! Field dimensions for current domain
+  ! INTEGER :: offset_l(nfields)                 ! Field offsets for current domain
+  INTEGER :: i, b, p                             ! Counters
   
   ! integer :: myDebug_id(1)
   ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
@@ -73,15 +74,29 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   
   nlay = mesh_fesom%nlevels_nod2D(domain_p)-1
   
-  dim_fields_l (id%SSH)    = 1
-  dim_fields_l (id%u)      = nlay
-  dim_fields_l (id%v)      = nlay
-  dim_fields_l (id%w)      = 0 ! nlay
-  dim_fields_l (id%temp)   = nlay
-  dim_fields_l (id%salt)   = nlay
-  dim_fields_l (id%a_ice)  = 0
-  dim_fields_l (id%MLD1)   = 0
+!~   dim_fields_l (id%SSH)    = 1
+!~   dim_fields_l (id%u)      = nlay
+!~   dim_fields_l (id%v)      = nlay
+!~   dim_fields_l (id%w)      = 0 ! nlay
+!~   dim_fields_l (id%temp)   = nlay
+!~   dim_fields_l (id%salt)   = nlay
+!~   dim_fields_l (id%a_ice)  = 0
+!~   dim_fields_l (id%MLD1)   = 0
+  
+  ! Physics:
+  DO p=phymin, phymax
+    ! not updated:
+    IF ( .not. (sfields(p)% updated)) THEN
+      dim_fields_l(p) = 0
+    ELSE
+      ! surface fields:
+      IF (sfields(p)% ndims == 1)   dim_fields_l(p)=1
+      ! 3D fields:
+      IF (sfields(p)% ndims == 2)   dim_fields_l(p)=nlay
+    ENDIF
+  ENDDO
 
+  ! BGC:
   DO b=bgcmin, bgcmax
     ! not updated:
     IF ( .not. (sfields(b)% updated)) THEN
@@ -134,18 +149,26 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   ! *** indices for full state vector ***
 
   ! SSH
+  if (sfields(id%ssh)%updated) then
   id_lstate_in_pstate (offset_l(id%ssh)+1) &
         = offset(id%ssh) + domain_p
+  endif
+  
   ! U
+  if (sfields(id%u)%updated) then
   id_lstate_in_pstate (offset_l(id%u)+1 : offset_l(id%u)+dim_fields_l(id%u)) &
         = offset(id%u) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%u))/)
+  endif
+  
   ! V
+  if (sfields(id%v)%updated) then
   id_lstate_in_pstate (offset_l(id%v)+1 : offset_l(id%v)+dim_fields_l(id%v)) &
         = offset(id%v) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%v))/)
+  endif
         
   ! W
   ! id_lstate_in_pstate (offset_l(id%w)+1 : offset_l(id%w+1)) &
@@ -154,14 +177,41 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   !      + (/(i, i=1,dim_fields_l(id%w))/)
   
   ! Temp
+  if (sfields(id%temp)%updated) then
   id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp)+dim_fields_l(id%temp))&
          = offset(id%temp) &
          + (domain_p-1)*(mesh_fesom%nl-1) &
          + (/(i, i=1,dim_fields_l(id%temp))/)
+  endif
+  
   ! Salt
+  if (sfields(id%salt)%updated) then
   id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt)+dim_fields_l(id%salt)) &
         = offset(id%salt) &
         + (domain_p-1)*(mesh_fesom%nl-1) &
         + (/(i, i=1,dim_fields_l(id%salt))/)
+  endif
+        
+  ! BGC:
+  DO b=bgcmin, bgcmax
+  
+    ! only updated fields:
+    IF ((sfields(b)% updated)) THEN
+      
+      ! surface fields:
+      IF (sfields(b)% ndims == 1)   THEN
+            id_lstate_in_pstate (offset_l(b)+1) &
+                   = offset(b) + domain_p
+      ENDIF
+
+      ! 3D fields:
+      IF (sfields(b)% ndims == 2)   THEN
+            id_lstate_in_pstate (offset_l(b)+1 : offset_l(b)+dim_fields_l(b))&
+                   = offset(b) &
+                   + (domain_p-1)*(mesh_fesom%nl-1) &
+                   + (/(i, i=1,dim_fields_l(b))/)
+      ENDIF
+    ENDIF
+  ENDDO
 
 END SUBROUTINE init_dim_l_pdaf
