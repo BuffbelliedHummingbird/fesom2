@@ -51,6 +51,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE obs_sss_cci_pdafomi, &
         ONLY: assim_o_sss_cci, sss_cci_exclude_ice, sss_cci_exclude_diff, &
               mean_sss_cci_p
+  USE obs_chl_cci_pdafomi, &
+        ONLY: assim_o_chl_cci, chl_cci_exclude_ice, chl_cci_exclude_diff, &
+              mean_chl_cci_p
   USE g_clock, &
         ONLY: dayold, yearold, check_fleapyr,daynew,yearnew
   USE mod_assim_pdaf, &
@@ -278,11 +281,18 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Store ensemble mean values for observation exclusion criteria ***
 ! *********************************************************************
 
-  IF ((assim_o_sst .OR. assim_o_sss .OR. assim_o_sss_cci) .AND. step<0) THEN
+  IF ((    assim_o_sst &
+      .OR. assim_o_sss &
+      .OR. assim_o_sss_cci &
+      .OR. assim_o_chl_cci) &
+      .AND. step<0) THEN
 ! (forecast phase)
 !
      ! sea-ice concentration
-     IF (sst_exclude_ice .OR. sss_exclude_ice .OR. sss_cci_exclude_ice) THEN 
+     IF (    sst_exclude_ice &
+        .OR. sss_exclude_ice &
+        .OR. sss_cci_exclude_ice &
+        .OR. chl_cci_exclude_ice) THEN 
         IF (ALLOCATED(mean_ice_p)) DEALLOCATE(mean_ice_p)
         ALLOCATE (mean_ice_p(dim_fields(id% a_ice)))
         mean_ice_p = state_p(offset(id% a_ice)+ 1 : &
@@ -290,7 +300,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END IF
 
      ! SST
-     IF (sst_exclude_ice .OR. sst_exclude_diff > 0.0) THEN
+     IF (sst_exclude_diff > 0.0) THEN
         IF (ALLOCATED(mean_sst_p)) DEALLOCATE(mean_sst_p)
         ALLOCATE (mean_sst_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -299,7 +309,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END IF
      
      ! SSS SMOS
-     IF (sss_exclude_ice .OR. sss_exclude_diff > 0.0) THEN
+     IF (sss_exclude_diff > 0.0) THEN
         IF (ALLOCATED(mean_sss_p)) DEALLOCATE(mean_sss_p)
         ALLOCATE (mean_sss_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -308,11 +318,21 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END IF
 
      ! SSS CCI
-     IF (sss_cci_exclude_ice .OR. sss_cci_exclude_diff > 0.0) THEN
+     IF (sss_cci_exclude_diff > 0.0) THEN
         IF (ALLOCATED(mean_sss_cci_p)) DEALLOCATE(mean_sss_cci_p)
         ALLOCATE (mean_sss_cci_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
           mean_sss_cci_p(i) = state_p(offset(id% salt) + (i-1) * (mesh_fesom%nl-1) + 1)
+        END DO
+     END IF
+     
+     ! chl CCI
+     IF (chl_cci_exclude_diff > 0.0) THEN
+        IF (ALLOCATED(mean_chl_cci_p)) DEALLOCATE(mean_chl_cci_p)
+        ALLOCATE (mean_chl_cci_p(myDim_nod2D))
+        DO i = 1, myDim_nod2D
+          mean_chl_cci_p(i) = state_p(offset(id% PhyChl) + (i-1) * (mesh_fesom%nl-1) + 1) &
+                            + state_p(offset(id% DiaChl) + (i-1) * (mesh_fesom%nl-1) + 1)
         END DO
      END IF
 

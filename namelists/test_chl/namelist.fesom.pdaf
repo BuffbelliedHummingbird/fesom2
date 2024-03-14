@@ -77,18 +77,18 @@ path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-S
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
 proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
                                                                         ! 1: Processing of EN4 raw profile data to distributed files.
-
 start_year_o = 2016
 end_year_o   = 2016
 
-ASSIM_O_chl_cci = .false.
-path_obs_chl_cci='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/CCI/CORE2/dist_72/'
-file_chl_cci_prefix=''
-file_chl_cci_suffix ='.nc'
-rms_obs_chl_cci=0.5
-chl_cci_fixed_rmse=.true.
-chl_cci_exclude_ice=.true.
-chl_cci_exclude_diff=0
+assim_o_chl_cci = .true.
+rms_obs_chl_cci = 1.5
+path_obs_chl_cci = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/chlsurf_OC-CCI/CORE2_daily/dist_72/'
+file_chl_cci_prefix = ''
+file_chl_cci_suffix = '.nc'
+chl_cci_exclude_ice = .true.
+chl_cci_exclude_diff = 0
+bias_obs_chl_cci = 0
+chl_cci_fixed_rmse = .false.
 
 path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 
@@ -96,9 +96,8 @@ path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72
 perturb_parameters=.true.
 perturb_scale=0.25
 
-! set at least one of the following to true, else domain-local state is allocated zero
 assimilateBGC=.true.  ! false to de-activate BGC assimilation
-assimilatePHY=.true.  ! false to de-activate physics assimilation
+assimilatePHY=.false. ! false to de-activate physics assimilation
 /
 
 ! Settings for Parallelization:

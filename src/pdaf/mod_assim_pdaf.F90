@@ -236,7 +236,7 @@ type(t_mesh), pointer, save      :: mesh_fesom
 INTEGER :: debug_id_depth, & ! Location for debugging output
            debug_id_nod2           
 INTEGER :: ens_member_debug
-INTEGER :: mype_debug = 30
-INTEGER :: node_debug = 888
+INTEGER :: mype_debug = 0
+INTEGER :: node_debug = 5
 
 END MODULE mod_assim_pdaf

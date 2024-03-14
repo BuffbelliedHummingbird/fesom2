@@ -35,6 +35,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        ONLY:  proffiles_o, start_year_o, end_year_o, mype_debug, node_debug
   USE mod_parallel_pdaf, &
        ONLY: abort_parallel
+       
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, init_dim_obs_sst
   USE obs_sss_smos_pdafomi, &
@@ -45,6 +46,10 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        ONLY: assim_o_ssh, init_dim_obs_ssh
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, init_dim_obs_prof
+       
+  USE obs_chl_cci_pdafomi, &
+       ONLY: assim_o_chl_cci, init_dim_obs_chl_cci
+       
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
 
@@ -61,6 +66,8 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   INTEGER :: dim_obs_ssh     ! Full number of SSH observations
   INTEGER :: dim_obs_prof    ! Full number of subsurface profile observations
   INTEGER :: dim_obs_en4ana  ! Full number of EN4 analysis profile observations
+  
+  INTEGER :: dim_obs_chl_cci ! Full number of chl (CCI) observations
 
 
 ! *********************************************
@@ -74,6 +81,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   dim_obs_ssh = 0
   dim_obs_prof = 0
   dim_obs_en4ana = 0
+  dim_obs_chl_cci = 0
 
   ! Call observation specific routines
   ! The routines are independent, so it is not relevant
@@ -86,8 +94,11 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   IF (assim_o_sss_cci) CALL init_dim_obs_sss_cci(step, dim_obs_sss_cci)
   IF (assim_o_ssh)     CALL init_dim_obs_ssh(step, dim_obs_ssh)
   IF (assim_o_en4_t .OR. assim_o_en4_s) CALL init_dim_obs_prof(step, dim_obs_prof)
+  
+  IF (assim_o_chl_cci) CALL init_dim_obs_chl_cci(step, dim_obs_chl_cci)
 
-  dim_obs = dim_obs_sst + dim_obs_sss + dim_obs_sss_cci + dim_obs_ssh + dim_obs_prof + dim_obs_en4ana
+  dim_obs =   dim_obs_sst + dim_obs_sss + dim_obs_sss_cci + dim_obs_ssh + dim_obs_prof + dim_obs_en4ana &
+            + dim_obs_chl_cci
 
 
   ! *** Generate profile observation files ***
@@ -120,9 +131,11 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   USE obs_sss_smos_pdafomi, ONLY: obs_op_sss
   USE obs_sss_cci_pdafomi, ONLY: obs_op_sss_cci
   USE obs_ssh_cmems_pdafomi, ONLY: obs_op_ssh
-  USE obs_TSprof_EN4_pdafomi, ONLY: obs_op_prof, thisobs
+  USE obs_TSprof_EN4_pdafomi, ONLY: obs_op_prof
+  
+  USE obs_chl_cci_pdafomi, ONLY: obs_op_chl_cci
+  
   USE mod_parallel_pdaf, ONLY: mype_filter
-
   USE mod_assim_pdaf, ONLY: mype_debug, node_debug
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
 
@@ -148,6 +161,8 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   CALL obs_op_sss_cci(dim_p, dim_obs, state_p, ostate)
   CALL obs_op_ssh    (dim_p, dim_obs, state_p, ostate)
   CALL obs_op_prof   (dim_p, dim_obs, state_p, ostate)
+  
+  CALL obs_op_chl_cci(dim_p, dim_obs, state_p, ostate)
 
 END SUBROUTINE obs_op_pdafomi
 
@@ -167,6 +182,8 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   USE obs_sss_cci_pdafomi, ONLY: init_dim_obs_l_sss_cci
   USE obs_ssh_cmems_pdafomi, ONLY: init_dim_obs_l_ssh
   USE obs_TSprof_EN4_pdafomi, ONLY: init_dim_obs_l_prof
+  
+  USE obs_chl_cci_pdafomi, ONLY: init_dim_obs_l_chl_cci
 
   ! General modules:
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
@@ -182,12 +199,12 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(in)  :: dim_obs    !< Full dimension of observation vector
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
    
-!~    ! Debugging:
-!~    IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
-!~    CALL PDAFomi_set_debug_flag(domain_p)
-!~    ELSE
-!~    CALL PDAFomi_set_debug_flag(0)
-!~    ENDIF
+   ! Debugging:
+   IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
+   CALL PDAFomi_set_debug_flag(domain_p)
+   ELSE
+   CALL PDAFomi_set_debug_flag(0)
+   ENDIF
 
 
 ! **********************************************
@@ -199,5 +216,8 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_sss_cci(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_ssh    (domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_prof   (domain_p, step, dim_obs, dim_obs_l)
+   
+   CALL init_dim_obs_l_chl_cci(domain_p, step, dim_obs, dim_obs_l)
+
 
 END SUBROUTINE init_dim_obs_l_pdafomi

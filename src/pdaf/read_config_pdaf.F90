@@ -29,6 +29,7 @@ SUBROUTINE read_config_pdaf()
        proffiles_o, start_year_o, end_year_o
   USE mod_nc_out_variables, &
        ONLY: write_ens
+       
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
@@ -46,6 +47,11 @@ SUBROUTINE read_config_pdaf()
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        rms_obs_S, rms_obs_T, &
        file_syntobs_prof, prof_exclude_diff, bias_obs_prof
+       
+  USE obs_chl_cci_pdafomi, &
+       ONLY: assim_o_chl_cci, rms_obs_chl_cci, path_obs_chl_cci, file_chl_cci_prefix, file_chl_cci_suffix, &
+       chl_cci_exclude_ice, chl_cci_exclude_diff, bias_obs_chl_cci, chl_cci_fixed_rmse
+       
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -109,7 +115,12 @@ SUBROUTINE read_config_pdaf()
        ! BGC parameter perturbation:
        perturb_scale, perturb_parameters, &
        ! BioGeoChemistry:
-       assimilateBGC
+       assimilateBGC, &
+       ! Chl-a CCI:
+       assim_o_chl_cci, rms_obs_chl_cci, path_obs_chl_cci, &
+       file_chl_cci_prefix, file_chl_cci_suffix, &
+       chl_cci_exclude_ice, chl_cci_exclude_diff, &
+       bias_obs_chl_cci, chl_cci_fixed_rmse
 
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -166,6 +177,7 @@ WRITE(year_string,'(i4.4)') yearnew
 file_sst_prefix = 'OSTIA_SST_'//TRIM(year_string)//'0101_'//TRIM(year_string)//'1231_daily_dist72_'
 file_sss_prefix = 'SMOS_SSS_'//TRIM(year_string)//'_dist72_'
 file_sss_cci_prefix = 'CCI_SSS_'//TRIM(year_string)//'_dist72_'
+file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
 
 ! *** Print configuration variables ***
   showconf: IF (printconfig .AND. mype_model==0 .AND. task_id==1) THEN
@@ -245,6 +257,17 @@ file_sss_cci_prefix = 'CCI_SSS_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_ssh     ',    TRIM(path_obs_ssh)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_ssh_prefix  ',    TRIM(file_ssh_prefix)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_ssh_suffix  ',    TRIM(file_ssh_suffix)
+     
+     ! BGC observation-type settings
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_chl_cci',      assim_o_chl_cci
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_chl_cci_prefix',  TRIM(file_chl_cci_prefix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_chl_cci_suffix',  TRIM(file_chl_cci_suffix)
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_chl_cci ',    TRIM(path_obs_chl_cci)
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'chl_cci_exclude_ice',  chl_cci_exclude_ice
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'chl_cci_fixed_rmse',   chl_cci_fixed_rmse
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_chl_cci',      rms_obs_chl_cci
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'chl_cci_exclude_diff', chl_cci_exclude_diff
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'bias_obs_chl_cci',     bias_obs_chl_cci
      
      ! Physics initial ensemble covariance
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
