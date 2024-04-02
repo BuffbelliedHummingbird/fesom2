@@ -491,14 +491,16 @@ CONTAINS
 !~     ! to avoid zero-allocation error,
 !~     ! make up a fictional observation with HUGE uncertainty
 !~     IF (dim_obs_f==0) THEN
-!~        obs_p=35
-!~        ivariance_obs_p=1E-12
-!~        ocoord_n2d_p(1,1)=1.57
-!~        ocoord_n2d_p(2,1)=0
-!~        thisobs%id_obs_p=offset(id% salt)+1
-!~        IF (mype_filter==0) WRITE(*,*) 'FESOM-PDAF: No SSS observations, using fictional observations!'
-!~        dim_obs_p=1
-!~     ENDIF
+    IF (dim_obs_p==0) THEN
+       obs_p=1.0
+       ivariance_obs_p=1E-12
+       ocoord_n2d_p(1,1)=1.57
+       ocoord_n2d_p(2,1)=0.0
+       thisobs%id_obs_p(1,1)=offset(id% PhyChl)+1
+       thisobs%id_obs_p(2,1)=offset(id% DiaChl)+1
+       WRITE(*,*) 'FESOM-PDAF: No Chlorophyll observations on PE ',mype_filter,' -  using fictional observations!'
+       dim_obs_p=1
+    ENDIF
 
 ! **************************************
 ! *** Gather full observation arrays ***

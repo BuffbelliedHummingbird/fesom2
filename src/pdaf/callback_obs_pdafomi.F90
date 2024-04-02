@@ -49,6 +49,8 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        
   USE obs_chl_cci_pdafomi, &
        ONLY: assim_o_chl_cci, init_dim_obs_chl_cci
+  USE obs_DIC_glodap_pdafomi, &
+       ONLY: assim_o_DIC_glodap, init_dim_obs_DIC_glodap
        
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
@@ -68,6 +70,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   INTEGER :: dim_obs_en4ana  ! Full number of EN4 analysis profile observations
   
   INTEGER :: dim_obs_chl_cci ! Full number of chl (CCI) observations
+  INTEGER :: dim_obs_DIC_glodap
 
 
 ! *********************************************
@@ -82,12 +85,14 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   dim_obs_prof = 0
   dim_obs_en4ana = 0
   dim_obs_chl_cci = 0
+  dim_obs_DIC_glodap = 0
 
   ! Call observation specific routines
   ! The routines are independent, so it is not relevant
   ! in which order they are called
   
   ! No domain_p, thus no debugging call.
+  CALL PDAFomi_set_debug_flag(1)
   
   IF (assim_o_sst)     CALL init_dim_obs_sst(step, dim_obs_sst)
   IF (assim_o_sss)     CALL init_dim_obs_sss(step, dim_obs_sss)
@@ -95,10 +100,12 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   IF (assim_o_ssh)     CALL init_dim_obs_ssh(step, dim_obs_ssh)
   IF (assim_o_en4_t .OR. assim_o_en4_s) CALL init_dim_obs_prof(step, dim_obs_prof)
   
-  IF (assim_o_chl_cci) CALL init_dim_obs_chl_cci(step, dim_obs_chl_cci)
+  IF (assim_o_chl_cci)      CALL init_dim_obs_chl_cci(step, dim_obs_chl_cci)
+  IF (assim_o_DIC_glodap)   CALL init_dim_obs_DIC_glodap(step, dim_obs_DIC_glodap)
+  
 
   dim_obs =   dim_obs_sst + dim_obs_sss + dim_obs_sss_cci + dim_obs_ssh + dim_obs_prof + dim_obs_en4ana &
-            + dim_obs_chl_cci
+            + dim_obs_chl_cci + dim_obs_DIC_glodap
 
 
   ! *** Generate profile observation files ***
@@ -134,6 +141,7 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   USE obs_TSprof_EN4_pdafomi, ONLY: obs_op_prof
   
   USE obs_chl_cci_pdafomi, ONLY: obs_op_chl_cci
+  USE obs_DIC_glodap_pdafomi, ONLY: obs_op_DIC_glodap
   
   USE mod_parallel_pdaf, ONLY: mype_filter
   USE mod_assim_pdaf, ONLY: mype_debug, node_debug
@@ -162,10 +170,10 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   CALL obs_op_ssh    (dim_p, dim_obs, state_p, ostate)
   CALL obs_op_prof   (dim_p, dim_obs, state_p, ostate)
   
-  CALL obs_op_chl_cci(dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_chl_cci   (dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_DIC_glodap(dim_p, dim_obs, state_p, ostate)
 
 END SUBROUTINE obs_op_pdafomi
-
 
 
 !-------------------------------------------------------------------------------
@@ -184,6 +192,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   USE obs_TSprof_EN4_pdafomi, ONLY: init_dim_obs_l_prof
   
   USE obs_chl_cci_pdafomi, ONLY: init_dim_obs_l_chl_cci
+  USE obs_DIC_glodap_pdafomi, ONLY: init_dim_obs_l_DIC_glodap
 
   ! General modules:
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
@@ -218,6 +227,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_prof   (domain_p, step, dim_obs, dim_obs_l)
    
    CALL init_dim_obs_l_chl_cci(domain_p, step, dim_obs, dim_obs_l)
+   CALL init_dim_obs_l_DIC_glodap(domain_p, step, dim_obs, dim_obs_l)
 
 
 END SUBROUTINE init_dim_obs_l_pdafomi

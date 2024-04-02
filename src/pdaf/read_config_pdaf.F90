@@ -51,6 +51,9 @@ SUBROUTINE read_config_pdaf()
   USE obs_chl_cci_pdafomi, &
        ONLY: assim_o_chl_cci, rms_obs_chl_cci, path_obs_chl_cci, file_chl_cci_prefix, file_chl_cci_suffix, &
        chl_cci_exclude_ice, chl_cci_exclude_diff, bias_obs_chl_cci, chl_cci_fixed_rmse
+  USE obs_DIC_glodap_pdafomi, &
+       ONLY: assim_o_DIC_glodap, path_obs_DIC_glodap, &
+       rms_obs_DIC_glodap
        
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
@@ -120,7 +123,10 @@ SUBROUTINE read_config_pdaf()
        assim_o_chl_cci, rms_obs_chl_cci, path_obs_chl_cci, &
        file_chl_cci_prefix, file_chl_cci_suffix, &
        chl_cci_exclude_ice, chl_cci_exclude_diff, &
-       bias_obs_chl_cci, chl_cci_fixed_rmse
+       bias_obs_chl_cci, chl_cci_fixed_rmse, &
+       ! DIC GLODAP:
+       assim_o_DIC_glodap, path_obs_DIC_glodap, &
+       rms_obs_DIC_glodap
 
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -152,6 +158,9 @@ SUBROUTINE read_config_pdaf()
   
   CALL add_slash(path_obs_prof)
   CALL add_slash(path_init)
+  
+  CALL add_slash(path_obs_chl_cci)
+  CALL add_slash(path_obs_DIC_glodap)
   
 ! *** Is atmospheric stochasticity used at all?
 IF (disturb_humi   .OR. &
@@ -268,6 +277,9 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_chl_cci',      rms_obs_chl_cci
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'chl_cci_exclude_diff', chl_cci_exclude_diff
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'bias_obs_chl_cci',     bias_obs_chl_cci
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_DIC_glodap',   assim_o_DIC_glodap
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_DIC_glodap',  path_obs_DIC_glodap
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_DIC_glodap',   rms_obs_DIC_glodap
      
      ! Physics initial ensemble covariance
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)

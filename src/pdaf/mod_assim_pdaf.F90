@@ -207,7 +207,7 @@ REAL :: coords_l(2)                        ! Coordinates of local analysis domai
 INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (i.e. field of vertical water column at 1 node)
 INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
-! REAL, PARAMETER :: pi=3.141592653589793
+!~ REAL, PARAMETER :: pi=3.14159265358979323846
 REAL, ALLOCATABLE :: state_fcst(:,:) ! State prior to assimilation, which is saved to use for correction
 REAL, ALLOCATABLE :: var_p(:)        ! Estimated local model state variances
 REAL, ALLOCATABLE :: std_p(:)        ! Estimated local model std variances
