@@ -90,6 +90,9 @@ chl_cci_exclude_diff = 0
 bias_obs_chl_cci = 0
 chl_cci_fixed_rmse = .false.
 
+assim_o_DIC_glodap = .false.
+path_obs_DIC_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/DIC/'
+
 path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 
 ! Wether to perturb BGC parameters:

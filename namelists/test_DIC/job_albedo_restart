@@ -250,16 +250,16 @@ do
     # -------------------------------------------------------------------------
     
     #  Mailbox size
-	export MBX_SIZE=128000000
+	# export MBX_SIZE=128000000
 
 	#  Increase per processor buffers to reduce retries
-	export MPI_BUFS_PER_PROC=256
+	# export MPI_BUFS_PER_PROC=256
 
 	#  Bind your OpenMP threads
 	export OMP_NUM_THREADS=1
-	export KMP_AFFINITY=noverbose,granularity=thread,compact,1
+	# export KMP_AFFINITY=noverbose,granularity=thread,compact,1
 	#  Limit stacksize - adjust to your programs need
-	export KMP_STACKSIZE=64m
+	# export KMP_STACKSIZE=64m
 
 	# Enable ATP on ECMWF HPCF (recommended)
 	# export ATP_ENABLED=1
@@ -267,14 +267,14 @@ do
 	ulimit -c unlimited
 
 	# Environment settings to run a MPI/OpenMP parallel program compiled with Intel MPI
-	# export I_MPI_FABRICS=shm:dapl
-	# export I_MPI_FALLBACK=disable
-	# export I_MPI_SLURM_EXT=1
-	# export I_MPI_LARGE_SCALE_THRESHOLD=8192
-	export I_MPI_FABRICS=ofi # for infini-band
-	export I_MPI_DEBUG=6
-	export I_MPI_PLATFORM=auto
-	# export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+	## export I_MPI_FABRICS=shm:dapl
+	## export I_MPI_FALLBACK=disable
+	## export I_MPI_SLURM_EXT=1
+	## export I_MPI_LARGE_SCALE_THRESHOLD=8192
+	#export I_MPI_FABRICS=ofi # for infini-band
+	#export I_MPI_DEBUG=6
+	#export I_MPI_PLATFORM=auto
+	## export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
 
     # -------------------------------------------------------------------------
     # *** Start the run

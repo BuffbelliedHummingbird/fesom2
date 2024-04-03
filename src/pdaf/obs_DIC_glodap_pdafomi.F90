@@ -309,8 +309,8 @@ CONTAINS
       nod2_p = 183
       nod3_p = 1198
       nl_p = 5
-      ocoord_p(1,:)= 84.260/180*pi
-      ocoord_p(2,:)=-56.059/190*pi
+      ocoord_p(1,:)= 84.260/180.0*pi
+      ocoord_p(2,:)=-56.059/180.0*pi
       
 !~       ! Reading observations
 !~       ncstat = nf90_inq_varid(ncid,'DIC', id_obs)

@@ -37,6 +37,7 @@ run_dir=/albedo/scratch/user/frbunsen/${exp_name}/work
 # Settings:
 NENS=4           # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
+NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
@@ -204,13 +205,14 @@ do
             # *** Restart files needed for FESOM-REcoM
             cp ../../restart_files/fesom.clock .
             ln -s ../../restart_files/*.nc .
-
+            
 	    if $BGC_init_ens
-	    then
-		    echo 'Replacing bio-restart files for member '${ENS4str}
-		    ln -fs ../../restart_files/${ENSstr}/fesom.????.bio.restart.nc . 
-	    fi
-         done
+            then
+                    echo 'Replacing bio-restart files for member '${ENS4str}
+                    ln -fs ../../restart_files/BGC_ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
+            fi
+         
+    done
     
     else # if ! $leg_is_restart
     
@@ -248,16 +250,16 @@ do
     # -------------------------------------------------------------------------
     
     #  Mailbox size
-	export MBX_SIZE=128000000
+	# export MBX_SIZE=128000000
 
 	#  Increase per processor buffers to reduce retries
-	export MPI_BUFS_PER_PROC=256
+	# export MPI_BUFS_PER_PROC=256
 
 	#  Bind your OpenMP threads
 	export OMP_NUM_THREADS=1
-	export KMP_AFFINITY=noverbose,granularity=thread,compact,1
+	# export KMP_AFFINITY=noverbose,granularity=thread,compact,1
 	#  Limit stacksize - adjust to your programs need
-	export KMP_STACKSIZE=64m
+	# export KMP_STACKSIZE=64m
 
 	# Enable ATP on ECMWF HPCF (recommended)
 	# export ATP_ENABLED=1
@@ -269,7 +271,7 @@ do
 	# export I_MPI_FALLBACK=disable
 	# export I_MPI_SLURM_EXT=1
 	# export I_MPI_LARGE_SCALE_THRESHOLD=8192
-	export I_MPI_FABRICS=ofi # for infini-band
+	# export I_MPI_FABRICS=ofi # for infini-band
 	# export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
 
     # -------------------------------------------------------------------------
