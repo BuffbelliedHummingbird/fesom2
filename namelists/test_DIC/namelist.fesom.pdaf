@@ -92,7 +92,7 @@ chl_cci_fixed_rmse = .false.
 
 assim_o_DIC_glodap = .true.
 path_obs_DIC_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/DIC/'
-rms_obs_DIC_glodap = 30.0
+rms_obs_DIC_glodap = 0.1
 
 path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 

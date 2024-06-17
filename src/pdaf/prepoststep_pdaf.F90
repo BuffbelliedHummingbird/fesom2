@@ -22,7 +22,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        ONLY: mype_filter, npes_filter, COMM_filter, writepe, mype_world
   USE mod_assim_pdaf, & ! Variables for assimilation
        ONLY: step_null, filtertype, dim_lag, eff_dim_obs, loctype, &
-       offset, proffiles_o, var_p, std_p, state_fcst, &
+       offset, proffiles_o, state_fcst, &
        monthly_state_f, monthly_state_a, write_monthly_mean,mon_snapshot_mem, &
        num_day_in_month, endday_of_month_in_year, startday_of_month_in_year, &
        depth_excl, depth_excl_no, this_is_pdaf_restart, mesh_fesom, &
@@ -36,6 +36,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
        myList_edge2D, myDim_edge2D, myList_nod2D
   USE o_ARRAYS, ONLY: hnode_new
+  USE recom_config, ONLY: tiny_chl, tiny
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
   USE mod_nc_out_variables, &
@@ -84,8 +85,12 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   INTEGER :: i, j,k, member, ed    ! Counters
   REAL :: invdim_ens                ! Inverse ensemble size
   REAL :: invdim_ensm1              ! Inverse of ensemble size minus 1 
-  REAL :: rmse_p(nfields)                ! PE-local ensemble spread
-  REAL :: rmse(nfields)                  ! Global ensemble spread
+  REAL :: rmse_p(nfields)                ! PE-local ensemble spread 3D
+  REAL :: rmse(nfields)                  ! Global ensemble spread 3D
+  REAL :: rmse_surf_p(nfields)           ! PE-local ensemble spread surface
+  REAL :: rmse_surf(nfields)             ! Global ensemble spread surface
+  REAL, ALLOCATABLE :: var_p(:)        ! Estimated local model state variances
+  REAL, ALLOCATABLE :: std_p(:)        ! Estimated local model std variances
   REAL :: diffm                  ! temporary 
   CHARACTER(len=1) :: typestr       ! Character indicating call type
   REAL :: min_eff_dim_obs, max_eff_dim_obs       ! Stats on effective observation dimensions
@@ -247,7 +252,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    count_lim_tempM2_p = 0
    
    DO member = 1, dim_ens
-      DO i = 1, dim_fields(id% salt)
+      DO i = 1, dim_fields(id% temp)
            IF (ens_p(i+ offset(id% temp),member) < -2.0) THEN
                ens_p(i+ offset(id% temp),member) = -2.0
                
@@ -260,6 +265,21 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF (mype_filter == 0) &
             WRITE(*,*) 'FESOM-PDAF', &
             '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
+            
+   ! *** BGC fields must be larger than zero ***
+   DO member = 1, dim_ens
+      DO i = 1, dim_fields(id% PhyChl) ! 3D fields
+           IF (ens_p(i+ offset(id% PhyChl),member) < 0) THEN
+               ens_p(i+ offset(id% PhyChl),member) = tiny_chl
+           END IF
+           IF (ens_p(i+ offset(id% DiaChl),member) < 0) THEN
+               ens_p(i+ offset(id% DiaChl),member) = tiny_chl
+           END IF
+           IF (ens_p(i+ offset(id% DIC),member) < 0) THEN
+               ens_p(i+ offset(id% DIC),member) = tiny*1e-3
+           END IF
+      END DO
+   END DO
 
    END IF ! Corrections
 
@@ -369,18 +389,17 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   var_p(:) = invdim_ensm1 * var_p(:)
 
   ! IF ((step - step_null) < 0) ! if analysis: compute STD
-  std_p = SQRT(var_p)     
+  std_p = SQRT(var_p)
 
-  ! *** Compute RMS ensemble spread ***
-
+  ! *** Regional mean over (1) pe-local fields and (2) global field ***
+  ! (1)
   DO j = 1, nfields
        DO i = 1, dim_fields(j)
           rmse_p(j) = rmse_p(j) + var_p(i + offset(j))
        END DO
        rmse_p(j) = rmse_p(j) / REAL(dim_fields_glob(j))
   END DO
-
-  ! Global sum of RMS errors
+  ! (2)
   CALL MPI_Allreduce (rmse_p, rmse, nfields, MPI_DOUBLE_PRECISION, MPI_SUM, &
        MPI_COMM_FESOM, MPIerr)
 

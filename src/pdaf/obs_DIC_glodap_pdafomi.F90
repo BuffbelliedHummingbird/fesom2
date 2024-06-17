@@ -304,55 +304,55 @@ CONTAINS
       
       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Have obs: ', dim_obs_p
       
-      obs_p = 2300.0
-      nod1_p = 1167
-      nod2_p = 183
-      nod3_p = 1198
-      nl_p = 5
-      ocoord_p(1,:)= 84.260/180.0*pi
-      ocoord_p(2,:)=-56.059/180.0*pi
+!~       obs_p = 2300.0
+!~       nod1_p = 1167
+!~       nod2_p = 183
+!~       nod3_p = 1198
+!~       nl_p = 5
+!~       ocoord_p(1,:)= 84.260/180.0*pi
+!~       ocoord_p(2,:)=-56.059/180.0*pi
       
-!~       ! Reading observations
-!~       ncstat = nf90_inq_varid(ncid,'DIC', id_obs)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_obs from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_obs, obs_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading obs from netCDF'
-      
-!~       ! Reading nodes
-!~       ncstat = nf90_inq_varid(ncid,'NOD1_P', id_nod1)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_nod1, nod1_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod1 from netCDF'
-      
-!~       ncstat = nf90_inq_varid(ncid,'NOD2_P', id_nod2)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod2 from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_nod2, nod2_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod2 from netCDF'
-      
-!~       ncstat = nf90_inq_varid(ncid,'NOD3_P', id_nod3)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod3 from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_nod3, nod3_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod3 from netCDF'
-      
-!~       ! Reading layer
-!~       ncstat = nf90_inq_varid(ncid,'NZ1', id_nl)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_layer from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_nl, nl_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading layer from netCDF'
-      
-!~       ! Reading coordinates
-!~       ncstat = nf90_inq_varid(ncid,'LON', id_lon)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_lon from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_lon, lon_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading lon from netCDF'
-      
-!~       ncstat = nf90_inq_varid(ncid,'LAT', id_lat)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_lat from netCDF'
-!~       ncstat = nf90_get_var(ncid, id_lat, lat_p)
-!~       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading lat from netCDF'
-      
-!~       ocoord_p(1,:) = lon_p / 180.0 * PI
-!~       ocoord_p(2,:) = lat_p / 180.0 * PI
+      ! Reading observations
+      ncstat = nf90_inq_varid(ncid,'DIC', id_obs)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_obs from netCDF'
+      ncstat = nf90_get_var(ncid, id_obs, obs_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading obs from netCDF'
+   
+      ! Reading nodes
+      ncstat = nf90_inq_varid(ncid,'NOD1_P', id_nod1)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod1, nod1_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod1 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD2_P', id_nod2)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod2 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod2, nod2_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod2 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD3_P', id_nod3)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod3 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod3, nod3_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod3 from netCDF'
+   
+      ! Reading layer
+      ncstat = nf90_inq_varid(ncid,'NZ1', id_nl)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_layer from netCDF'
+      ncstat = nf90_get_var(ncid, id_nl, nl_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading layer from netCDF'
+   
+      ! Reading coordinates
+      ncstat = nf90_inq_varid(ncid,'LON', id_lon)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_lon from netCDF'
+      ncstat = nf90_get_var(ncid, id_lon, lon_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading lon from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'LAT', id_lat)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_lat from netCDF'
+      ncstat = nf90_get_var(ncid, id_lat, lat_p)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading lat from netCDF'
+   
+      ocoord_p(1,:) = lon_p / 180.0 * PI
+      ocoord_p(2,:) = lat_p / 180.0 * PI
       
       ! *** Initialize index vector of observed surface nodes ***
       ! This array has as many rows as required for the observation operator
@@ -475,7 +475,7 @@ CONTAINS
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
 
 ! *** OMI-Debug:
-!~   IF (mype_filter==64 .AND. domain_p==776) THEN
+!~   IF (mype_filter==0 .AND. domain_p==5) THEN
 !~     CALL PDAFomi_set_debug_flag(domain_p)
 !~   ELSE
 !~     CALL PDAFomi_set_debug_flag(0)

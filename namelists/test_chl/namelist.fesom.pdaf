@@ -7,7 +7,7 @@ delt_obs_ocn=32        ! Time step interval between filter analyses
                        ! step_per_day in namelist.config
 filtertype=7           ! Choose filter algorithm
 locweight=4            ! Set weighting function for localization
-local_range=2.0e5      ! Cut-off radius for localization
+local_range=1e2 !2.0e5      ! Cut-off radius for localization
 srange=2.0e5           ! Support radius for weighting function
 forget=0.990           ! Set forgetting factor
 loctype=0

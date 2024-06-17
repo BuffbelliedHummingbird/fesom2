@@ -323,6 +323,7 @@ type(t_mesh),   save,  target  :: mesh
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call output (n)'//achar(27)//'[0m'
         call output (n, mesh)
 #endif
+        call output (n, mesh)
         t5 = MPI_Wtime()
         call restart(n, .false., .false., mesh)
         t6 = MPI_Wtime()

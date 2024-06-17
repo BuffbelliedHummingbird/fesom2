@@ -633,7 +633,11 @@ CONTAINS
        END IF
        lradius_chl_cci = loc_radius_chl_cci(domain_p)
 
-       if (mype_filter==mype_debug) CALL PDAFomi_set_debug_flag(1)
+!~        IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
+!~          CALL PDAFomi_set_debug_flag(domain_p)
+!~        ELSE
+!~          CALL PDAFomi_set_debug_flag(0)
+!~        ENDIF
        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l
        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% id_obs_l', thisobs_l% id_obs_l
        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% distance_l', thisobs_l% distance_l
@@ -645,8 +649,8 @@ CONTAINS
        
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_chl_cci, sradius_chl_cci, dim_obs_l)
-            
-!~        CALL PDAFomi_set_debug_flag(0)
+
+
        
     END IF
 

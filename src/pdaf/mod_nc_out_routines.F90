@@ -459,7 +459,7 @@ DO j = 1, 3 ! ini / forc / ana
     ENDIF
     
     ! variable description
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', 'Ensemble spread (RMS) for '//trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
+    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', 'Ensemble spread surface (RMS) for '//trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
     
   ENDDO ! state fields
 ENDDO ! ini / ana / forc

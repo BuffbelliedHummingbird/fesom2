@@ -209,8 +209,6 @@ INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
 !~ REAL, PARAMETER :: pi=3.14159265358979323846
 REAL, ALLOCATABLE :: state_fcst(:,:) ! State prior to assimilation, which is saved to use for correction
-REAL, ALLOCATABLE :: var_p(:)        ! Estimated local model state variances
-REAL, ALLOCATABLE :: std_p(:)        ! Estimated local model std variances
 INTEGER :: num_day_in_month(0:1,12), endday_of_month_in_year(0:1,12), startday_of_month_in_year(0:1,12)
 REAL, ALLOCATABLE :: monthly_state_f(:)       ! forecasted monthly state
 REAL, ALLOCATABLE :: monthly_state_a(:)       ! analyzed monthly state
@@ -236,7 +234,7 @@ type(t_mesh), pointer, save      :: mesh_fesom
 INTEGER :: debug_id_depth, & ! Location for debugging output
            debug_id_nod2           
 INTEGER :: ens_member_debug
-INTEGER :: mype_debug = 0
-INTEGER :: node_debug = 5
+INTEGER :: mype_debug = 18
+INTEGER :: node_debug = 1167
 
 END MODULE mod_assim_pdaf
