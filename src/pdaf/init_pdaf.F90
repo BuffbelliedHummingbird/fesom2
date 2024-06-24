@@ -45,8 +45,10 @@ SUBROUTINE init_pdaf()
        ONLY: perturb_scale, perturb_parameters, perturb_lognormal
   USE recom_config, &
        ONLY: alfa, alfa_d, P_cm, P_cm_d, Chl2N_max, Chl2N_max_d, &
-       deg_Chl, deg_Chl_d, graz_max, graz_max2, grazEff, grazEff2
-       
+       deg_Chl, deg_Chl_d, graz_max, graz_max2, grazEff, grazEff2, &
+       VDet, VDet_zoo2, Vdet_a, k_din, k_din_d, res_phy, res_phy_d, &
+       rho_N, rho_C1, lossN, lossN_d, lossC, lossC_d, reminN, &
+       reminC, calc_prod_ratio
   USE obs_sss_smos_pdafomi, &
        ONLY: assim_o_sss, rms_obs_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        sss_exclude_ice, sss_exclude_diff, bias_obs_sss, sss_fixed_rmse
@@ -420,7 +422,7 @@ disturb_mslp=.true.
 	dim_fields_glob(id% ssh   ) = mesh_fesom%nod2D                        ! SSH
 	dim_fields_glob(id% u     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! u (interpolated on nodes)
 	dim_fields_glob(id% v     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! v (interpolated on nodes)
-	dim_fields_glob(id% w     ) = mesh_fesom%nod2D * mesh_fesom%nl        ! w
+	dim_fields_glob(id% w     ) = mesh_fesom%nod2D *  mesh_fesom%nl        ! w
 	dim_fields_glob(id% temp  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! temp
 	dim_fields_glob(id% salt  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! salt
 	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D                        ! a_ice

@@ -66,6 +66,8 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 
   IF (this_is_pdaf_restart .AND. (istep_asml==0)) THEN
     if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf'
+    
+    
   ELSE
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id
 
@@ -163,32 +165,40 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! 3D fields:
   DO i = 1, myDim_nod2D
    DO k = 1, mesh_fesom%nl-1
+   
+      ! small phytoplankton:
       tr_arr(k, i,  8) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl ))
+      tr_arr(k, i,  6) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyN   ))
+      tr_arr(k, i,  7) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyC   ))
+      tr_arr(k, i, 22) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))
+      ! diatoms:
       tr_arr(k, i, 17) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl ))
+      tr_arr(k, i, 15) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaN   ))
+      tr_arr(k, i, 16) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaC   ))
+      tr_arr(k, i, 18) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaSi  ))
+      ! small, fast-growing zooplankton
+      tr_arr(k, i, 12) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
+      tr_arr(k, i, 11) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1N)) ! intracellular conc of nitrogen in zooplankton 1
+      ! macrozooplankton/antarctic krill:
+      tr_arr(k, i, 26) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
+      tr_arr(k, i, 27) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
+      ! dissolved tracer pools:
       tr_arr(k, i,  4) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC    ))
       tr_arr(k, i, 14) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC    ))
       tr_arr(k, i,  5) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk    ))
       tr_arr(k, i,  3) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN    ))
       tr_arr(k, i, 13) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON    ))
       tr_arr(k, i, 24) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2     ))
-      tr_arr(k, i,  6) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyN   ))
-      tr_arr(k, i,  7) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaC   ))
-      tr_arr(k, i, 15) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR    ))
-      tr_arr(k, i, 18) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC   ))
-!      PAR3D (k, i)     = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR    )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+      ! detritus:
       tr_arr(k, i, 10) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC   ))
-!      diags3D(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
-!      diags3D(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
-      tr_arr(k, i, 22) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))
-      ! small, fast-growing zooplankton
-      tr_arr(k, i, 12) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
-      tr_arr(k, i, 11) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1N))    ! intracellular conc of nitrogen in zooplankton 1
-      ! macrozooplankton/antarctic krill:
-      tr_arr(k, i, 26) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
-      tr_arr(k, i, 27) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
+      ! diagnostic fields:
+!     PAR3D (k, i)     = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR    )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+!     diags3D(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+!     diags3D(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+      
    END DO
-  END DO
-  
+  END DO   
+           
 ! 2D fields:
 !  DO i = 1, myDim_nod2D
 !     GloPCO2surf(i) = state_p(i + offset(id% pCO2s)) ! diagnostic field (not distributed to the model. See int_recom/recom/gasx.F90)
@@ -197,29 +207,30 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !  END DO
  
 ! Initialize external nodes:
-  call exchange_nod( tr_arr(:,:, 8) )
-  call exchange_nod( tr_arr(:,:,17) )
-  call exchange_nod( tr_arr(:,:, 4) )
+  call exchange_nod( tr_arr(:,:, 8) ) ! small phytoplankton
+  call exchange_nod( tr_arr(:,:, 6) )
+  call exchange_nod( tr_arr(:,:, 7) )
+  call exchange_nod( tr_arr(:,:,22) )
+  call exchange_nod( tr_arr(:,:,17) ) ! diatoms
+  call exchange_nod( tr_arr(:,:,15) )
+  call exchange_nod( tr_arr(:,:,16) )
+  call exchange_nod( tr_arr(:,:,18) )
+  call exchange_nod( tr_arr(:,:,12) ) ! zooplankton 1
+  call exchange_nod( tr_arr(:,:,11) )
+  call exchange_nod( tr_arr(:,:,26) ) ! zooplanton 2
+  call exchange_nod( tr_arr(:,:,27) )
+  call exchange_nod( tr_arr(:,:, 4) ) ! dissolved tracers
   call exchange_nod( tr_arr(:,:,14) )
   call exchange_nod( tr_arr(:,:, 5) )
   call exchange_nod( tr_arr(:,:, 3) )
   call exchange_nod( tr_arr(:,:,13) )
   call exchange_nod( tr_arr(:,:,24) )
-  call exchange_nod( tr_arr(:,:, 6) )
-  call exchange_nod( tr_arr(:,:, 7) )
-  call exchange_nod( tr_arr(:,:,15) )
-  call exchange_nod( tr_arr(:,:,18) )
+  call exchange_nod( tr_arr(:,:,10) ) ! detritus
 !  call exchange_nod( PAR3D          )
-  call exchange_nod( tr_arr(:,:,10) )
-!  call exchange_nod( diags3D(:,:,1) )
-!  call exchange_nod( diags3D(:,:,2) )
-  call exchange_nod( tr_arr(:,:,22) )
-  call exchange_nod( tr_arr(:,:,12) )
-  call exchange_nod( tr_arr(:,:,11) )
-  call exchange_nod( tr_arr(:,:,26) )
-  call exchange_nod( tr_arr(:,:,27) )
 !  call exchange_nod( GloPCO2surf )
 !  call exchange_nod( GloCO2flux  )
+!  call exchange_nod( diags3D(:,:,1) )
+!  call exchange_nod( diags3D(:,:,2) )
 
   ! clean up:
   deallocate(U_node_upd,U_elem_upd)

@@ -36,7 +36,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        MPI_INTEGER, MPI_MAX, MPI_MIN, mydim_nod2d, MPI_COMM_FESOM, &
        myList_edge2D, myDim_edge2D, myList_nod2D
   USE o_ARRAYS, ONLY: hnode_new
-  USE recom_config, ONLY: tiny_chl, tiny
+  USE recom_config, ONLY: tiny_chl, tiny, chl2N_max, chl2N_max_d, NCmax, &      
+       NCmax_d, SiCmax, Redfield
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
   USE mod_nc_out_variables, &
@@ -104,6 +105,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   INTEGER, allocatable :: count_lim_absvel_g(:), count_lim_absvel_p(:)      ! Count how many excessively large updates are limited to treshold
   INTEGER, allocatable :: count_lim_ssh_g(:)   , count_lim_ssh_p(:)         ! Count how many excessively large updates are limited to treshold
   INTEGER, allocatable :: count_lim_tempM2_g(:), count_lim_tempM2_p(:)      ! Count how many excessively large updates are limited to treshold
+  
+  REAL :: tiny_N                 ! Min PhyN
+  REAL :: tiny_N_d               ! Min DiaN
+  REAL :: tiny_C                 ! Min PhyC
+  REAL :: tiny_C_d               ! Min DiaC
+  REAL :: tiny_Si                ! Min DiaSi
+  REAL :: tiny_R                 ! Min ZoC
   
   character(len=100) :: fmt ! format specifier
   
@@ -266,18 +274,45 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
             WRITE(*,*) 'FESOM-PDAF', &
             '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
             
-   ! *** BGC fields must be larger than zero ***
+   ! *** BGC fields must be larger than "tiny" ***
+   
+   tiny_N   = tiny_chl/chl2N_max      ! 0.00001/ 3.15d0   Chl2N_max [mg CHL/mmol N] Maximum CHL a : N ratio = 0.3 gCHL gN^-1
+   tiny_N_d = tiny_chl/chl2N_max_d    ! 0.00001/ 4.2d0
+   tiny_C   = tiny_N  /NCmax          ! NCmax   = 0.2d0   [mmol N/mmol C] Maximum cell quota of nitrogen (N:C)
+   tiny_C_d = tiny_N_d/NCmax_d        ! NCmax_d = 0.2d0 
+   tiny_Si  = tiny_C_d/SiCmax         ! SiCmax = 0.8d0
+   tiny_R   = tiny * Redfield
+   
    DO member = 1, dim_ens
-      DO i = 1, dim_fields(id% PhyChl) ! 3D fields
-           IF (ens_p(i+ offset(id% PhyChl),member) < 0) THEN
-               ens_p(i+ offset(id% PhyChl),member) = tiny_chl
-           END IF
-           IF (ens_p(i+ offset(id% DiaChl),member) < 0) THEN
-               ens_p(i+ offset(id% DiaChl),member) = tiny_chl
-           END IF
-           IF (ens_p(i+ offset(id% DIC),member) < 0) THEN
-               ens_p(i+ offset(id% DIC),member) = tiny*1e-3
-           END IF
+      DO i = 1, dim_fields(id% PhyChl) ! (identical dimension for all 3D tracer fields)
+           
+           ens_p(i+ offset(id% PhyN   ),member) = max(tiny_N  ,ens_p(i+ offset(id% PhyN   ),member))
+           ens_p(i+ offset(id% PhyC   ),member) = max(tiny_C  ,ens_p(i+ offset(id% PhyC   ),member))
+           ens_p(i+ offset(id% PhyChl ),member) = max(tiny_chl,ens_p(i+ offset(id% PhyChl ),member))
+           ens_p(i+ offset(id% PhyCalc),member) = max(tiny    ,ens_p(i+ offset(id% PhyCalc),member))
+           
+           ens_p(i+ offset(id% DetC   ),member) = max(tiny    ,ens_p(i+ offset(id% DetC   ),member))
+           
+           ens_p(i+ offset(id% Zo1N   ),member) = max(tiny    ,ens_p(i+ offset(id% Zo1N   ),member))
+           ens_p(i+ offset(id% Zo1C   ),member) = max(tiny_R  ,ens_p(i+ offset(id% Zo1C   ),member))
+           
+           ens_p(i+ offset(id% DOC    ),member) = max(tiny    ,ens_p(i+ offset(id% DOC    ),member))
+           ens_p(i+ offset(id% DON    ),member) = max(tiny    ,ens_p(i+ offset(id% DON    ),member))
+           
+           ens_p(i+ offset(id% DiaN   ),member) = max(tiny_N_d,ens_p(i+ offset(id% DiaN   ),member))
+           ens_p(i+ offset(id% DiaC   ),member) = max(tiny_C_d,ens_p(i+ offset(id% DiaC   ),member))
+           ens_p(i+ offset(id% DiaChl ),member) = max(tiny_chl,ens_p(i+ offset(id% DiaChl ),member))
+           ens_p(i+ offset(id% DiaSi  ),member) = max(tiny_Si ,ens_p(i+ offset(id% DiaSi  ),member))
+           
+           ens_p(i+ offset(id% O2     ),member) = max(tiny    ,ens_p(i+ offset(id% O2     ),member))
+           
+           ens_p(i+ offset(id% Zo2N   ),member) = max(tiny    ,ens_p(i+ offset(id% Zo2N   ),member))
+           ens_p(i+ offset(id% Zo2C   ),member) = max(tiny_R  ,ens_p(i+ offset(id% Zo2C   ),member))
+           
+           ens_p(i+ offset(id% DIN    ),member) = max(tiny*1e-3,ens_p(i+ offset(id% DIN    ),member))
+           ens_p(i+ offset(id% DIC    ),member) = max(tiny*1e-3,ens_p(i+ offset(id% DIC    ),member))
+           ens_p(i+ offset(id% Alk    ),member) = max(tiny*1e-3,ens_p(i+ offset(id% Alk    ),member))
+           
       END DO
    END DO
 

@@ -236,5 +236,7 @@ INTEGER :: debug_id_depth, & ! Location for debugging output
 INTEGER :: ens_member_debug
 INTEGER :: mype_debug = 18
 INTEGER :: node_debug = 1167
+! DIC debugging: Have_obs on mype_debug=18; node_debug=1167 on 2010-01-05.
+! Alk debugging: Have_obs on mype_debug=65; node_debug=915 .OR. 885 .OR. 268 on 2010-01-08.
 
 END MODULE mod_assim_pdaf

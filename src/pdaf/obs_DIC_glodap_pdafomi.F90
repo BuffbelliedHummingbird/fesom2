@@ -216,6 +216,9 @@ CONTAINS
     INTEGER :: id_obs, id_nod1, id_nod2, &
                id_nod3, id_nl, id_lon, &
                id_lat
+               
+    INTEGER :: cnt_ex_dry_p, cnt_ex_dry       ! Number of excluded observations due to model topography ("dry nodes")
+    INTEGER :: nzmin                          ! Number of vertical model layers at observation location considering model topography
 
 ! *********************************************
 ! *** Initialize full observation dimension ***
@@ -276,6 +279,9 @@ CONTAINS
        print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting number of observations from NetCDF file'
     end if
     
+    cnt_ex_dry_p = 0
+    cnt_ex_dry   = 0
+    
     IF (dim_obs_p <= 0) THEN
     
       allocate(obs_p(1))
@@ -303,14 +309,6 @@ CONTAINS
       allocate(ocoord_p(2,dim_obs_p))
       
       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Have obs: ', dim_obs_p
-      
-!~       obs_p = 2300.0
-!~       nod1_p = 1167
-!~       nod2_p = 183
-!~       nod3_p = 1198
-!~       nl_p = 5
-!~       ocoord_p(1,:)= 84.260/180.0*pi
-!~       ocoord_p(2,:)=-56.059/180.0*pi
       
       ! Reading observations
       ncstat = nf90_inq_varid(ncid,'DIC', id_obs)
@@ -354,6 +352,15 @@ CONTAINS
       ocoord_p(1,:) = lon_p / 180.0 * PI
       ocoord_p(2,:) = lat_p / 180.0 * PI
       
+      
+      ! *** Set constant observation error *** 
+      IF (mype_filter == 18) &
+          WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
+          '--- Use global GLODAP DIC observation error of ', rms_obs_DIC_glodap, ' mmol/m3'
+      ! Set inverse observation error variance
+      ivariance_obs_p = 1.0 / (rms_obs_DIC_glodap ** 2)
+      
+      
       ! *** Initialize index vector of observed surface nodes ***
       ! This array has as many rows as required for the observation operator
       ! 1 if observations are at grid points; >1 if interpolation is required
@@ -362,17 +369,28 @@ CONTAINS
         thisobs%id_obs_p(1,i) = (mesh_fesom% nl-1) * (nod1_p(i)-1) + nl_p(i) + offset(id%DIC)
         thisobs%id_obs_p(2,i) = (mesh_fesom% nl-1) * (nod2_p(i)-1) + nl_p(i) + offset(id%DIC)
         thisobs%id_obs_p(3,i) = (mesh_fesom% nl-1) * (nod3_p(i)-1) + nl_p(i) + offset(id%DIC)
+        
+      ! *** exclude observations at dry nodes ***
+      ! number of layers at nodes considering bottom topography: mesh_fesom% nlevels_nod2D
+        nzmin = MIN ( mesh_fesom% nlevels_nod2D( nod1_p(i) ), &
+                      mesh_fesom% nlevels_nod2D( nod2_p(i) ), &
+                      mesh_fesom% nlevels_nod2D( nod3_p(i) ))
+        IF (nl_p(i) >= nzmin) THEN
+           ivariance_obs_p(i) = 1e-12
+           cnt_ex_dry_p = cnt_ex_dry_p + 1
+        ENDIF
       END DO
       
-      ! *** Set constant observation error *** 
-      IF (mype_filter == 18) &
-          WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
-          '--- Use global GLODAP DIC observation error of ', rms_obs_DIC_glodap, 'mg chl m-3'
-      ! Set inverse observation error variance
-      ivariance_obs_p = 1.0 / (rms_obs_DIC_glodap ** 2)
       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
 
     ENDIF
+    
+    CALL MPI_Allreduce(cnt_ex_dry_p, cnt_ex_dry, 1, MPI_INTEGER, MPI_SUM, &
+            COMM_filter, MPIerr)
+
+    IF (mype_filter == 0) &
+            WRITE (*,'(a,5x,a,2x,i7)') 'REcoM-PDAF', &
+            '--- DIC GLODAP observations excluded due to topography: ', cnt_ex_dry
     
     ! **************************************
     ! *** Gather full observation arrays ***

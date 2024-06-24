@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=288 #1440
+#SBATCH --ntasks=2880 #1440
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:30:00 # 7 hours
+#SBATCH --time=12:00:00 # 7 hours
 #SBATCH --hint=nomultithread
-#SBATCH --qos=30min
+#SBATCH --qos=12h
 
-#SBATCH --job-name=testchl
+#SBATCH --job-name=CHLcci
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -35,17 +35,17 @@ run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_t
 # run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
 
 # Settings:
-NENS=4           # number of ensembles --> namelist.fesom.pdaf
+NENS=40           # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
 NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2010-01-03"
+run_end_date="2011-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
-rst_freq="3 days"
+rst_freq="1 year"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:

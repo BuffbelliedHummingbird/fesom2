@@ -51,6 +51,8 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        ONLY: assim_o_chl_cci, init_dim_obs_chl_cci
   USE obs_DIC_glodap_pdafomi, &
        ONLY: assim_o_DIC_glodap, init_dim_obs_DIC_glodap
+  USE obs_Alk_glodap_pdafomi, &
+       ONLY: assim_o_Alk_glodap, init_dim_obs_Alk_glodap
        
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
@@ -71,6 +73,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   
   INTEGER :: dim_obs_chl_cci ! Full number of chl (CCI) observations
   INTEGER :: dim_obs_DIC_glodap
+  INTEGER :: dim_obs_Alk_glodap
 
 
 ! *********************************************
@@ -86,6 +89,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   dim_obs_en4ana = 0
   dim_obs_chl_cci = 0
   dim_obs_DIC_glodap = 0
+  dim_obs_Alk_glodap = 0
 
   ! Call observation specific routines
   ! The routines are independent, so it is not relevant
@@ -102,10 +106,12 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   
   IF (assim_o_chl_cci)      CALL init_dim_obs_chl_cci(step, dim_obs_chl_cci)
   IF (assim_o_DIC_glodap)   CALL init_dim_obs_DIC_glodap(step, dim_obs_DIC_glodap)
+  IF (assim_o_Alk_glodap)   CALL init_dim_obs_Alk_glodap(step, dim_obs_Alk_glodap)
+
   
 
   dim_obs =   dim_obs_sst + dim_obs_sss + dim_obs_sss_cci + dim_obs_ssh + dim_obs_prof + dim_obs_en4ana &
-            + dim_obs_chl_cci + dim_obs_DIC_glodap
+            + dim_obs_chl_cci + dim_obs_DIC_glodap + dim_obs_Alk_glodap
 
 
   ! *** Generate profile observation files ***
@@ -142,6 +148,7 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   
   USE obs_chl_cci_pdafomi, ONLY: obs_op_chl_cci
   USE obs_DIC_glodap_pdafomi, ONLY: obs_op_DIC_glodap
+  USE obs_Alk_glodap_pdafomi, ONLY: obs_op_Alk_glodap
   
   USE mod_parallel_pdaf, ONLY: mype_filter
   USE mod_assim_pdaf, ONLY: mype_debug, node_debug
@@ -172,6 +179,8 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   
   CALL obs_op_chl_cci   (dim_p, dim_obs, state_p, ostate)
   CALL obs_op_DIC_glodap(dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_Alk_glodap(dim_p, dim_obs, state_p, ostate)
+
 
 END SUBROUTINE obs_op_pdafomi
 
@@ -193,6 +202,8 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   
   USE obs_chl_cci_pdafomi, ONLY: init_dim_obs_l_chl_cci
   USE obs_DIC_glodap_pdafomi, ONLY: init_dim_obs_l_DIC_glodap
+  USE obs_Alk_glodap_pdafomi, ONLY: init_dim_obs_l_Alk_glodap
+
 
   ! General modules:
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
@@ -209,11 +220,15 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
    
    ! Debugging:
-   IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
-   CALL PDAFomi_set_debug_flag(0) !domain_p)
-   ELSE
-   CALL PDAFomi_set_debug_flag(0)
-   ENDIF
+!~    IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
+!~    IF ( (mype_filter==65 .AND. domain_p==915) .OR. &
+!~         (mype_filter==65 .AND. domain_p==885) .OR. &
+!~         (mype_filter==65 .AND. domain_p==268)      &
+!~       ) THEN
+!~    CALL PDAFomi_set_debug_flag(domain_p)
+!~    ELSE
+!~    CALL PDAFomi_set_debug_flag(0)
+!~    ENDIF
 
 
 ! **********************************************
@@ -228,6 +243,6 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
    
    CALL init_dim_obs_l_chl_cci(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_DIC_glodap(domain_p, step, dim_obs, dim_obs_l)
-
+   CALL init_dim_obs_l_Alk_glodap(domain_p, step, dim_obs, dim_obs_l)
 
 END SUBROUTINE init_dim_obs_l_pdafomi

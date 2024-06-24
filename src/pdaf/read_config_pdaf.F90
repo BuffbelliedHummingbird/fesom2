@@ -54,6 +54,9 @@ SUBROUTINE read_config_pdaf()
   USE obs_DIC_glodap_pdafomi, &
        ONLY: assim_o_DIC_glodap, path_obs_DIC_glodap, &
        rms_obs_DIC_glodap
+  USE obs_Alk_glodap_pdafomi, &
+       ONLY: assim_o_Alk_glodap, path_obs_Alk_glodap, &
+       rms_obs_Alk_glodap
        
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
@@ -126,7 +129,10 @@ SUBROUTINE read_config_pdaf()
        bias_obs_chl_cci, chl_cci_fixed_rmse, &
        ! DIC GLODAP:
        assim_o_DIC_glodap, path_obs_DIC_glodap, &
-       rms_obs_DIC_glodap
+       rms_obs_DIC_glodap, &
+       ! Alk GLODAP:
+       assim_o_Alk_glodap, path_obs_Alk_glodap, &
+       rms_obs_Alk_glodap
 
   NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -280,6 +286,9 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_DIC_glodap',   assim_o_DIC_glodap
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_DIC_glodap',  path_obs_DIC_glodap
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_DIC_glodap',   rms_obs_DIC_glodap
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_Alk_glodap',   assim_o_Alk_glodap
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_Alk_glodap',  path_obs_Alk_glodap
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_Alk_glodap',   rms_obs_Alk_glodap
      
      ! Physics initial ensemble covariance
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
