@@ -23,11 +23,11 @@ days_since_DAstart=1   ! 1 at the beginning. Is reset by runscript.
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/physics_covar/dist_cov72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_monthly_mean=.true.
-write_ens=.false.
+write_monthly_mean=.true. ! true: monthly output; false: daily output
+write_ens=.false.          ! whether to write output for individual ensemble members
 
 ASIM_START_USE_CLIM_STATE=.false.
-this_is_pdaf_restart=.true.
+this_is_pdaf_restart=.false.
 use_global_obs=0
 
 ASSIM_O_ssh = .false.
@@ -77,9 +77,26 @@ path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-S
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
 proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
                                                                         ! 1: Processing of EN4 raw profile data to distributed files.
-
 start_year_o = 2016
 end_year_o   = 2016
+
+assim_o_chl_cci = .false.
+rms_obs_chl_cci = 1.5
+path_obs_chl_cci = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/chlsurf_OC-CCI/CORE2_daily/dist_72/'
+file_chl_cci_prefix = ''
+file_chl_cci_suffix = '.nc'
+chl_cci_exclude_ice = .true.
+chl_cci_exclude_diff = 0
+bias_obs_chl_cci = 0
+chl_cci_fixed_rmse = .false.
+
+assim_o_DIC_glodap = .false.
+path_obs_DIC_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/DIC/'
+rms_obs_DIC_glodap = 4
+
+assim_o_Alk_glodap = .false.
+path_obs_Alk_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/Alk/'
+rms_obs_Alk_glodap = 4
 
 path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
 
@@ -87,20 +104,52 @@ path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72
 perturb_parameters=.true.
 perturb_scale=0.25
 
-assimilateBGC=.true. ! activate BGC assimilation
-
+assimilateBGC=.false.  ! false to de-activate BGC assimilation
+assimilatePHY=.false. ! false to de-activate physics assimilation
 /
 
-! Namelist for parallel configuration for ensemble DA
+! Settings for Parallelization:
 &pdaf_parallel
 
-! General:
 dim_ens=4
+/
 
-! ! Coupled to AWI-CM only:
-! cpus_atm=0
-! ncpus_ocn=4
-! pairs=.false.
+! Which state variables to be updated:
+&updated
+
+upd_ssh   =.true.
+upd_u     =.true.
+upd_v     =.true.
+upd_w     =.false.
+upd_temp  =.true.
+upd_salt  =.true.
+upd_ice   =.false.
+upd_MLD1  =.false.
+
+upd_PhyChl    = .true.
+upd_DiaChl    = .true.
+upd_DIC       = .true.
+upd_DOC       = .true.
+upd_Alk       = .true.
+upd_DIN       = .true.
+upd_DON       = .true.
+upd_O2        = .true.
+upd_pCO2s     = .false.
+upd_CO2f      = .false.
+upd_DiaN      = .true.
+upd_DiaC      = .true.
+upd_PAR       = .false.
+upd_NPPn      = .false.
+upd_NPPd      = .false.
+upd_DetC      = .true.
+upd_PhyCalc   = .true.
+upd_export    = .false.
+upd_alphaCO2  = .false.
+upd_PistonVel = .false.
+upd_Zo1C      = .true.
+upd_Zo1N      = .true.
+upd_Zo2C      = .true.
+upd_Zo2N      = .true.
 /
 
 ! Namelist for atmosphere stochasticity:
@@ -123,7 +172,3 @@ varscale_qlw  = 1.0
 
 write_atmos_st = .false. ! whether to protocol perturbed atmospheric fields (every member at every step)
 /
-
-! Namelist for output variables:
-! &pdaf_output
-! /

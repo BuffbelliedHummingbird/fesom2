@@ -5,7 +5,7 @@ USE mod_assim_pdaf, &
    ONLY: id, nfields, assimilateBGC, assimilatePHY, &
          phymin, phymax, bgcmin, bgcmax
 USE mod_parallel_pdaf, &
-   ONLY: writepe
+   ONLY: writepe, mype_world
 
 IMPLICIT NONE
 
@@ -33,6 +33,9 @@ end type state_field
 
 type(state_field), allocatable :: sfields(:) ! Type variable holding the
                                              ! definitions of model fields
+                                             
+INTEGER :: nfields_3D                     ! Number of 3D fields in state vector
+INTEGER, ALLOCATABLE :: ids_3D(:)         ! List of 3D-field IDs
                                              
 CONTAINS
 
@@ -401,7 +404,7 @@ sfields(id% Zo2N) % bgc = .true.
 ! ************************************************
 
 ! *** Read namelist file ***
-  IF (writepe) WRITE(*,*) 'Read namelist file for updated variables: ',nmlfile
+  IF (mype_world==0) WRITE(*,*) 'Read namelist file for updated variables: ',nmlfile
   
   NAMELIST /updated/ &
      upd_ssh , &
@@ -487,6 +490,27 @@ sfields(id% Zo2N) % bgc = .true.
      do b=bgcmin,bgcmax
        sfields(b) % updated = .false.
      enddo
+  ENDIF
+   
+  ! count number of 3D fields
+  nfields_3D = 0
+  DO b=1,nfields
+   IF (sfields(b) % ndims == 2) nfields_3D = nfields_3D + 1
+  ENDDO
+  
+  ! indeces of 3D fields
+  ALLOCATE(ids_3D(nfields_3D))
+  p = 1
+  DO b=1,nfields
+    IF (sfields(b) % ndims == 2) THEN
+      ids_3D(p) = b
+      p = p+1
+    ENDIF
+  ENDDO
+  IF (mype_world==0) THEN
+     DO p=1,nfields_3D
+     WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', '3D fields in state vector: ', sfields % variable(ids_3D(p))
   ENDIF
 
 END SUBROUTINE init_sfields

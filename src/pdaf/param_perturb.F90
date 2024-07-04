@@ -4,8 +4,9 @@ MODULE mod_perturbation_pdaf
    IMPLICIT NONE
    SAVE
    
-   LOGICAL :: perturb_parameters = .false.  ! whether to initialize with BGC parameter perturbation
-   REAL    :: perturb_scale = 0.25       ! scaling factor for BGC parameter perturbation
+   LOGICAL :: perturb_parameters = .false.   ! whether to initialize with BGC parameter perturbation
+   REAL    :: perturb_scale  = 0.25          ! scaling factor for BGC parameter perturbation
+   REAL    :: perturb_scaleD = 0.25          ! scaling factor for BGC parameter perturbation: for spread in DIC, DIN, Alk, O2
    
    CONTAINS
 

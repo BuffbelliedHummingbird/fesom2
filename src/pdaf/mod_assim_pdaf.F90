@@ -27,11 +27,17 @@ SAVE
 
 ! PUBLIC MEMBER FUNCTIONS:
 
-! Settings for time stepping - available as namelist read-in
-INTEGER :: step_null = 0 ! initial time step of assimilation
-INTEGER :: days_since_DAstart = 1 ! days since start of assimilation (continuous counter through restarts)
-! Settings for observations - available as command line options
-INTEGER :: delt_obs_ocn     ! time step interval between assimilation steps - Ocean
+! Variables for time stepping:
+INTEGER :: step_null = 0          ! at initialization of PDAF, specify which time step we have, to assimilate the time-corresponding observations:
+                                  !    - if model (re)starts on 1st-Jan, step_null must be zero
+                                  !    - if model (re)starts later during year, step_null must be adapted (done in slurm-job-script)
+INTEGER :: days_since_DAstart = 1 ! days since start of assimilation; counted onwards at model restarts
+INTEGER :: delt_obs_ocn           ! time step interval between assimilation steps
+INTEGER :: istep_asml             ! assimilation time step at end of an forecast phase (FESOM's "mstep" + step_null);
+                                  ! FESOM's "mstep" starts counting from zero even at each restart (even mid-of year);
+                                  ! istep_asml starts counting from zero on 1st-Jan
+
+! Settings for observations:
 INTEGER :: dim_obs          ! Number of observations
 REAL    :: peak_obs_error   ! Peak value used to define the observation error
 INTEGER :: proffiles_o      ! (0) don't generate profile observation files; 
@@ -110,9 +116,7 @@ REAL    :: srange        ! Support range for 5th order polynomial
 ! Specific for FESOM
 INTEGER :: dim_state              ! Global size of model state
 INTEGER :: dim_state_p            ! PE-local size of model state
-INTEGER :: step_final             ! Final time step
-INTEGER :: istep_asml             ! Time step at end of an forecast phase
-LOGICAL :: flag_final=.false.     ! Whether the current is the final analysis step
+
 
 ! Declare Fortran type holding the indices of model fields in the state vector
 TYPE field_ids
@@ -190,7 +194,18 @@ CHARACTER(len=120) :: path_obs_rawprof  = ''      ! Path to profile observations
 CHARACTER(len=120) :: file_rawprof_prefix  = ''   ! file name prefix for profile observations 
 CHARACTER(len=120) :: file_rawprof_suffix  = '.nc'! file name suffix for profile observations 
 LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
-LOGICAL :: this_is_pdaf_restart = .false.
+
+! Restart information - set in slurm-job-script:
+LOGICAL :: this_is_pdaf_restart = .false.            ! init_pdaf:        - at start of experiment, initialize PDAF-netCDF-output
+                                                     !                   - at restart, reset forget
+                                                     ! init_ens_pdaf:    - at restart, skip perturbation of initial fields
+                                                     ! distribute_state: - at restart, skip distribution of initial fields
+                                                     ! prepoststep:      - at restart, skip writing of initial fields to netCDF
+                                                     ! add_atmos_ens_st: - at restart, read perturbed atmospheric state
+                                                     !                   - at restart, read forget and target value for RMSE
+LOGICAL :: start_from_ENS_spinup = .false.           ! init_ens_pdaf:    - at start from perturbed ensemble, skip perturbation of initial fields
+                                                     ! add_atmos_ens_st: - at start from perturbed ensemble, read perturbed atmospheric state
+                                                     ! distribute_state: - at start from perturbed ensemble, skip distribution of initial fields
 
 CHARACTER(len=120) :: path_atm_cov
 
@@ -229,6 +244,7 @@ DATA startday_of_month_in_year(0,:) /1, 32, 60, 91, 121, 152, 182, 213, 244, 274
 DATA startday_of_month_in_year(1,:) /1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336/
 
 type(t_mesh), pointer, save      :: mesh_fesom
+INTEGER :: nlmax
 
 ! For debugging:
 INTEGER :: debug_id_depth, & ! Location for debugging output

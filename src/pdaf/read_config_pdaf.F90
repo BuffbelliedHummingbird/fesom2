@@ -16,7 +16,7 @@ SUBROUTINE read_config_pdaf()
        offset, screen, filtertype, subtype, &
        delt_obs_ocn, &
        dim_bias, DA_couple_type,write_monthly_mean, &
-       incremental, type_forget, peak_obs_error, &
+       incremental, type_forget, &
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, step_null, &
        eff_dim_obs, loc_radius, loctype, loc_ratio, &
@@ -24,6 +24,7 @@ SUBROUTINE read_config_pdaf()
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        path_atm_cov, days_since_DAstart, assimilateBGC, assimilatePHY, &
+       start_from_ENS_spinup, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
@@ -84,7 +85,7 @@ SUBROUTINE read_config_pdaf()
   NAMELIST /pdaf/ filtertype, subtype, screen, &
        incremental, type_forget, forget, dim_bias, &
        local_range, locweight, srange, DA_couple_type, &
-       n_modeltasks, peak_obs_error, use_global_obs, &
+       n_modeltasks, use_global_obs, &
        path_init, file_init, step_null, printconfig, &
        file_inistate, read_inistate, write_ens, varscale, &
        type_trans, type_sqrt, dim_lag, &
@@ -94,7 +95,8 @@ SUBROUTINE read_config_pdaf()
        write_monthly_mean, &
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
-       days_since_DAstart, assimilatePHY, &
+       days_since_DAstart, start_from_ENS_spinup, &
+       assimilatePHY, &
        ! Salt SMOS:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
@@ -116,8 +118,6 @@ SUBROUTINE read_config_pdaf()
        rms_obs_S, rms_obs_T, &
        path_obs_rawprof, file_rawprof_prefix, proffiles_o, &
        start_year_o, end_year_o, &
-       ! Atmosphere cov:
-       path_atm_cov, &
        ! BGC parameter perturbation:
        perturb_scale, perturb_parameters, &
        ! BioGeoChemistry:
@@ -134,7 +134,9 @@ SUBROUTINE read_config_pdaf()
        assim_o_Alk_glodap, path_obs_Alk_glodap, &
        rms_obs_Alk_glodap
 
-  NAMELIST /atmos_stoch/ disturb_xwind, disturb_ywind, disturb_humi, &
+  NAMELIST /atmos_stoch/ &
+       path_atm_cov, &
+       disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
        varscale_wind, varscale_tair, varscale_humi, varscale_qlw, &
@@ -219,7 +221,6 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'loctype     ',         loctype
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'srange      ',         srange
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'loc_ratio   ',         loc_ratio
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'peak_obs_error',       peak_obs_error
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'use_global_obs',       use_global_obs
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'dim_lag     ',         dim_lag
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'DA_couple_type  ',     DA_couple_type
@@ -294,6 +295,7 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_init   ',         TRIM(file_init)
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'this_is_pdaf_restart', this_is_pdaf_restart
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'start_from_ENS_spinup',start_from_ENS_spinup
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
      
      ! Twin experiment

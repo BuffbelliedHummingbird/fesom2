@@ -29,7 +29,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
        COMM_model, MPIerr, mype_filter
   USE mod_assim_pdaf, &
        ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, &
-       dim_fields, id, istep_asml, step_null
+       dim_fields, id, istep_asml, step_null, start_from_ENS_spinup
   USE g_PARSUP, &
        ONLY: myDim_nod2D, myDim_elem2D, &
              eDim_nod2D, eDim_elem2D 
@@ -64,9 +64,11 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! **********************
 ! no need to distibute the ensemble in case of restart, just skip this routine:
 
-  IF (this_is_pdaf_restart .AND. (istep_asml==0)) THEN
-    if (mype_submodel==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf'
+  IF (this_is_pdaf_restart .AND. (istep_asml==step_null)) THEN
+    if (mype_world==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf at initial step'
     
+  ELSEIF (start_from_ENS_spinup .AND. (istep_asml==step_null)) THEN
+    if (mype_world==0) WRITE(*,*) 'FEqSOM-PDAF Model starts from perturbed ensemble: Skipping distribute_state_pdaf at initial step'
     
   ELSE
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id

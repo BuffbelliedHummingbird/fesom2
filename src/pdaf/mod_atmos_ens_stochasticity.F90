@@ -8,6 +8,7 @@ MODULE mod_atmos_ens_stochasticity
 ! --- add_atmos_ens_stochasticity(istep)
 ! --- init_atmos_stochasticity_output
 ! --- write_atmos_stochasticity_output(istep)
+! --- 
 
 ! Covariance file contains statistical information on all 9 atmospheric
 ! forcing fields. Which of these fields shall be perturbed is set
@@ -25,7 +26,8 @@ MODULE mod_atmos_ens_stochasticity
   USE g_clock, &
        ONLY: cyearnew, cyearold
   USE g_PARSUP, &
-       ONLY: myDim_nod2D, MPI_DOUBLE_PRECISION, MPIerr, eDim_nod2D
+       ONLY: myDim_nod2D, eDim_nod2D, &
+             MPI_DOUBLE_PRECISION, MPIerr
   USE g_sbf, &
 	ONLY: atmdata, &
 	      i_xwind, i_ywind, i_humi, &
@@ -60,6 +62,8 @@ MODULE mod_atmos_ens_stochasticity
   REAL,ALLOCATABLE, save  :: perturbation_tair (:)
   REAL,ALLOCATABLE, save  :: perturbation_xwind(:)
   REAL,ALLOCATABLE, save  :: perturbation_ywind(:)
+  
+  REAL(8),ALLOCATABLE, save  :: ipsr(:)                 ! instantaneous potential solar radiation
   
   REAL,ALLOCATABLE, save  :: atmdata_debug(:,:)
   
@@ -98,8 +102,8 @@ LOGICAL :: atmos_stochasticity_ON   ! if any atmospheric fields to be perturbed
 
 REAL :: varscale_wind = 0.1         ! scaling factors
 REAL :: varscale_tair = 1.0
-REAL :: varscale_humi = 0.5
-REAL :: varscale_qlw  = 0.5
+REAL :: varscale_humi = 1.0         ! 0.5
+REAL :: varscale_qlw  = 1.0         ! 0.5
 
 LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospheric fields,
                                     ! i.e. writing output at every time step
@@ -313,12 +317,12 @@ END SUBROUTINE
 SUBROUTINE add_atmos_ens_stochasticity(istep)
 
 USE mod_assim_pdaf, &
-    ONLY: this_is_pdaf_restart
+    ONLY: this_is_pdaf_restart, start_from_ENS_spinup
 
 IMPLICIT NONE
 
 ! Arguments:
-INTEGER, INTENT(in)    :: istep
+INTEGER, INTENT(in)    :: istep          ! FESOM's istep (0 at each restart; first called at istep=0)
 
 ! Local variables:
 INTEGER :: row, col                      ! counters
@@ -331,8 +335,8 @@ ALLOCATE(omega_v(dim_ens-1))
 ALLOCATE(perturbation(nfields * myDim_nod2D))
 
 ! set parameters:
-varscale = 10 ! 10: blowup at early time-step (3)
-arc      = 1/REAL(step_per_day)
+varscale = 25.0       ! 10
+arc      = 1./7./32.  ! 1/REAL(step_per_day)
 
 ! ****************************************
 ! *** Generate ensemble of atm. states ***
@@ -340,7 +344,7 @@ arc      = 1/REAL(step_per_day)
 
 IF (mype_model==0) THEN
 
-   IF (istep==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate atm. state ensemble'
+   IF (istep==2) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step'
 
    ! *** Generate uniform orthogonal matrix OMEGA ***
    CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 1)
@@ -366,6 +370,7 @@ DEALLOCATE(omega)
 CALL MPI_Bcast(Omega_v, dim_ens-1, MPI_DOUBLE_PRECISION, 0, &
 	 COMM_model, MPIerr)
 
+IF (istep==2 .AND. mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate atmospheric perturbation from covariance; to be repeated at each step'
 fac = varscale * SQRT(REAL(dim_ens-1)) ! varscale: scaling factor for ensemble variance
 perturbation = 0.0
 
@@ -385,9 +390,10 @@ IF (istep==1) THEN
 	IF(disturb_prec ) ALLOCATE(perturbation_prec  (myDim_nod2D + eDim_nod2D))
 	IF(disturb_snow ) ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
 	IF(disturb_mslp ) ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
+	IF(disturb_qsr  ) ALLOCATE(ipsr               (myDim_nod2D + eDim_nod2D))
 
-	IF (this_is_pdaf_restart) THEN
-
+	IF (this_is_pdaf_restart .OR. start_from_ENS_spinup) THEN
+        IF (mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','this is a restart: read atmospheric perturbation from restart file'
 		CALL read_atmos_stochasticity_restart()
 
 	ELSE
@@ -454,25 +460,24 @@ IF(disturb_mslp ) CALL exchange_nod( perturbation_mslp)
 !~ IF ((mype_world==0) .and. (disturb_snow  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_snow ', perturbation_snow (:2)
 !~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_mslp ', perturbation_mslp (:2)
 
+! instantaneous potential solar radiation:
+IF (disturb_qsr) THEN
+  CALL compute_ipsr()
+  CALL exchange_nod(ipsr)
+ENDIF
 
 ! add perturbation to atmospheric fields:
-IF (disturb_xwind) atmdata(i_xwind,:) = atmdata(i_xwind,:) + perturbation_xwind
-IF (disturb_ywind) atmdata(i_ywind,:) = atmdata(i_ywind,:) + perturbation_ywind
-IF (disturb_humi)  atmdata(i_humi ,:) = atmdata(i_humi ,:) + perturbation_humi 
-IF (disturb_qlw)   atmdata(i_qlw  ,:) = atmdata(i_qlw  ,:) + perturbation_qlw  
-IF (disturb_tair)  atmdata(i_tair ,:) = atmdata(i_tair ,:) + perturbation_tair 
-IF (disturb_prec)  atmdata(i_prec ,:) = atmdata(i_prec ,:) + perturbation_prec 
-IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) + perturbation_snow 
-IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) + perturbation_mslp
-IF (disturb_qsr)   atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + perturbation_qsr  
+IF (disturb_xwind) atmdata(i_xwind,:) = atmdata(i_xwind,:) +        perturbation_xwind
+IF (disturb_ywind) atmdata(i_ywind,:) = atmdata(i_ywind,:) +        perturbation_ywind
+IF (disturb_humi)  atmdata(i_humi ,:) = atmdata(i_humi ,:) +        perturbation_humi 
+IF (disturb_qlw)   atmdata(i_qlw  ,:) = atmdata(i_qlw  ,:) +        perturbation_qlw  
+IF (disturb_tair)  atmdata(i_tair ,:) = atmdata(i_tair ,:) +        perturbation_tair 
+IF (disturb_prec)  atmdata(i_prec ,:) = atmdata(i_prec ,:) +        perturbation_prec 
+IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) +        perturbation_snow 
+IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) +        perturbation_mslp
+IF (disturb_qsr)   atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + ipsr * perturbation_qsr
 
 ! corrections:
-! night: shortwave is zero.
-IF(disturb_qsr) THEN
-  WHERE(atmdata(i_qsr,:) /= 0)
-  atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + perturbation_qsr
-  ENDWHERE
-ENDIF
 ! rain, snow, humidity, downwelling shortwave and longwave radiation \
 ! must not be negative:
 IF(disturb_prec) THEN
@@ -558,6 +563,7 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: varID_prec 
     INTEGER :: varID_snow 
     INTEGER :: varID_mslp
+    INTEGER :: varID_ipsr
     INTEGER :: varID_restart_xwind
     INTEGER :: varID_restart_ywind
     INTEGER :: varID_restart_humi 
@@ -572,7 +578,7 @@ SUBROUTINE init_atmos_stochasticity_output
     
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
+fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 IF (mype_world==0) THEN
 WRITE(*,*) 'FESOM-PDAF: cyearold, cyearnew', cyearold, cyearnew
@@ -620,6 +626,8 @@ IF (disturb_snow ) stat(s) = NF_DEF_VAR(fileid, 'snow' , NF_FLOAT, 2, dimarray(1
 IF (disturb_snow ) s = s+1                                             
 IF (disturb_mslp ) stat(s) = NF_DEF_VAR(fileid, 'mslp' , NF_FLOAT, 2, dimarray(1:2), varID_mslp )
 IF (disturb_mslp ) s = s+1
+IF (disturb_qsr  ) stat(s) = NF_DEF_VAR(fileid, 'ipsr' , NF_FLOAT, 2, dimarray(1:2), varID_ipsr )
+IF (disturb_qsr  ) s = s+1
 
 ! perturbation for restart:
 IF (disturb_xwind) stat(s) = NF_DEF_VAR(fileid, 'restart_xwind', NF_FLOAT, 1, dimID_n2D, varID_restart_xwind)
@@ -641,7 +649,7 @@ IF (disturb_snow ) s = s+1
 IF (disturb_mslp ) stat(s) = NF_DEF_VAR(fileid, 'restart_mslp' , NF_FLOAT, 1, dimID_n2D, varID_restart_mslp )
 IF (disturb_mslp ) s = s+1
 
-! save stable ensemble spread (computed during month 16) and forgetting factor for restart:
+! save target ensemble spread (computed during month 16) and forgetting factor for restart:
 stat(s) = NF_DEF_VAR(fileid, 'restart_rmse'   , NF_FLOAT, 1, dimID_dummy, varID_restart_rmse)
 s = s+1
 stat(s) = NF_DEF_VAR(fileid, 'restart_forget' , NF_FLOAT, 1, dimID_dummy, varID_restart_forget)
@@ -709,6 +717,7 @@ SUBROUTINE write_atmos_stochasticity_output(istep)
     INTEGER :: varID_prec 
     INTEGER :: varID_snow 
     INTEGER :: varID_mslp
+    INTEGER :: varID_ipsr
     
     INTEGER :: posvec(2) ! write position in netCDF file
     INTEGER :: nmbvec(2) ! write dimension in netCDF file
@@ -719,7 +728,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity to netCD
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
+fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
@@ -746,6 +755,8 @@ IF (disturb_snow ) stat(s) = NF_INQ_VARID( fileid, 'snow' , varID_snow  )
 IF (disturb_snow ) s=s+1
 IF (disturb_mslp ) stat(s) = NF_INQ_VARID( fileid, 'mslp' , varID_mslp  )
 IF (disturb_mslp ) s=s+1
+IF (disturb_qsr  ) stat(s) = NF_INQ_VARID( fileid, 'ipsr' , varID_ipsr  )
+IF (disturb_qsr  ) s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) &
@@ -775,6 +786,8 @@ IF (disturb_snow)  stat(s) = NF_PUT_VARA_REAL( fileid, varid_snow,  posvec, nmbv
 IF (disturb_snow)  s=s+1                                                                              
 IF (disturb_mslp)  stat(s) = NF_PUT_VARA_REAL( fileid, varid_mslp,  posvec, nmbvec, REAL(atmdata(i_mslp ,:myDim_nod2D),4))
 IF (disturb_mslp)  s=s+1
+IF (disturb_qsr)   stat(s) = NF_PUT_VARA_REAL( fileid, varid_ipsr,  posvec, nmbvec, REAL(ipsr(:myDim_nod2D),4))
+IF (disturb_qsr)   s=s+1                                                                              
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
@@ -835,7 +848,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart 
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearnew//'.nc'
+fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
 stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
@@ -953,10 +966,10 @@ SUBROUTINE read_atmos_stochasticity_restart()
     INTEGER :: varID_restart_forget
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'atmos_'//mype_string//'_'//cyearold//'.nc'
+fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearold//'.nc'
 
 IF (mype_world==0) THEN
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric stochasticity at restart from netCDF:', fname_atm
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric perturbation from netCDF:', fname_atm
 END IF
 
 s=1
@@ -1032,6 +1045,69 @@ stat(1) = NF_CLOSE(fileid)
   IF (stat(1) /= NF_NOERR) THEN
      WRITE(*, *) 'NetCDF error in closing atmospheric stochasticity NetCDF file at restart'
   END IF
+
+END SUBROUTINE
+
+! ***********************************************
+! ***********************************************
+! *** instantaneous potential solar radiation ***
+! ***********************************************
+! ***********************************************
+
+
+SUBROUTINE compute_ipsr()
+
+USE mod_assim_pdaf, &
+   ONLY: mesh_fesom
+USE g_parsup, &
+   ONLY: myDim_nod2D,eDim_nod2D
+USE g_clock, &
+   !time in a day, unit: sec
+   ONLY: timenew, &
+   !day in a year, unit: day
+   daynew
+USE o_param, &
+   ONLY: pi
+USE mod_parallel_pdaf, &
+   ONLY: filterpe, COMM_couple
+   
+   
+   
+IMPLICIT NONE
+             
+REAL, ALLOCATABLE :: phi(:)   ! latitude (radians)
+REAL, ALLOCATABLE :: delta(:) ! solar declination (radians)
+REAL, ALLOCATABLE :: H(:)     ! hour angle from solar noon (radians)
+INTEGER :: i                  ! counter
+
+IF (filterpe) THEN
+
+   ! filter-pe ensemble member (0) deals with computations
+   allocate(phi(myDim_nod2D+eDim_nod2D),delta(myDim_nod2D+eDim_nod2D),H(myDim_nod2D+eDim_nod2D))
+   
+   ! latitude (radians)
+   phi = mesh_fesom%geo_coord_nod2D(2,1:myDim_nod2D+eDim_nod2D)
+   
+   ! solar declination (radians)
+   delta = -23.45/180.0*pi * COS(2.0*pi* (daynew+10.0)/365.25)
+   
+   ! hour angle from solar noon (radians; positive = west)
+   H = -timenew/24.0/60.0/60.0*2.0*pi+pi - mesh_fesom%geo_coord_nod2D(1,1:myDim_nod2D+eDim_nod2D)
+   
+   ! instantaneous potential solar radiation
+   ipsr = COS(phi)*COS(H)*COS(delta) + SIN(phi)*SIN(delta)
+   DO i = 1, myDim_nod2D+eDim_nod2D
+      ipsr(i) = max(ipsr(i),0.0)
+   ENDDO
+   
+   ! clean up:
+	deallocate(phi,delta,H)
+
+ENDIF
+
+! broadcasting from filter-pe (0) to all ensemble members
+CALL MPI_Bcast(ipsr, myDim_nod2D+eDim_nod2D, MPI_DOUBLE_PRECISION, 0, &
+   COMM_couple, MPIerr)
 
 END SUBROUTINE
 

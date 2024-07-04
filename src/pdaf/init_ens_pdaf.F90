@@ -9,7 +9,9 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE mod_assim_pdaf, &
        ONLY: file_init, path_init, read_inistate, file_inistate, varscale, &
        offset, ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, mesh_fesom, &
-       id, dim_fields, offset
+       id, dim_fields, offset, start_from_ENS_spinup
+  USE mod_nc_out_variables, &
+       ONLY: sfields
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, COMM_filter, abort_parallel
   USE g_PARSUP, &
@@ -19,6 +21,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE i_arrays, &
        ONLY: a_ice
   USE g_ic3d
+  USE recom_config, ONLY: tiny
 
   IMPLICIT NONE
 
@@ -40,7 +43,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! *** local variables ***
   INTEGER :: i, j, member, s, row, col, k ! Counters
   INTEGER :: rank                      ! Rank stored in init file
-  INTEGER :: dim_p_file                ! Local state dimension in init file
+  INTEGER :: dim_p_cov                 ! Local state dimension in covariance file
+  INTEGER,ALLOCATABLE :: offsets_cov(:)! Local field offsets in covariance file
   INTEGER :: fileid                    ! ID for NetCDF file
   INTEGER :: id_dim                    ! ID for dimension
   INTEGER :: id_state,id_svals,id_eof  ! IDs for fields
@@ -51,14 +55,29 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   REAL,ALLOCATABLE :: svals(:)         ! Singular values
   REAL,ALLOCATABLE :: omega(:,:)       ! Transformation matrix Omega
   CHARACTER(len=5)   :: mype_string    ! String for process rank
-  CHARACTER(len=150) :: file           ! File holding initial state estimate
+  CHARACTER(len=5)   :: col_string     ! String for ensemble member
+  CHARACTER(len=150) :: infile         ! File holding initial state estimate
   INTEGER :: dim_p_read
   LOGICAL :: runningmean               ! True: Initialize state vector from
                                        ! nc-file running mean
-  REAL, ALLOCATABLE :: ens_p_phy(:,:)  ! Ensemble states (physics part)
-  INTEGER :: dim_p_phy                 ! Local state dimension (physics part)
-  INTEGER :: idx1,idx2                 ! Indeces
-  INTEGER, ALLOCATABLE :: idxs(:)
+  REAL, ALLOCATABLE :: ens_p_per(:,:)  ! Ensemble states of to-be-perturbed fields
+  INTEGER :: o1,o2,f1,f2             ! Indeces
+  INTEGER, ALLOCATABLE :: idxs(:)      ! Field indeces of to-be-perturbed model fields
+  INTEGER :: nfields_per               ! Number of to-be-perturbed fields
+  
+  TYPE field_ids                       ! Field IDs for covariance matrix
+     INTEGER :: ssh
+     INTEGER :: u
+     INTEGER :: v
+     INTEGER :: temp
+     INTEGER :: salt
+     INTEGER :: DIC
+     INTEGER :: Alk
+     INTEGER :: DIN
+     INTEGER :: O2
+  END TYPE field_ids
+  
+  TYPE(field_ids) :: id_cov           ! ! Type variable holding field IDs in covariance matrix
   
   INTEGER :: n_treshold_ssh_p,  &
              n_treshold_temp_p, &
@@ -75,24 +94,65 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! no need to initialize the ensemble in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF This is a restart, skipping init_ens_pdaf'
+      CALL collect_state_PDAF(dim_p, state_p)
+  ELSEIF (start_from_ENS_spinup) THEN
+      IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF Starting from a perturbed ensemble, skipping init_ens_pdaf'
+      CALL collect_state_PDAF(dim_p, state_p)
   ELSE
 
 ! **********************
 ! *** INITIALIZATION ***
 ! **********************
 
-  dim_p_phy =   dim_fields(id% ssh   ) + &
-                dim_fields(id% u     ) + &
-                dim_fields(id% v     ) + &
-                dim_fields(id% w     ) + &
-                dim_fields(id% temp  ) + &
-                dim_fields(id% salt  ) + &
-                dim_fields(id% a_ice )
+  ! Fields in covariance input file:
+  id_cov% ssh  = 1
+  id_cov% u    = 2
+  id_cov% v    = 3
+  id_cov% temp = 4
+  id_cov% salt = 5
+  id_cov% DIC  = 6
+  id_cov% Alk  = 7
+  id_cov% DIN  = 8
+  id_cov% O2   = 9
   
-  dim_p_read = dim_p_phy
+  ! Positions of to-be-perturbed state fields in the full state vector:
+  nfields_per = 9
+  ALLOCATE(idxs(nfields_per))
+  idxs = (/ id%ssh,  &
+            id%u,    &
+            id%v,    &
+            id%temp, &
+            id%salt, &
+            id%DIC,  &
+            id%Alk,  &
+            id%DIN,  &
+            id%O2      /)
   
-  write(mype_string,'(i4.4)') mype_filter 
-
+  ! Dimension of to-be-perturbed vector is
+  ! sum of to to-be-perturbed field dimensions
+  dim_p_cov =  0
+  DO j=1, nfields_per
+     dim_p_cov = dim_p_cov + dim_fields(idxs(j))
+  END DO
+  
+  ! Offsets in covariance matrix:
+  ALLOCATE(offsets_cov(nfields_per))
+  offsets_cov(1) = 0
+  do j=2, nfields_per
+     offsets_cov(j) = offsets_cov(j-1) + dim_fields(idxs(j-1))
+  enddo
+  
+  if (mype_filter==0) then
+  do j=1,nfields_per
+      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7)') 'PE0-dim and offset of covariance field ', &
+                                              trim(sfields(idxs(j))%variable), &
+                                              dim_fields(idxs(j)), &
+                                              offsets_cov(j)
+  enddo
+  endif
+  
+  ! Print initialization message:
+  write(mype_string,'(i4.4)') mype_filter
   mype0: IF (mype_filter == 0) THEN
     WRITE (*, '(/a, 8x,a)') 'FESOM-PDAF', 'Generate state ensemble from covariance matrix'
     WRITE (*, '(a, 8x,a)') &
@@ -100,22 +160,20 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
     WRITE (*, '(a, 8x,a,i5)') 'FESOM-PDAF', '--- number of EOFs:',dim_ens-1
   END IF mype0
 
-  ! allocate memory for temporary fields
-  ALLOCATE(eof_p(dim_p_phy, dim_ens-1))
+  ! Allocate memory for temporary fields
+  ALLOCATE(eof_p(dim_p_cov, dim_ens-1))
   ALLOCATE(svals(dim_ens-1))
   ALLOCATE(omega(dim_ens, dim_ens-1))
 
 ! *************************************************
-! *** Initialize initial state and covar matrix ***
+! *** Initialize covar matrix                   ***
 ! *************************************************
  
-  file=Trim(path_init)//Trim(file_init)//TRIM(mype_string)//'.nc'
+  infile=Trim(path_init)//Trim(file_init)//TRIM(mype_string)//'.nc'
   
-  IF (mype_filter == 0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- Read initial state from file ', file
-
+  IF (mype_filter == 0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- Read initial state from file ', infile
   s = 1
-  stat(s) = NF_OPEN(file, NF_NOWRITE, fileid)
-
+  stat(s) = NF_OPEN(infile, NF_NOWRITE, fileid)
   DO i = 1,  s
      IF (stat(i) /= NF_NOERR) THEN
         WRITE(*, *) 'NetCDF error in opening initialization file, no.', i
@@ -127,7 +185,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   s = 1
   stat(s) = NF_INQ_DIMID(fileid, 'dim_state', id_dim)
   s = s + 1
-  stat(s) = NF_INQ_DIMLEN(fileid, id_dim, dim_p_file)
+  stat(s) = NF_INQ_DIMLEN(fileid, id_dim, dim_p_read)
 
   ! Read rank stored in file
   s = s + 1
@@ -140,7 +198,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
           WRITE(*, *) 'NetCDF error in reading dimensions from file, no.', i
   END DO
 
-  checkdim: IF (dim_p_read == dim_p_file .AND. rank >= dim_ens-1) THEN
+  checkdim: IF (dim_p_read == dim_p_cov .AND. rank >= dim_ens-1) THEN
 
      IF (mype_filter == 0) WRITE (*,'(8x,a)') '--- Read covariance matrix'
 
@@ -151,17 +209,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      stat(s) = NF_INQ_VARID(fileid, 'V', id_eof)
      s = s + 1
      stat(s) = NF_INQ_VARID(fileid, 'sigma', id_svals)
-
-     ! *** Read initialization information ***
-     
-     ! Ensemble mean state vector (state_p)
-     runningmean = .False.
-     IF (runningmean) THEN
-        s = s + 1
-        stat(s) = NF_GET_VAR_DOUBLE(fileid, id_state, state_p)
-     ELSE
-        CALL collect_state_PDAF(dim_p, state_p)
-     END IF
 
      ! EOF and singular values
      startv(2) = 1
@@ -186,16 +233,9 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
         WRITE(*,*) 'svals', svals
      END IF
 
-! **********************************************************
-! *** Set variance of diagnostic fields to zero          ***
-! **********************************************************
-
-! Is already zero (see gen_cov tool).
-! eof_p(offset-first-biogeo:end,1:dim_ens-1)=0
-
-! *****************************************
-! *** Generate ensemble of model states ***
-! *****************************************
+! ************************************************
+! *** Generate ensemble of perturbations       ***
+! ************************************************
 
      IF (dim_ens>1) THEN
         ! Only initialize Omega if ensemble size > 0
@@ -223,12 +263,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 
      ! *** state_ens = state + sqrt(dim_ens-1) eofV A^T ***
      
-     DO col = 1,dim_ens
-        ens_p(1:dim_p,col) = state_p(1:dim_p)
-     END DO
-     
-     allocate(ens_p_phy(dim_p_phy,dim_ens))
-     ens_p_phy   = 0.0
+     allocate(ens_p_per(dim_p_cov,dim_ens))
+     ens_p_per   = 0.0
 
      IF (dim_ens>1) THEN
         ! Only add perturbations if ensemble size > 0
@@ -236,59 +272,75 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
         fac = varscale * SQRT(REAL(dim_ens-1))
         
         ! =========          =====             =====        =========
-        ! ens_p_phy := fac * eof_p * transpose(Omega) + 0 * ens_p_phy
+        ! ens_p_per := fac * eof_p * transpose(Omega) + 0 * ens_p_per
 
-        CALL DGEMM('n', 't', dim_p_phy, dim_ens, dim_ens-1, &
-             fac, eof_p, dim_p_phy, Omega, dim_ens, 0.0, ens_p_phy, dim_p_phy) ! matrix operation
+        CALL DGEMM('n', 't', dim_p_cov, dim_ens, dim_ens-1, &
+             fac, eof_p, dim_p_cov, Omega, dim_ens, 0.0, ens_p_per, dim_p_cov) ! matrix operation
+
      END IF
-     
-   ! Add perturbation to physics part:
-   ALLOCATE(idxs(6))
-   idxs = (/ id%SSH, id%u, id%v, id%temp, id%salt, id%a_ice /)
    
-   DO j = 1,6
-      idx1 = offset(idxs(j))
-      idx2 = offset(idxs(j)) + dim_fields(idxs(j))
-      ens_p(idx1:idx2,:) = ens_p(idx1:idx2,:) + ens_p_phy(idx1:idx2,:)
+   ! Ensemble mean state from all initial model fields (state_p)
+   CALL collect_state_PDAF(dim_p, state_p)
+   DO col = 1,dim_ens
+      ens_p(1:dim_p,col) = state_p(1:dim_p)
+   END DO
+   
+   ! Add perturbation to to-be-perturbed part of full state vector:
+   DO j = 1,nfields_per
+      ! field offset in covariance matrix
+      o1 = offsets_cov(j)
+      o2 = offsets_cov(j) + dim_fields(idxs(j))
+      ! field offset in full state vector
+      f1 = offset(idxs(j))
+      f2 = offset(idxs(j)) + dim_fields(idxs(j))
+      ens_p(f1:f2,:) = ens_p(f1:f2,:) + ens_p_per(o1:o2,:)
+      
+!~       if (mype_filter==0) then
+!~       WRITE (*,'(1X,A15,1X,A5,1X,I7,1X,I7,1X,A15,1X,I7,1X,I7)') 'Index in covar: ', &
+!~                                                                  trim(sfields(idxs(j))%variable), &
+!~                                                                  o1, o2, &
+!~                                                                  'Index in state: ', &
+!~                                                                  f1, f2
+!~       endif
+      
    ENDDO
+   
+   DEALLOCATE(ens_p_per)
 
    ! *** Treshold values ***
    treshold: DO col= 1,dim_ens
       
       ! surface fields
       n_treshold_ssh_p = 0
-      n_treshold_sic_p = 0
-      Do i= 1,myDim_nod2D
+      fields_surf: Do i= 1,myDim_nod2D
           ! SSH: set to +/- 1.7m where larger than that
           ! (note: control simulation has minimum of -1.34 in Jan 2016; and -1.67 to 1.56 full-year max.)
           IF ( ens_p(i+offset(id% ssh),col) < -1.7 ) n_treshold_ssh_p = n_treshold_ssh_p + 1 ! counter
           IF ( ens_p(i+offset(id% ssh),col) > +1.7 ) n_treshold_ssh_p = n_treshold_ssh_p + 1 ! counter
           ens_p(i+offset(id% ssh),col)=min(max(ens_p(i+offset(id% ssh),col),-1.7),1.7)       ! apply correction
-          ! SIC: set to null where negative
-          !      set to 1 where larger than that
-          IF ( ens_p(i+offset(id% a_ice),col) < 0.0 ) n_treshold_sic_p = n_treshold_sic_p + 1 ! counter
-          IF ( ens_p(i+offset(id% a_ice),col) > 1.0 ) n_treshold_sic_p = n_treshold_sic_p + 1 ! counter
-          ens_p(i+offset(id% a_ice),col)= max(ens_p(i+offset(id% a_ice),col),0.)              ! apply correction
-          ens_p(i+offset(id% a_ice),col)= min(ens_p(i+offset(id% a_ice),col),1.)              ! apply correction
-      END DO
+      END DO fields_surf
       
       ! write out correction counters for SSH and sea ice:
       CALL MPI_Allreduce(n_treshold_ssh_p, n_treshold_ssh_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-      CALL MPI_Allreduce(n_treshold_sic_p, n_treshold_sic_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
       IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - SSH  - Number of field corrections: ', n_treshold_ssh_g, ' on member ', col
-      IF (mype_filter == 0) WRITE(*,*) 'FESOM-PDAF init_ens_pdaf - SIC  - Number of field corrections: ', n_treshold_sic_g, ' on member ', col
       
       ! 3D fields
       n_treshold_temp_p = 0
       n_treshold_salt_p = 0
-      DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
+      fields_3D: DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
           ! temp: set to -1.895 Celsius where smaller than that
           IF ( ens_p(i+offset(id% temp),col) < -1.895D0) n_treshold_temp_p = n_treshold_temp_p + 1 ! counter
           ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)               ! apply correction
           ! salt: set to null where negative
           IF ( ens_p(i+offset(id% salt),col) < 0.0) n_treshold_salt_p = n_treshold_salt_p + 1      ! counter
           ens_p(i+offset(id% salt),col)= max(ens_p(i+offset(id% salt),col),0.)                     ! apply correction
-      END DO
+          ! BGC: set to "tiny" where negative
+          ens_p(i+ offset(id% O2     ),col) = max(tiny     ,ens_p(i+ offset(id% O2     ),col))
+          ens_p(i+ offset(id% DIN    ),col) = max(tiny*1e-3,ens_p(i+ offset(id% DIN    ),col))
+          ens_p(i+ offset(id% DIC    ),col) = max(tiny*1e-3,ens_p(i+ offset(id% DIC    ),col))
+          ens_p(i+ offset(id% Alk    ),col) = max(tiny*1e-3,ens_p(i+ offset(id% Alk    ),col))
+          
+      END DO fields_3D
       
       ! write out correction counters for temperature and salinity:
       CALL MPI_Allreduce(n_treshold_temp_p, n_treshold_temp_g, 1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
@@ -311,7 +363,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! *** clean up ***
 ! ****************
 
-  DEALLOCATE(svals, eof_p, omega)
+  DEALLOCATE(svals, eof_p, omega, idxs, offsets_cov)
   ENDIF ! this_is_pdaf_restart
 
 END SUBROUTINE init_ens_pdaf

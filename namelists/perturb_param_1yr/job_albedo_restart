@@ -29,10 +29,10 @@ info "Let's get started."
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name='perturb_param_test'
+exp_name='perturb_more_params'
 start_dir=${PWD}
 # run_dir=/albedo/scratch/user/frbunsen/${exp_name}/work
-run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
+run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
 # Settings:
 NENS=40          # number of ensembles --> namelist.fesom.pdaf

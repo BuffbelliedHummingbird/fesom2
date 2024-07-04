@@ -18,7 +18,7 @@ include ../../../../make.arch/cray_mpiifort_impi.h
 ######################################################
 
 OBJ_GENOBS = generate_obs.o
-OBJ_COVAR  = generate_covar_v2.o
+OBJ_COVAR  = generate_covar_v3.o
 
 ### Name of Executables ##############################################
 

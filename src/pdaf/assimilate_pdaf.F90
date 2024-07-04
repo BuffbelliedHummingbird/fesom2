@@ -95,7 +95,9 @@ SUBROUTINE assimilate_pdaf(istep)
      CALL  abort_parallel()
   END IF
   
-  ! Compute daily mean
+  ! *********************************
+  ! *** Compute daily mean        ***
+  ! *********************************
   
   IF ( .not. ALLOCATED(state_p)) ALLOCATE(state_p(dim_state_p))
   
@@ -113,7 +115,7 @@ SUBROUTINE assimilate_pdaf(istep)
            IF (filterpe) THEN
               CALL MPI_REDUCE(MPI_IN_PLACE,timemean,dim_state_p,MPI_DOUBLE_PRECISION,MPI_SUM,0,COMM_COUPLE,mpierror)
            ELSE
-              CALL MPI_REDUCE(timemean,timemean,dim_state_p,MPI_DOUBLE_PRECISION,MPI_SUM,0,COMM_COUPLE,mpierror)
+              CALL MPI_REDUCE(timemean    ,timemean,dim_state_p,MPI_DOUBLE_PRECISION,MPI_SUM,0,COMM_COUPLE,mpierror)
            ENDIF
         ENDIF
 

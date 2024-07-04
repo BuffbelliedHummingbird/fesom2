@@ -41,7 +41,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE mod_nc_out_routines, &
        ONLY: netCDF_out
   USE mod_nc_out_variables, &
-       ONLY: write_pos_da, write_ens
+       ONLY: write_pos_da, write_ens, nfields_3D, ids_3D
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
@@ -83,7 +83,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! Called by: PDAF_X_update       (as U_prepoststep)
 
 ! *** Local variables ***
-  INTEGER :: i, j,k, member, ed    ! Counters
+  INTEGER :: i, j,k, member, ed     ! Counters
+  INTEGER :: nlayermax              ! Max number of FESOM layers
   REAL :: invdim_ens                ! Inverse ensemble size
   REAL :: invdim_ensm1              ! Inverse of ensemble size minus 1 
   REAL :: rmse_p(nfields)                ! PE-local ensemble spread 3D
@@ -171,7 +172,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   rmse_p = 0.0
   rmse   = 0.0
   invdim_ens = 1.0 / REAL(dim_ens)  
-  invdim_ensm1 = 1.0 / REAL(dim_ens-1)  
+  invdim_ensm1 = 1.0 / REAL(dim_ens-1)
 
 
 ! ****************************
@@ -205,36 +206,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF (mype_filter == 0) &
             WRITE(*, *) 'FESOM-PDAF', &
             '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
-   
-     
-   ! *** Analysed horizontal velocities must be less than a doubling of forecast velocity ***
-!~    count_lim_absvel_p = 0
-   
-!~    DO member = 1, dim_ens
-!~    DO i = 1, dim_fields(id% u)
-   
-!~       ! absolute velocities
-!~       tmp_a =   ens_p(i+ offset(id% u),member) * ens_p(i+ offset(id% u),member) &
-!~               + ens_p(i+ offset(id% v),member) * ens_p(i+ offset(id% v),member)
-                    
-!~       tmp_f =   state_fcst(i+ offset(id% u),member) * state_fcst(i+ offset(id% u),member) &
-!~               + state_fcst(i+ offset(id% v),member) * state_fcst(i+ offset(id% v),member)
-                    
-!~       IF (tmp_a > 4.0*tmp_f) THEN
-!~          !ens_p(i+ offset(id% u),member) = state_fcst(i+ offset(id% u),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
-!~          !ens_p(i+ offset(id% v),member) = state_fcst(i+ offset(id% v),member) * 2.0 ! *tmp_f/max(tmp_a,0.0001)
-         
-!~          !count_lim_absvel_p(member) = count_lim_absvel_p(member)+1
-         
-!~       END IF
-!~    END DO
-!~    END DO
-   
-!~    CALL MPI_Allreduce(count_lim_absvel_p, count_lim_absvel_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-!~    IF (mype_filter == 0) &
-!~             WRITE(*, fmt) 'FESOM-PDAF', &
-!~             '--- Velocity updates limited to doubling: ', (count_lim_absvel_g(member), member = 1, dim_ens)
-   
    
    ! *** SSH state update must be <= 2*sigma
    count_lim_ssh_p = 0
@@ -412,6 +383,26 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Compute estimate RMS ensemble spread for different fields ***
 ! *****************************************************************
 
+  ! Compute standard deviation of ensemble at grid points
+  REAL, ALLOCATABLE :: stdev_p(:)
+  ALLOCATE(stdev_p(dim_p))
+  
+  nlayermax  = mesh_fesom%nl-1 ! fesom layers
+  
+  REAL, ALLOCATABLE :: stdevprof_p(:)
+  ALLOCATE(stdevprof_p(nlayermax*))
+  
+  stdev_p(:) = 0.0
+  DO member=1, dim_ens
+     DO j=1, dim_p
+        stdev_p(j) = ((ens_p(j,member) - state_p(j)) * (ens_p(j,member) - state_p(j)))
+     ENDDO ! j=1, dim_p
+  ENDDO ! member=1, dim_ens
+  stddev_p = SQRT(invdim_ens * stdev_p)
+  
+  ! Compute pe-local horizontal mean of STD for 3D-fields
+  
+
   ! *** Compute local sampled variances of ensemble state vector ***
 
   var_p(:) = 0.0D0
@@ -423,8 +414,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   END DO
   var_p(:) = invdim_ensm1 * var_p(:)
 
-  ! IF ((step - step_null) < 0) ! if analysis: compute STD
+  IF ((step - step_null) < 0) then ! if forecast: compute STD --> saved and used at next analysis step.
   std_p = SQRT(var_p)
+  endif
 
   ! *** Regional mean over (1) pe-local fields and (2) global field ***
   ! (1)
@@ -453,9 +445,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   END IF
   
 ! *******************************
-! *** Reset forgetting factor ***
+! *** Adapt forgetting factor ***
 ! *******************************
-  
+!
+! Forgetting factor increases after the start of the assimilation (days_since_DAstart).
+! In case of model restarts:
+!    -  days_since_DAstart is set by slurm-job-script
+!    -  current forgetting factor and "longterm" temperature ensemble spread is read from atmos-perturbation file
   
   IF (step<0) THEN
   ! forecast phase   
@@ -488,32 +484,33 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        CALL PDAF_reset_forget(forget)
        IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget to ', forget, ' at day ', days_since_DAstart
      
-     ! during month 17, save temperature ensemble spread (note: it is written with atmospheric perturbation to restart files)
+     ! during month 17, save temperature ensemble spread and from now on, use this RMSE at target value:
+     ! (note: it is written with atmospheric perturbation to restart files)
      ELSEIF ((days_since_DAstart >= 485) .and. (days_since_DAstart <= 516)) THEN
        stable_rmse = stable_rmse + rmse(id %temp)/31
        IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' Saving ensemble spread to adapt forget at day ', days_since_DAstart
        
-     ! after month 17, the forgetting factor is reset whenever the ensemble spread becomes too large or small:
+     ! after month 17, the forgetting factor is reset whenever the ensemble spread becomes larger or smaller than target value:
      ELSEIF ((days_since_DAstart >= 516) .and. (rmse(id%temp)> stable_rmse+0.0025)) THEN
        forget=1.00
        CALL PDAF_reset_forget(forget)
        IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget ',&
                                       'Current RMSE: ', rmse(id %temp),&
-                                      ' stable RMSE: ', stable_rmse,&
-                                      ' new forget: ', forget
+                                      ' stable RMSE: ', stable_rmse, &
+                                      ' new forget: ',  forget
        
      ELSEIF ((days_since_DAstart >= 516) .and. (rmse(id%temp)< stable_rmse-0.0025)) THEN
        forget=0.99
        CALL PDAF_reset_forget(forget)
        IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' resetting forget ',&
                                       'Current RMSE: ', rmse(id %temp),&
-                                      ' stable RMSE: ', stable_rmse,&
+                                      ' target RMSE: ', stable_rmse,&
                                       ' new forget: ', forget
        
      ELSE
        IF (mype_filter==0) write(*,*) 'FESOM-PDAF', ' not resetting forget ',&
                                       'Current RMSE: ', rmse(id %temp),&
-                                      ' stable RMSE: ', stable_rmse,&
+                                      ' target RMSE: ', stable_rmse,&
                                       'forget', forget
      
      ENDIF ! (whether to reset forgetting factor)
@@ -528,7 +525,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Compute statistics for effective observation dimensions ***
 ! ***************************************************************
 
-  IF (loctype==1 .AND. step>0) THEN
+  IF (loctype==1 .AND. ((step - step_null) > 0)) THEN
 
      max_eff_dim_obs = 0.0
      min_eff_dim_obs = 1.0e16
@@ -676,7 +673,7 @@ END IF ! write_monthly_mean
 ! ********************
 ! *** finishing up ***
 ! ********************
-  IF ((step - step_null) < 0) DEALLOCATE(var_p)
-  IF ((step - step_null) > 0) DEALLOCATE(std_p)
+  IF ((step - step_null) <  0) DEALLOCATE(var_p)       ! forecast (keep std_p; it is used at next analysis step)
+  IF ((step - step_null) >= 0) DEALLOCATE(var_p,std_p)
 
 END SUBROUTINE prepoststep_pdaf

@@ -75,7 +75,8 @@ USE mod_atmos_ens_stochasticity, &
            disturb_prec, disturb_snow, disturb_mslp, &
            atmos_stochasticity_ON, write_atmos_st
 USE mod_assim_pdaf, &
-     ONLY: step_null, this_is_pdaf_restart
+     ONLY: step_null, this_is_pdaf_restart, &
+           start_from_ENS_spinup
 #endif
 
   implicit none
@@ -281,8 +282,8 @@ INTEGER                 :: atmstoch_fileid
 #ifdef use_PDAF
 IF (atmos_stochasticity_ON) THEN
 
-call add_atmos_ens_stochasticity(istep)
-IF (write_atmos_st) call write_atmos_stochasticity_output(istep) ! (To-Do: Not tested for restarts.)
+call add_atmos_ens_stochasticity(istep)                          ! passing FESOM's istep (0 at each restart)
+IF (write_atmos_st) call write_atmos_stochasticity_output(istep) ! (to-do: not tested for starts in the middle of year)
 
 ENDIF ! atmos_stochasticity_ON
 #endif
