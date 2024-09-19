@@ -1,0 +1,64 @@
+! tracer 1  ,    0 = temperature
+! tracer 2  ,    1 = salinity
+! tracer 3  , 1001 = DIN
+! tracer 4  , 1002 = DIC
+! tracer 5  , 1003 = Alk
+! tracer 6  , 1004 = PhyN 
+! tracer 7  , 1005 = PhyC   
+! tracer 8  , 1006 = PhyChl
+! tracer 9  , 1007 = DetN
+! tracer 10 , 1008 = DetC
+! tracer 11 , 1009 = HetN
+! tracer 12 , 1010 = HetC
+! tracer 13 , 1011 = DON
+! tracer 14 , 1012 = DOC
+! tracer 15 , 1013 = DiaN
+! tracer 16 , 1014 = DiaC
+! tracer 17 , 1015 = DiaChl
+! tracer 18 , 1016 = DiaSi
+! tracer 19 , 1017 = DetSi 
+! tracer 20 , 1018 = DSi     
+! tracer 21 , 1019 = Fe
+! tracer 22 , 1020 = PhyCalc
+! tracer 23 , 1021 = DetCalc
+! tracer 24 , 1022 = Oxy
+! tracer 25 , 1023 = Zoo2N
+! tracer 26 , 1024 = Zoo2C
+! tracer 27 , 1025 = DetZ2N                              
+! tracer 28 , 1026 = DetZ2C                                    
+! tracer 29 , 1027 = DetZ2Si                            
+! tracer 30 , 1028 = DetZ2Calc
+
+! alkalinity:
+
+! tracer 5  = Alk
+
+! carbon pools:
+
+! tracer 4  = DIC
+
+! living biomass:
+! tracer 7  = PhyC  
+! tracer 12 = HetC
+! tracer 22 = PhyCalc
+! tracer 16 = DiaC
+! tracer 26 = Zoo2C
+
+! detritus and DOC:
+! tracer 28 = DetZ2C                                    
+! tracer 30 = DetZ2Calc
+! tracer 10 = DetC
+! tracer 23 = DetCalc
+! tracer 14 = DOC
+
+! --> 4 variables:
+! for each of them:
+!   advection
+!       hor
+!       vert
+!   diffusion
+!   (sinking)
+!   (benthos & nitrogen ss)
+
+! NPP (respiration minus photosynthesis)
+! remineralization of DOC and dissolution of detritus

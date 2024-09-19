@@ -25,11 +25,13 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE mod_parallel_pdaf, &
        ONLY: mype_world
   USE mod_assim_pdaf, &
-       ONLY: offset, mesh_fesom, id, dim_fields
+       ONLY: offset, mesh_fesom, nlmax, id, dim_fields, dim_state_p
+  USE mod_nc_out_variables, &
+       ONLY: sfields
   USE g_PARSUP, &
        ONLY: mydim_nod2d, myDim_elem2D
   USE o_arrays, &
-       ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1
+       ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1, MLD2
   USE REcoM_GloVar, &
        ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export, PistonVelocity, alphaCO2
   USE i_arrays, &
@@ -37,7 +39,9 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE mod_parallel_pdaf, &
        ONLY: task_id, mype_model
   USE g_clock, &
-       ONLY: daynew
+       ONLY: daynew, timenew
+  USE PDAF_mod_filter, &
+       ONLY: assim_flag
 
 
   IMPLICIT NONE
@@ -51,11 +55,39 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
 ! Called by: init_ens_PDAF
 
 ! Local variables
-  INTEGER :: i, k, b         ! Counter
+  INTEGER :: i, k, b, s         ! Counter
   
 ! Debugging:
+  LOGICAL            :: debugmode
+  LOGICAL            :: write_debug
+  INTEGER            :: fileID_debug
   CHARACTER(len=5)   :: mype_string
   CHARACTER(len=3)   :: day_string
+  CHARACTER(len=5)   :: tim_string
+  
+  ! Set debug output
+  debugmode    = .false.
+  IF (.not. debugmode) THEN
+     write_debug = .false.
+  ELSE
+     IF (mype_world>0) THEN
+        write_debug = .false.
+     ELSE
+        IF (assim_flag==0) THEN
+          write_debug = .false.
+        ELSE
+          write_debug = .true.
+        ENDIF
+     ENDIF
+  ENDIF
+    
+  IF (write_debug) THEN
+         ! print state vector
+         WRITE(day_string, '(i3.3)') daynew
+         WRITE(tim_string, '(i5.5)') int(timenew)
+         fileID_debug=10
+         open(unit=fileID_debug, file='collect_state_pdaf_'//day_string//'_'//tim_string//'.txt', status='unknown')
+  ENDIF
 
 ! *************************************************
 ! *** Initialize state vector from model fields ***
@@ -75,86 +107,167 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
 
    ! SSH (1)
    DO i = 1, myDim_nod2D
-      state_p(i + offset(id% SSH)) = eta_n(i)
+      s = i + offset(id% SSH)
+      state_p(s) = eta_n(i)
+      IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%SSH)%variable, s, eta_n(i)
    END DO
 
    ! u (2) and v (3) velocities (interpolated on nodes)
    
    DO i = 1, myDim_nod2D
-      DO k =1, mesh_fesom%nl-1
-         state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) = Unode(1, k, i) ! u
-         state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) = Unode(2, k, i) ! v
+      DO k =1, nlmax
+         ! u
+         s = (i-1) * (nlmax) + k + offset(id% u)
+         state_p(s) = Unode(1, k, i)
+         IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%u)%variable, s, Unode(1, k, i)
+         ! v
+         s = (i-1) * (nlmax) + k + offset(id% v)
+         state_p(s) = Unode(2, k, i)
+         IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%v)%variable, s, Unode(2, k, i)
       END DO
    END DO
    
    ! w velocity (4)
    DO i = 1, myDim_nod2D
-      DO k = 1, mesh_fesom%nl
-         state_p((i-1) * mesh_fesom%nl + k + offset(id% w)) = wvel(k, i)
+      DO k = 1, nlmax
+         s = (i-1) * nlmax + k + offset(id% w)
+         state_p(s) = wvel(k, i)
+         IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%w)%variable, s, wvel(k, i)
       END DO
    END DO
    
    ! temp (5) and salt (6)
    DO i = 1, myDim_nod2D
-      DO k = 1, mesh_fesom%nl-1
-         state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp)) = tr_arr(k, i, 1) ! T
-         state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt)) = tr_arr(k, i, 2) ! S
+      DO k = 1, nlmax
+         ! T
+         s = (i-1) * (nlmax) + k + offset(id% temp)
+         state_p(s) = tr_arr(k, i, 1) ! T
+         IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%temp)%variable, s, tr_arr(k, i, 1)
+         ! S
+         s = (i-1) * (nlmax) + k + offset(id% salt)
+         state_p(s) = tr_arr(k, i, 2) ! S
+         IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%salt)%variable, s, tr_arr(k, i, 2)
       END DO
    END DO
    
-   ! sea-ice concentration (7) and MLD1 (8)
+   ! sea-ice concentration (7) and MLD1 (8 and 9)
    DO i = 1, myDim_nod2D
-      state_p(i + offset(id% a_ice)) = a_ice(i)
-      state_p(i + offset(id% MLD1 )) = MLD1(i)
+      ! a_ice
+      s = i + offset(id% a_ice)
+      state_p(s) = a_ice(i)
+      IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%a_ice)%variable, s, a_ice(i)
+      ! MLD1
+      s = i + offset(id% MLD1)
+      state_p(s) = MLD1(i)
+      IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%MLD1)%variable, s, MLD1(i)
+      ! MLD2
+      s = i + offset(id% MLD2)
+      state_p(s) = MLD2(i)
+      IF (write_debug) WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%MLD2)%variable, s, MLD2(i)
    END DO
    
    ! biogeochemical tracers
    DO i = 1, myDim_nod2D
         ! 3D-fields
-        DO k = 1, mesh_fesom%nl-1
+        DO k = 1, nlmax
+           s = (i-1) * (nlmax) + k
+           
            ! nanophytoplankton/calcifiers:
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl)) = tr_arr(k, i,  8) ! small phytoplankton chlorophyll
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyN))   = tr_arr(k, i,  6) ! intracellular conc of nitrogen in small phytoplankton
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyC))   = tr_arr(k, i,  7) ! intracellular conc of carbon in small phytoplankton
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))= tr_arr(k, i, 22) ! small phytoplankton CaCO2
+           state_p(s + offset(id% PhyChl)) = tr_arr(k, i,  8) ! small phytoplankton chlorophyll
+           state_p(s + offset(id% PhyN))   = tr_arr(k, i,  6) ! intracellular conc of nitrogen in small phytoplankton
+           state_p(s + offset(id% PhyC))   = tr_arr(k, i,  7) ! intracellular conc of carbon in small phytoplankton
+           state_p(s + offset(id% PhyCalc))= tr_arr(k, i, 22) ! small phytoplankton CaCO2
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PhyChl )%variable, s + offset(id% PhyChl) , tr_arr(k, i,  8)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PhyN   )%variable, s + offset(id% PhyN)   , tr_arr(k, i,  6)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PhyC   )%variable, s + offset(id% PhyC)   , tr_arr(k, i,  7)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PhyCalc)%variable, s + offset(id% PhyCalc), tr_arr(k, i, 22)
+           
            ! diatoms:
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl)) = tr_arr(k, i, 17) ! diatom chlorophyll
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaN))   = tr_arr(k, i, 15) ! intracellular conc of nitrogen in diatoms
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaC))   = tr_arr(k, i, 16) ! intracellular conc of carbon in diatoms
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaSi))  = tr_arr(k, i, 18) ! intracellular conc of Si in diatoms
+           state_p(s + offset(id% DiaChl)) = tr_arr(k, i, 17) ! diatom chlorophyll
+           state_p(s + offset(id% DiaN))   = tr_arr(k, i, 15) ! intracellular conc of nitrogen in diatoms
+           state_p(s + offset(id% DiaC))   = tr_arr(k, i, 16) ! intracellular conc of carbon in diatoms
+           state_p(s + offset(id% DiaSi))  = tr_arr(k, i, 18) ! intracellular conc of Si in diatoms
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DiaChl )%variable, s + offset(id% DiaChl), tr_arr(k, i, 17)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DiaN   )%variable, s + offset(id% DiaN)  , tr_arr(k, i, 15)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DiaC   )%variable, s + offset(id% DiaC)  , tr_arr(k, i, 16)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DiaSi  )%variable, s + offset(id% DiaSi) , tr_arr(k, i, 18)
+           
            ! small, fast-growing zooplankton
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1C))   = tr_arr(k, i, 12) ! intracellular conc of carbon in zooplankton 1
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1N))   = tr_arr(k, i, 11) ! intracellular conc of nitrogen in zooplankton 1
+           state_p(s + offset(id% Zo1C))   = tr_arr(k, i, 12) ! intracellular conc of carbon in zooplankton 1
+           state_p(s + offset(id% Zo1N))   = tr_arr(k, i, 11) ! intracellular conc of nitrogen in zooplankton 1
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Zo1C )%variable, s + offset(id% Zo1C), tr_arr(k, i, 12)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Zo1N )%variable, s + offset(id% Zo1N), tr_arr(k, i, 11)
+           
            ! macrozooplankton/antarctic krill:
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2C))   = tr_arr(k, i, 26) ! intracellular conc of carbon in zooplankton 2
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2N))   = tr_arr(k, i, 27) ! intracellular conc of nitrogen in zooplankton 2
+           state_p(s + offset(id% Zo2C))   = tr_arr(k, i, 26) ! intracellular conc of carbon in zooplankton 2
+           state_p(s + offset(id% Zo2N))   = tr_arr(k, i, 25) ! intracellular conc of nitrogen in zooplankton 2
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Zo2C )%variable, s + offset(id% Zo2C), tr_arr(k, i, 26)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Zo2N )%variable, s + offset(id% Zo2N), tr_arr(k, i, 25)
+           
            ! dissolved tracers
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC))    = tr_arr(k, i,  4) ! dissolved inorganic carbon
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC))    = tr_arr(k, i, 14) ! dissolved organic carbon
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk))    = tr_arr(k, i,  5) ! alkalinity
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN))    = tr_arr(k, i,  3) ! dissolved inorganic nitrogen
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON))    = tr_arr(k, i, 13) ! dissolved organic nitrogen
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2))     = tr_arr(k, i, 24) ! oxygen
+           state_p(s + offset(id% DIC))    = tr_arr(k, i,  4) ! dissolved inorganic carbon
+           state_p(s + offset(id% DOC))    = tr_arr(k, i, 14) ! dissolved organic carbon
+           state_p(s + offset(id% Alk))    = tr_arr(k, i,  5) ! alkalinity
+           state_p(s + offset(id% DIN))    = tr_arr(k, i,  3) ! dissolved inorganic nitrogen
+           state_p(s + offset(id% DON))    = tr_arr(k, i, 13) ! dissolved organic nitrogen
+           state_p(s + offset(id% O2))     = tr_arr(k, i, 24) ! oxygen
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DIC )%variable, s + offset(id% DIC), tr_arr(k, i,  4)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DOC )%variable, s + offset(id% DOC), tr_arr(k, i, 14)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Alk )%variable, s + offset(id% Alk), tr_arr(k, i,  5)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DIN )%variable, s + offset(id% DIN), tr_arr(k, i,  3)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DON )%variable, s + offset(id% DON), tr_arr(k, i, 13)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%O2  )%variable, s + offset(id% O2) , tr_arr(k, i, 24)
+          
+           ! detritus
+           state_p(s + offset(id% DetC))   = tr_arr(k, i, 10) ! detritus carbon
+           state_p(s + offset(id% DetCalc))= tr_arr(k, i, 23) ! detritus calcite
+           state_p(s + offset(id% DetSi))  = tr_arr(k, i, 19) ! detritus silicate
+           state_p(s + offset(id% DetN))   = tr_arr(k, i,  9) ! detritus nitrogen
+           
+           state_p(s + offset(id% Det2C))   = tr_arr(k, i, 28)
+           state_p(s + offset(id% Det2Calc))= tr_arr(k, i, 30)
+           state_p(s + offset(id% Det2Si))  = tr_arr(k, i, 29)
+           state_p(s + offset(id% Det2N))   = tr_arr(k, i, 27)
+           
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DetC    )%variable, s + offset(id% DetC   ), tr_arr(k, i, 10)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DetCalc )%variable, s + offset(id% DetCalc), tr_arr(k, i, 23)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DetSi   )%variable, s + offset(id% DetSi  ), tr_arr(k, i, 19)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%DetN    )%variable, s + offset(id% DetN   ), tr_arr(k, i,  9)
+           
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Det2C    )%variable, s + offset(id% Det2C   ), tr_arr(k, i, 28)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Det2Calc )%variable, s + offset(id% Det2Calc), tr_arr(k, i, 30)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Det2Si   )%variable, s + offset(id% Det2Si  ), tr_arr(k, i, 29)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%Det2N    )%variable, s + offset(id% Det2N   ), tr_arr(k, i, 27)
+          
            ! others:
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR))    = PAR3D(k, i)      ! photosynthetically active radiation
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC))   = tr_arr(k, i, 10) ! detritus carbon
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn))   = diags3D(k, i, 1) ! net primary production small phytoplankton
-           state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd))   = diags3D(k, i, 2) ! net primary production diatoms
+           state_p(s + offset(id% PAR))    = PAR3D(k, i)      ! photosynthetically active radiation
+           state_p(s + offset(id% NPPn))   = diags3D(k, i, 1) ! net primary production small phytoplankton
+           state_p(s + offset(id% NPPd))   = diags3D(k, i, 2) ! net primary production diatoms
            
-           
-!~                tr_arr(:,:,25) = tiny                   ! tracer 25 = Zoo2N
-!~     tr_arr(:,:,26) = tiny * Redfield        ! tracer 26 = Zoo2C
-!~     tr_arr(:,:,27) = tiny                   ! tracer 27 = DetZ2N                              
-!~     tr_arr(:,:,28) = tiny                   ! tracer 28 = DetZ2C                                    
-!~     tr_arr(:,:,29) = tiny                   ! tracer 29 = DetZ2Si                            
-!~     tr_arr(:,:,30) = tiny                   ! tracer 30 = DetZ2Calc 
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PAR  )%variable, s + offset(id% PAR) , PAR3D(k, i)     
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%NPPn )%variable, s + offset(id% NPPn), diags3D(k, i, 1)
+           if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%NPPd )%variable, s + offset(id% NPPd), diags3D(k, i, 2)
+
         ENDDO
+        
         ! 2D-fields
         state_p(i + offset(id% pCO2s ))    = GloPCO2surf(i)    ! surface ocean partial pressure CO2
         state_p(i + offset(id% CO2f ))     = GloCO2flux(i)     ! CO2 flux (from atmosphere into ocean)
         state_p(i + offset(id% export))    = export(i)         ! Export through particle sinking
         state_p(i + offset(id% alphaCO2))  = alphaCO2(i)       ! Solubility of CO2
         state_p(i + offset(id% PistonVel)) = PistonVelocity(i) ! Air-sea gas transfer velocity
+
+        if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%pCO2s    )%variable, i + offset(id% pCO2s )   , GloPCO2surf(i)    
+        if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%CO2f     )%variable, i + offset(id% CO2f )    , GloCO2flux(i)     
+        if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%export   )%variable, i + offset(id% export)   , export(i)         
+        if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%alphaCO2 )%variable, i + offset(id% alphaCO2) , alphaCO2(i)       
+        if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6)') sfields(id%PistonVel)%variable, i + offset(id% PistonVel), PistonVelocity(i) 
 
    ENDDO
    
@@ -174,6 +287,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
 !~    state_p(offset(id% DetC ) +1 : offset(id% DetC )+dim_fields(id% DetC )) + &
 !~    state_p(offset(id% DOC  ) +1 : offset(id% DOC  )+dim_fields(id% DOC  ))
    
-   
+   ! Close debug-file
+   IF (write_debug) close(fileID_debug)
   
 END SUBROUTINE collect_state_pdaf

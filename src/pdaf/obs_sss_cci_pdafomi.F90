@@ -54,6 +54,9 @@ MODULE obs_sss_cci_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l, & ! Declaration of observation data types
        PDAFomi_set_debug_flag
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps        ! Variables for coupled data assimilation
+
 
   IMPLICIT NONE
   SAVE
@@ -80,6 +83,7 @@ MODULE obs_sss_cci_pdafomi
 !~   REAL, ALLOCATABLE :: mean_ice_p (:)    ! Mean ice concentration for observation exclusion: IMPORT FROM SST obs. module!
   REAL, ALLOCATABLE :: mean_sss_cci_p (:)    ! Mean value for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_sss_cci(:) ! Localization radius array
+  REAL, ALLOCATABLE :: ivariance_obs_g(:)    ! global-earth inverse observation variances
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -177,7 +181,7 @@ CONTAINS
          ONLY: PDAFomi_gather_obs
     USE mod_assim_pdaf, &
          ONLY: offset, twin_experiment, use_global_obs, id, mesh_fesom, &
-         local_range, srange
+         local_range, srange, nlmax
     USE mod_assim_pdaf, &
          ONLY: delt_obs_ocn
     USE mod_parallel_pdaf, &
@@ -403,7 +407,7 @@ CONTAINS
 			  
 			  ! index for state vector
 			  thisobs%id_obs_p(1, i_obs) = &
-			  (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% salt)
+			  (i-1) * (nlmax) + 1 + offset(id% salt)
 			  
 			  ! index for all_obs_p and surface nod2d vector, respectively. 
 			  obs_include_index(i_obs) = i
@@ -505,6 +509,14 @@ CONTAINS
     CALL PDAFomi_gather_obs(thisobs, dim_obs_p, obs_p, ivariance_obs_p, ocoord_n2d_p, &
          thisobs%ncoord, lradius_sss_cci, dim_obs)
 
+    ! Global inverse variance array (thisobs%ivar_obs_f)
+    ! has been gathered, but, in case of coupled DA / "double-sweep",
+    ! it will be reset during each sweep. Thus, save a copy:
+    if (n_sweeps>1) then
+       if (allocated(ivariance_obs_g)) deallocate(ivariance_obs_g)
+       allocate(ivariance_obs_g(dim_obs))
+       ivariance_obs_g = thisobs%ivar_obs_f
+    end if
 
 ! *********************************************************
 ! *** For twin experiment: Read synthetic observations  ***
@@ -586,9 +598,10 @@ CONTAINS
 
     ! Include PDAFomi function
     USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l
-
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
+    ! Number of domains per sweep:
+    USE g_parsup, ONLY: myDim_nod2D
 
     IMPLICIT NONE
 
@@ -599,16 +612,12 @@ CONTAINS
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
 
 
-! **********************************************
-! *** Initialize local observation dimension ***
-! **********************************************
-
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
           CALL get_adaptive_lradius_pdaf(domain_p, lradius_sss_cci, loc_radius_sss_cci)
        END IF
-       lradius_sss_cci = loc_radius_sss_cci(domain_p)
+       lradius_sss_cci = loc_radius_sss_cci(modulo(domain_p,myDim_nod2D))
 
 !~        if (mype_filter==44) CALL PDAFomi_set_debug_flag(1)
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l
@@ -619,9 +628,34 @@ CONTAINS
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: lradius_sss_cci', lradius_sss_cci
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: sradius_sss_cci', sradius_sss_cci
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: dim_obs_l', dim_obs_l
+
+       ! ************************************************************
+       ! *** Adapt observation error for coupled DA (double loop) ***
+       ! ************************************************************
+    
+       if (n_sweeps>1) then
+       
+          ! Physics observations sweep.
+          if (domain_p==1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: leave ivar_obs_f for SSS-CCI as it is'
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for SSS-CCI to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+          end if
+       end if ! n_sweeps
+
+       ! **********************************************
+       ! *** Initialize local observation dimension ***
+       ! **********************************************
+
+
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_sss_cci, sradius_sss_cci, dim_obs_l)
-!~        CALL PDAFomi_set_debug_flag(0)
        
     END IF
 

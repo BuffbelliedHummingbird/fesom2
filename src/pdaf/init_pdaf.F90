@@ -30,7 +30,7 @@ SUBROUTINE init_pdaf()
        DA_couple_type, incremental, type_forget, &
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, eff_dim_obs, loc_radius, loctype, &
-       twin_experiment, dim_obs_max, use_global_obs, mesh_fesom, &
+       twin_experiment, dim_obs_max, use_global_obs, mesh_fesom, nlmax, &
        offset_glob, dim_fields_glob, nfields, id, &
        phymin, phymax, bgcmin, bgcmax, &
        path_atm_cov, this_is_pdaf_restart, timemean, &
@@ -39,7 +39,10 @@ SUBROUTINE init_pdaf()
        ! Debugging:
        debug_id_depth, debug_id_nod2, ens_member_debug, &
        ! EN4 profile data processing:
-       proffiles_o, path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix
+       proffiles_o, path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
+       ! Weak coupling of FESOM-REcoM:
+       n_sweeps, type_sweep, assimilateBGC, assimilatePHY, &
+       cda_phy, cda_bio
   ! BGC parameter perturbation:
   USE mod_perturbation_pdaf, &
        ONLY: perturb_scale, perturb_parameters, perturb_lognormal, &
@@ -88,9 +91,12 @@ SUBROUTINE init_pdaf()
   USE PDAFomi, &
        ONLY: PDAFomi_get_domain_limits_unstr
   USE mod_nc_out_routines, &
-       ONLY: netCDF_init
+       ONLY: netCDF_init, netCDF_STD_init
   USE mod_nc_out_variables, &
        ONLY: write_ens, init_sfields, sfields
+  USE mod_carbon_fluxes_diags, &
+       ONLY: init_carbonfluxes_diags_out
+
 
   IMPLICIT NONE
 
@@ -111,6 +117,8 @@ SUBROUTINE init_pdaf()
   REAL    :: timenow           ! Not used in this implementation
   INTEGER :: show_cpus_for_barrier
   INTEGER :: iseed(4)          ! Seed for random number generation to perturb BGC parameters
+  character(len=6) :: cdaval   ! Flag whether strongly-coupled DA is done
+  
   REAL    :: dummy
 
   ! External subroutines
@@ -213,7 +221,6 @@ SUBROUTINE init_pdaf()
   sst_exclude_ice = .true.  ! Exclude SST observations at point with sea ice and T>0
   sst_exclude_diff = 0.0     ! Exclude SST observations if difference from ensemble mean is >sst_exclude_diff
   prof_exclude_diff = 0.0    ! Exclude profile T observations if difference from ensemble mean is >prof_exclude_diff
-!~   use_global_obs = .true.
   use_global_obs = 1 ! Use global full obs. (1) or full obs. limited to process domains (0)
   twin_experiment = .false.  ! Whether to run a twin experiment assimilating synthetic observations
   dim_obs_max = 80000        ! Expected maximum number of observations for synthetic obs.
@@ -267,10 +274,52 @@ disturb_mslp=.true.
 
 ! *** Read PDAF configuration from namelist ***
   CALL read_config_pdaf()
+  
+! **************************************************************************
+! *** Configuration for FESOM-REcom coupling: Define local analysis loop ***
+! **************************************************************************
 
-! ***********************************************************************
-! ***   For weakly-coupled assimilation re-define filter communicator ***
-! ***********************************************************************
+    cda_phy = 'weak'
+    cda_bio = 'weak'
+
+    if ((assimilateBGC) .and. (assimilatePHY)) then
+       ! Observations of both physics and BGC are assimilated
+       n_sweeps = 2
+       type_sweep(1) = 'phy'
+       type_sweep(2) = 'bio'
+    else
+       ! Less than two observation categories
+       n_sweeps = 1
+       if (assimilatePHY) then
+          ! Only observations of physics are assimilated
+          type_sweep(1) = 'phy'
+       elseif (assimilateBGC) then
+          ! Only observations of BGC are assimilated
+          type_sweep(1) = 'bio'
+       else
+          ! No observation active (free run); set sweep to physics
+          type_sweep(1) = 'phy'
+       end if
+    end if
+
+    if (mype_world == 0) then
+       write (*,'(a,2x,a)') 'FESOM-PDAF', '*** Setup for coupled DA FESOM-REcoM ***'
+       write (*, '(a,4x,a,i5)') 'FESOM-PDAF', 'Number of local analysis sweeps', n_sweeps
+       write (*, '(a,4x,a)') 'FESOM-PDAF','Type of sweeps:'
+       do i = 1, n_sweeps
+          if (trim(type_sweep(i))=='phy') then
+             cdaval = cda_phy
+          else
+             cdaval = cda_bio
+          end if
+          write (*, '(a,8x,a,i3,3x,a,a,3x,a,a)') &
+               'FESOM-PDAF', 'sweep', i, ' observation type: ', trim(type_sweep(i)), 'CDA: ', trim(cdaval)
+       end do
+    end if
+
+! ***********************************************************************************************
+! ***   For weakly-coupled assimilation of FESOM and atmosphere re-define filter communicator ***
+! ***********************************************************************************************
 
   IF (DA_couple_type == 0) THEN
 
@@ -306,41 +355,57 @@ disturb_mslp=.true.
   id% temp   =  5 ! temperature
   id% salt   =  6 ! salinity
   id% a_ice  =  7 ! sea-ice concentration
-  id% MLD1   =  8 ! mixed layer depth (criterion after Large et al., 1997)
-  id% PhyChl =  9 ! chlorophyll-a small phytoplankton
-  id% DiaChl = 10 ! chlorophyll-a diatoms
-  id% DIC    = 11
-  id% DOC    = 12
-  id% Alk    = 13
-  id% DIN    = 14
-  id% DON    = 15
-  id% O2     = 16
-  id% pCO2s  = 17
-  id% CO2f   = 18
-  id% PhyN   = 19
-  id% PhyC   = 20
-  id% DiaN   = 21
-  id% DiaC   = 22
-  id% DiaSi  = 23
-  id% PAR    = 24
-  id% NPPn   = 25
-  id% NPPd   = 26
-  id% Zo1C   = 27
-  id% DetC   = 28
-  id% PhyCalc= 29
-  id% export = 30
-  id% alphaCO2  = 31
-  id% PistonVel = 32
-  id% Zo1N   = 33
-  id% Zo2C   = 34
-  id% Zo2N   = 35
+  id% MLD1   =  8 ! boundary layer depth (criterion after Large et al., 1997)
+  id% MLD2   =  9 ! mixed layer depth (density treshold)
   
-  nfields = 35
+  id% PhyChl = 10 ! chlorophyll-a small phytoplankton
+  id% DiaChl = 11 ! chlorophyll-a diatoms
+  
+  id% DIC    = 12 ! dissolved tracers
+  id% DOC    = 13
+  id% Alk    = 14
+  id% DIN    = 15
+  id% DON    = 16
+  id% O2     = 17
+  
+  id% pCO2s     = 18 ! surface carbon diags
+  id% CO2f      = 19
+  id% alphaCO2  = 20
+  id% PistonVel = 21
+    
+  id% PhyN   = 22 ! small phyto
+  id% PhyC   = 23
+  id% PhyCalc= 24
+  
+  id% DiaN   = 25 ! diatoms
+  id% DiaC   = 26
+  id% DiaSi  = 27
+  
+  id% Zo1N   = 28 ! zooplankton
+  id% Zo2C   = 29
+  id% Zo2N   = 30
+  id% Zo1C   = 31
+  
+  id% DetC      = 32 ! detritus
+  id% DetCalc   = 33
+  id% DetSi     = 34
+  id% DetN      = 35
+  id% Det2C     = 36
+  id% Det2Calc  = 37
+  id% Det2Si    = 38
+  id% Det2N     = 39
+
+  id% PAR    = 40 ! diags
+  id% NPPn   = 41
+  id% NPPd   = 42
+  id% export = 43
+  
+  nfields = 43
 
   phymin = 1
-  phymax = 8
+  phymax = 9
   
-  bgcmin = 9
+  bgcmin = 10
   bgcmax = nfields
   
   CALL init_sfields()
@@ -375,21 +440,24 @@ disturb_mslp=.true.
 !  mesh_fesom%nl:    Maximum number of fesom levels (1 is air-sea interface)
 !  mesh_fesom%nl-1:  Maximum number of fesom layers (1 is surface layer, 0-5m)
 
+  nlmax = mesh_fesom%nl - 2 ! CORE2 mesh: deepest wet cells at mesh_fesom%nl-2
+
   ALLOCATE(dim_fields(nfields))
-  dim_fields(id% ssh   )   = myDim_nod2D                     ! 1 SSH
-  dim_fields(id% u     )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 2 u (interpolated on nodes)
-  dim_fields(id% v     )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 3 v (interpolated on nodes)
-  dim_fields(id% w     )   = myDim_nod2D* mesh_fesom%nl      ! 4 w
-  dim_fields(id% temp  )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 5 temp
-  dim_fields(id% salt  )   = myDim_nod2D*(mesh_fesom%nl-1)   ! 6 salt
-  dim_fields(id% a_ice )   = myDim_nod2D                     ! 7 a_ice
+  dim_fields(id% ssh   )   = myDim_nod2D           ! 1 SSH
+  dim_fields(id% u     )   = myDim_nod2D*(nlmax)   ! 2 u (interpolated on nodes)
+  dim_fields(id% v     )   = myDim_nod2D*(nlmax)   ! 3 v (interpolated on nodes)
+  dim_fields(id% w     )   = myDim_nod2D*(nlmax)   ! 4 w
+  dim_fields(id% temp  )   = myDim_nod2D*(nlmax)   ! 5 temp
+  dim_fields(id% salt  )   = myDim_nod2D*(nlmax)   ! 6 salt
+  dim_fields(id% a_ice )   = myDim_nod2D           ! 7 a_ice
   dim_fields(id% MLD1  )   = myDim_nod2D
+  dim_fields(id% MLD2  )   = myDim_nod2D
   
   ! dim_fields biogeochemistry:
   do b=bgcmin,bgcmax
     ! 3D fields:
     if     (sfields(b)% ndims == 2) then
-      dim_fields(b) = myDim_nod2D*(mesh_fesom%nl-1)
+      dim_fields(b) = myDim_nod2D*(nlmax)
     ! surface fields:
     elseif (sfields(b)% ndims == 1) then
       dim_fields(b) = myDim_nod2D
@@ -405,6 +473,7 @@ disturb_mslp=.true.
   offset(id% salt  )   = offset(id% salt  -1) + dim_fields(id% salt  -1)  ! 6 salt
   offset(id% a_ice )   = offset(id% a_ice -1) + dim_fields(id% a_ice -1)  ! 7 a_ice
   offset(id% MLD1  )   = offset(id% MLD1  -1) + dim_fields(id% MLD1  -1)
+  offset(id% MLD2  )   = offset(id% MLD2  -1) + dim_fields(id% MLD2  -1)
   
   ! offset biogeochemistry
   do b=bgcmin,bgcmax
@@ -431,20 +500,21 @@ disturb_mslp=.true.
 ! *******************************************************
 
 	ALLOCATE(dim_fields_glob(nfields))
-	dim_fields_glob(id% ssh   ) = mesh_fesom%nod2D                        ! SSH
-	dim_fields_glob(id% u     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! u (interpolated on nodes)
-	dim_fields_glob(id% v     ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! v (interpolated on nodes)
-	dim_fields_glob(id% w     ) = mesh_fesom%nod2D *  mesh_fesom%nl        ! w
-	dim_fields_glob(id% temp  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! temp
-	dim_fields_glob(id% salt  ) = mesh_fesom%nod2D * (mesh_fesom%nl-1)    ! salt
-	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D                        ! a_ice
+	dim_fields_glob(id% ssh   ) = mesh_fesom%nod2D              ! SSH
+	dim_fields_glob(id% u     ) = mesh_fesom%nod2D * (nlmax)    ! u (interpolated on nodes)
+	dim_fields_glob(id% v     ) = mesh_fesom%nod2D * (nlmax)    ! v (interpolated on nodes)
+	dim_fields_glob(id% w     ) = mesh_fesom%nod2D * (nlmax)    ! w
+	dim_fields_glob(id% temp  ) = mesh_fesom%nod2D * (nlmax)    ! temp
+	dim_fields_glob(id% salt  ) = mesh_fesom%nod2D * (nlmax)    ! salt
+	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D              ! a_ice
 	dim_fields_glob(id% MLD1  ) = mesh_fesom%nod2D
+	dim_fields_glob(id% MLD2  ) = mesh_fesom%nod2D
 	
 	! dim_fields biogeochemistry:
     do b=bgcmin,bgcmax
       ! 3D fields:
       if     (sfields(b)% ndims == 2) then
-        dim_fields_glob(b) = mesh_fesom%nod2D * (mesh_fesom%nl-1)
+        dim_fields_glob(b) = mesh_fesom%nod2D * (nlmax)
       ! surface fields:
       elseif (sfields(b)% ndims == 1) then
         dim_fields_glob(b) = mesh_fesom%nod2D
@@ -460,6 +530,7 @@ disturb_mslp=.true.
 	offset_glob(id% salt  ) = offset_glob(id% salt  -1) + dim_fields_glob(id% salt  -1)         ! salt
 	offset_glob(id% a_ice ) = offset_glob(id% a_ice -1) + dim_fields_glob(id% a_ice -1)         ! a_ice
 	offset_glob(id% MLD1  ) = offset_glob(id% MLD1  -1) + dim_fields_glob(id% MLD1  -1)
+	offset_glob(id% MLD2  ) = offset_glob(id% MLD2  -1) + dim_fields_glob(id% MLD2  -1)
 	
 	! offset_glob biogeochemistry
     do b=bgcmin,bgcmax
@@ -473,6 +544,7 @@ disturb_mslp=.true.
       WRITE(*,*) 'init_pdaf - myDim_elem2D:      ', myDim_elem2D
 	  WRITE(*,*) 'init_pdaf - mesh_fesom%elem2D: ', mesh_fesom%elem2D
 	  WRITE(*,*) 'init_pdaf - mesh_fesom%nl:     ', mesh_fesom%nl
+	  WRITE(*,*) 'init_pdaf - nlmax:             ', nlmax
 	  WRITE(*,*) 'init_pdaf - dim_state:         ', dim_state
 	  WRITE(*,*) 'init_pdaf - dim_state_p:       ', dim_state_p
   endif
@@ -878,6 +950,8 @@ ENDIF
   IF ((.not. this_is_pdaf_restart) .or. (daynew==1)) THEN
     CALL netCDF_init('mean')
     IF (write_ens) CALL netCDF_init('memb')
+    CALL netCDF_STD_init()
+    CALL init_carbonfluxes_diags_out()
   ENDIF
 
 
@@ -912,10 +986,6 @@ ENDIF
   IF (filtertype==100 .and. mype_world==0) THEN
         WRITE(*,*) "Synthetic observations not yet implemented in this version - stopping!"
         CALL abort_parallel
-!~      CALL init_file_syn_obs(dim_obs_max, file_syntobs_sst,  1)
-!~      CALL init_file_syn_obs(dim_obs_max, file_syntobs_sss,  1)
-!~      CALL init_file_syn_obs(dim_obs_max, file_syntobs_ssh,  1)
-!~      CALL init_file_syn_obs(dim_obs_max, file_syntobs_prof, 1)
   END IF
 
 

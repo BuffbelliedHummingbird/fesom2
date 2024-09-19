@@ -54,6 +54,8 @@ MODULE obs_TSprof_EN4_pdafomi
        ONLY: mype_filter          ! Rank of filter process
   USE PDAFomi, &
        ONLY: obs_f, obs_l         ! Declaration of observation data types
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps             ! Variables for coupled data assimilation
  
   IMPLICIT NONE
   SAVE
@@ -79,7 +81,7 @@ MODULE obs_TSprof_EN4_pdafomi
 
   REAL, ALLOCATABLE :: mean_temp_p (:)      ! mean temperature for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_prof(:)   ! Localization radius array for profiles
-
+  REAL, ALLOCATABLE :: ivariance_obs_g(:)           ! global-earth inverse observation variances
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -178,7 +180,7 @@ CONTAINS
     USE mod_assim_pdaf, &
          ONLY: offset, twin_experiment, use_global_obs, id, &
                delt_obs_ocn, mesh_fesom, &
-               local_range, srange
+               local_range, srange, nlmax
     USE mod_parallel_pdaf, &
          ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER
     USE g_parsup, &
@@ -436,7 +438,7 @@ CONTAINS
           
           DO i = 1, cnt_temp
              DO k = 1, 3
-                thisobs%id_obs_p(k,i) = (mesh_fesom% nl-1) * (n2d_temp(k,i)-1) + nl1_temp(i) + offset(id%temp)
+                thisobs%id_obs_p(k,i) = (nlmax) * (n2d_temp(k,i)-1) + nl1_temp(i) + offset(id%temp)
              END DO
           END DO
         
@@ -489,7 +491,7 @@ CONTAINS
           ! *** plus offset here instead of in obs_op_f_pdaf
           DO i = cnt_temp + 1, cnt_temp + cnt_sal
              DO k = 1, 3
-                thisobs%id_obs_p(k,i) = (mesh_fesom% nl-1) * (n2d_sal(k,i-cnt_temp)-1) + nl1_sal(i-cnt_temp) + offset(id%salt)
+                thisobs%id_obs_p(k,i) = (nlmax) * (n2d_sal(k,i-cnt_temp)-1) + nl1_sal(i-cnt_temp) + offset(id%salt)
              END DO
           END DO
  
@@ -655,16 +657,15 @@ CONTAINS
 
     CALL PDAFomi_gather_obs(thisobs, dim_obs_p, obs_p, ivariance_obs_p, ocoord_n2d_p, &
          thisobs%ncoord, lradius_prof, dim_obs)
-
-
-! *********************************************************
-! *** For twin experiment: Read synthetic observations  ***
-! *********************************************************
-
-    ! This only works with use_full_obs=.true.
-    IF (twin_experiment) THEN
-       CALL read_syn_obs(file_syntobs_prof, dim_obs, thisobs%obs_f, 0, 1-mype_filter)
-    END IF
+         
+    ! Global inverse variance array (thisobs%ivar_obs_f)
+    ! has been gathered, but, in case of coupled DA / "double-sweep",
+    ! it will be reset during each sweep. Thus, save a copy:
+    if (n_sweeps>1) then
+       if (allocated(ivariance_obs_g)) deallocate(ivariance_obs_g)
+       allocate(ivariance_obs_g(dim_obs))
+       ivariance_obs_g = thisobs%ivar_obs_f
+    end if
 
 
 ! ********************
@@ -742,9 +743,10 @@ CONTAINS
     ! Include PDAFomi function
     USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l,&
                        PDAFomi_set_debug_flag
-
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
+    ! Number of domains per sweep:
+    USE g_parsup, ONLY: myDim_nod2D
 
     IMPLICIT NONE
 
@@ -761,13 +763,34 @@ CONTAINS
 !~     CALL PDAFomi_set_debug_flag(0)
 !~   ENDIF
 
-! **********************************************
-! *** Initialize local observation dimension ***
-! **********************************************
     IF (thisobs%doassim == 1) THEN
     
        lradius_prof = loc_radius_prof(domain_p)
        
+       ! ************************************************************
+       ! *** Adapt observation error for coupled DA (double loop) ***
+       ! ************************************************************
+    
+       if (n_sweeps>1) then
+       
+          ! Physics observations sweep.
+          if (domain_p==1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: leave ivar_obs_f for SST as it is'
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for SST to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+          end if
+       end if ! n_sweeps
+
+       ! **********************************************
+       ! *** Initialize local observation dimension ***
+       ! **********************************************
+
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_prof, sradius_prof, dim_obs_l)
     END IF

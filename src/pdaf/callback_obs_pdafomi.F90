@@ -53,6 +53,12 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
        ONLY: assim_o_DIC_glodap, init_dim_obs_DIC_glodap
   USE obs_Alk_glodap_pdafomi, &
        ONLY: assim_o_Alk_glodap, init_dim_obs_Alk_glodap
+  USE obs_pco2_SOCAT_pdafomi, &
+       ONLY: assim_o_pCO2_SOCAT, init_dim_obs_pCO2_SOCAT
+  USE obs_O2_comf_pdafomi, &
+       ONLY: assim_o_O2_comf, init_dim_obs_O2_comf
+  USE obs_N_comf_pdafomi, &
+       ONLY: assim_o_N_comf, init_dim_obs_N_comf
        
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
@@ -71,10 +77,12 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   INTEGER :: dim_obs_prof    ! Full number of subsurface profile observations
   INTEGER :: dim_obs_en4ana  ! Full number of EN4 analysis profile observations
   
-  INTEGER :: dim_obs_chl_cci ! Full number of chl (CCI) observations
+  INTEGER :: dim_obs_chl_cci ! Full number of TYPE observations
   INTEGER :: dim_obs_DIC_glodap
   INTEGER :: dim_obs_Alk_glodap
-
+  INTEGER :: dim_obs_pCO2_socat
+  INTEGER :: dim_obs_O2_comf
+  INTEGER :: dim_obs_N_comf
 
 ! *********************************************
 ! *** Initialize full observation dimension ***
@@ -90,6 +98,10 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   dim_obs_chl_cci = 0
   dim_obs_DIC_glodap = 0
   dim_obs_Alk_glodap = 0
+  dim_obs_pCO2_socat = 0
+  dim_obs_O2_comf = 0
+  dim_obs_N_comf = 0
+
 
   ! Call observation specific routines
   ! The routines are independent, so it is not relevant
@@ -107,11 +119,15 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   IF (assim_o_chl_cci)      CALL init_dim_obs_chl_cci(step, dim_obs_chl_cci)
   IF (assim_o_DIC_glodap)   CALL init_dim_obs_DIC_glodap(step, dim_obs_DIC_glodap)
   IF (assim_o_Alk_glodap)   CALL init_dim_obs_Alk_glodap(step, dim_obs_Alk_glodap)
+  IF (assim_o_pCO2_SOCAT)   CALL init_dim_obs_pCO2_SOCAT(step, dim_obs_pCO2_socat)
+  IF (assim_o_O2_comf)      CALL init_dim_obs_O2_comf(step, dim_obs_O2_comf)
+  IF (assim_o_N_comf)       CALL init_dim_obs_N_comf(step, dim_obs_N_comf)
 
   
 
   dim_obs =   dim_obs_sst + dim_obs_sss + dim_obs_sss_cci + dim_obs_ssh + dim_obs_prof + dim_obs_en4ana &
-            + dim_obs_chl_cci + dim_obs_DIC_glodap + dim_obs_Alk_glodap
+            + dim_obs_chl_cci + dim_obs_DIC_glodap + dim_obs_Alk_glodap + dim_obs_pCO2_socat &
+            + dim_obs_O2_comf + dim_obs_N_comf
 
 
   ! *** Generate profile observation files ***
@@ -149,6 +165,9 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   USE obs_chl_cci_pdafomi, ONLY: obs_op_chl_cci
   USE obs_DIC_glodap_pdafomi, ONLY: obs_op_DIC_glodap
   USE obs_Alk_glodap_pdafomi, ONLY: obs_op_Alk_glodap
+  USE obs_pco2_SOCAT_pdafomi, ONLY: obs_op_pCO2_SOCAT
+  USE obs_O2_comf_pdafomi, ONLY: obs_op_O2_comf
+  USE obs_N_comf_pdafomi, ONLY: obs_op_N_comf
   
   USE mod_parallel_pdaf, ONLY: mype_filter
   USE mod_assim_pdaf, ONLY: mype_debug, node_debug
@@ -180,7 +199,9 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   CALL obs_op_chl_cci   (dim_p, dim_obs, state_p, ostate)
   CALL obs_op_DIC_glodap(dim_p, dim_obs, state_p, ostate)
   CALL obs_op_Alk_glodap(dim_p, dim_obs, state_p, ostate)
-
+  CALL obs_op_pCO2_SOCAT(dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_O2_comf   (dim_p, dim_obs, state_p, ostate)
+  CALL obs_op_N_comf    (dim_p, dim_obs, state_p, ostate)
 
 END SUBROUTINE obs_op_pdafomi
 
@@ -203,7 +224,9 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   USE obs_chl_cci_pdafomi, ONLY: init_dim_obs_l_chl_cci
   USE obs_DIC_glodap_pdafomi, ONLY: init_dim_obs_l_DIC_glodap
   USE obs_Alk_glodap_pdafomi, ONLY: init_dim_obs_l_Alk_glodap
-
+  USE obs_pco2_SOCAT_pdafomi, ONLY: init_dim_obs_l_pCO2_SOCAT
+  USE obs_o2_comf_pdafomi, ONLY: init_dim_obs_l_o2_comf
+  USE obs_n_comf_pdafomi, ONLY: init_dim_obs_l_n_comf
 
   ! General modules:
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
@@ -244,5 +267,8 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_chl_cci(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_DIC_glodap(domain_p, step, dim_obs, dim_obs_l)
    CALL init_dim_obs_l_Alk_glodap(domain_p, step, dim_obs, dim_obs_l)
+   CALL init_dim_obs_l_pCO2_SOCAT(domain_p, step, dim_obs, dim_obs_l)
+   CALL init_dim_obs_l_o2_comf   (domain_p, step, dim_obs, dim_obs_l)
+   CALL init_dim_obs_l_n_comf    (domain_p, step, dim_obs, dim_obs_l)
 
 END SUBROUTINE init_dim_obs_l_pdafomi

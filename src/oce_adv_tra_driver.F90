@@ -141,7 +141,7 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
     ! do horizontal tracer advection, in case of FCT high order solution 
     SELECT CASE(trim(tra_adv_hor))
         CASE('MUSCL')
-            ! compute the untidiffusive horizontal flux (init_zero=.false.: input is the LO horizontal flux computed above)
+            ! compute the antidiffusive horizontal flux (init_zero=.false.: input is the LO horizontal flux computed above)
             call adv_tra_hor_muscl(ttfAB, uv,   do_Xmoment, mesh, opth,  adv_flux_hor, init_zero=do_zero_flux)
         CASE('MFCT')
              call adv_tra_hor_mfct(ttfAB, uv,   do_Xmoment, mesh, opth,  adv_flux_hor, init_zero=do_zero_flux)
@@ -162,7 +162,7 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
     ! do vertical tracer advection, in case of FCT high order solution 
     SELECT CASE(trim(tra_adv_ver))
         CASE('QR4C')
-            ! compute the untidiffusive vertical flux   (init_zero=.false.:input is the LO vertical flux computed above)
+            ! compute the antidiffusive vertical flux   (init_zero=.false.:input is the LO vertical flux computed above)
             call adv_tra_ver_qr4c (ttfAB, pwvel,   do_Xmoment, mesh, optv, adv_flux_ver, init_zero=do_zero_flux)
         CASE('CDIFF')
             call adv_tra_ver_cdiff(ttfAB, pwvel,   do_Xmoment, mesh,       adv_flux_ver, init_zero=do_zero_flux)

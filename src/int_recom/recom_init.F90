@@ -19,6 +19,7 @@ subroutine recom_init(mesh)
     use o_ARRAYS
     use g_PARSUP
     use o_MESH
+
     implicit none
 #include "netcdf.inc"
  
@@ -333,6 +334,7 @@ if (1) then
             end do
          end do
 end if
+
 !---------------------------------------------------------------------------------------------------------
 if(mype==0) write(*,*),'Tracers have been initialized as spinup from WOA/glodap netcdf files'
 

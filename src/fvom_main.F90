@@ -43,6 +43,7 @@ use cpl_driver
 #ifdef use_PDAF
  use timer, only: timeit, time_tot
  use mod_assim_pdaf, only: mesh_fesom
+ use mod_carbon_fluxes_diags, only: carbonfluxes_diags_output_monthly
 #endif
 
 IMPLICIT NONE
@@ -107,6 +108,9 @@ type(t_mesh),   save,  target  :: mesh
     call clock_init           ! read the clock file 
     call get_run_steps(nsteps)
     call mesh_setup(mesh)
+#ifdef use_PDAF
+    mesh_fesom => mesh
+#endif
 
     if (mype==0) write(*,*) 'FESOM mesh_setup... complete'
     
@@ -213,7 +217,6 @@ type(t_mesh),   save,  target  :: mesh
 #ifdef use_PDAF
     call timeit(2, 'old')
     call timeit(3, 'new')
-    mesh_fesom => mesh
     call compute_vel_nodes(mesh)
     CALL init_PDAF()
     call timeit(3, 'old')
@@ -232,7 +235,9 @@ type(t_mesh),   save,  target  :: mesh
         print *, achar(27)//'[32m'  //'____________________________________________________________'//achar(27)//'[0m'
         print *, achar(27)//'[7;32m'//' --> FESOM STARTS TIME LOOP                                 '//achar(27)//'[0m'
     end if
+    !=====================
     !___MODEL TIME STEPPING LOOP________________________________________________
+    !=====================
     if (use_global_tides) then
        call foreph_ini(yearnew, month)
     end if
@@ -285,6 +290,7 @@ type(t_mesh),   save,  target  :: mesh
         end if
         call before_oce_step(mesh) ! prepare the things if required
 #if defined (__recom)
+        !___compute BGC fluxes and update BGC tracers
         if (use_REcoM) then
            call recom(mesh)
 !           if (mype==0 .and. n==1)  print *, achar(27)//'[46;1m'//'     --> call RECOM         '//achar(27)//'[0m'
@@ -295,6 +301,7 @@ type(t_mesh),   save,  target  :: mesh
         t2 = MPI_Wtime()
         
         !___model ocean step____________________________________________________
+        !___a.o. tracer transport
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call oce_timestep_ale'//achar(27)//'[0m'
         call oce_timestep_ale(n, mesh)
         t3 = MPI_Wtime()
@@ -316,6 +323,7 @@ type(t_mesh),   save,  target  :: mesh
         CALL assimilate_PDAF(mstep)
         CALL timeit(7, 'old')
         t4b = MPI_Wtime()
+        CALL carbonfluxes_diags_output_monthly(mstep)
 #endif
 
         !___prepare output______________________________________________________

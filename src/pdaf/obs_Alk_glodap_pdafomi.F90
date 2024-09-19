@@ -54,6 +54,9 @@ MODULE obs_Alk_glodap_pdafomi
        ONLY: mype_filter, writepe ! Rank of filter process
   USE PDAFomi, &
        ONLY: obs_f, obs_l         ! Declaration of observation data types
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps             ! Variables for coupled data assimilation
+
  
   IMPLICIT NONE
   SAVE
@@ -75,6 +78,8 @@ MODULE obs_Alk_glodap_pdafomi
 
   REAL, ALLOCATABLE :: mean_Alk_p (:)             ! ensemble mean for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_Alk_glodap(:)   ! localization radius array
+  
+  REAL, ALLOCATABLE :: ivariance_obs_g(:)           ! global-earth inverse observation variances
 
 
 ! ***********************************************************************
@@ -173,7 +178,7 @@ CONTAINS
          ONLY: PDAFomi_gather_obs, PDAFomi_set_debug_flag
     USE mod_assim_pdaf, &
          ONLY: offset, use_global_obs, id, &
-               mesh_fesom, &
+               mesh_fesom, nlmax, &
                local_range, srange
     USE mod_parallel_pdaf, &
          ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER
@@ -363,9 +368,9 @@ CONTAINS
       ! 1 if observations are at grid points; >1 if interpolation is required
       allocate(thisobs%id_obs_p(3,dim_obs_p))
       DO i = 1, dim_obs_p
-        thisobs%id_obs_p(1,i) = (mesh_fesom% nl-1) * (nod1_p(i)-1) + nl_p(i) + offset(id%Alk)
-        thisobs%id_obs_p(2,i) = (mesh_fesom% nl-1) * (nod2_p(i)-1) + nl_p(i) + offset(id%Alk)
-        thisobs%id_obs_p(3,i) = (mesh_fesom% nl-1) * (nod3_p(i)-1) + nl_p(i) + offset(id%Alk)
+        thisobs%id_obs_p(1,i) = (nlmax) * (nod1_p(i)-1) + nl_p(i) + offset(id%Alk)
+        thisobs%id_obs_p(2,i) = (nlmax) * (nod2_p(i)-1) + nl_p(i) + offset(id%Alk)
+        thisobs%id_obs_p(3,i) = (nlmax) * (nod3_p(i)-1) + nl_p(i) + offset(id%Alk)
         
       ! *** exclude observations at dry nodes ***
       ! number of layers at nodes considering bottom topography: mesh_fesom% nlevels_nod2D
@@ -401,6 +406,15 @@ CONTAINS
     IF (mype_filter == 0) &
         WRITE (*, '(a, 5x, a, i)') 'FESOM-PDAF', &
         '--- Full GLODAP Alk observations have been gathered; dim_obs is ', dim_obs
+        
+    ! Global inverse variance array (thisobs%ivar_obs_f)
+    ! has been gathered, but, in case of coupled DA / "double-sweep",
+    ! it will be reset during each sweep. Thus, save a copy:
+    if (n_sweeps>1) then
+       if (allocated(ivariance_obs_g)) deallocate(ivariance_obs_g)
+       allocate(ivariance_obs_g(dim_obs))
+       ivariance_obs_g = thisobs%ivar_obs_f
+    end if
 
     ! *** Clean-up ***
     ncstat = nf90_close(ncid)
@@ -482,6 +496,9 @@ CONTAINS
 
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
+    
+    ! Number of domains per sweep:
+    USE g_parsup, ONLY: myDim_nod2D
 
     IMPLICIT NONE
 
@@ -498,13 +515,38 @@ CONTAINS
 !~     CALL PDAFomi_set_debug_flag(0)
 !~   ENDIF
 
-! **********************************************
-! *** Initialize local observation dimension ***
-! **********************************************
     IF (thisobs%doassim == 1) THEN
        
+       ! ************************************************************
+       ! *** Adapt observation error for coupled DA (double loop) ***
+       ! ************************************************************
+    
+       if (n_sweeps>1) then
+       
+          ! Physics observations sweep.
+          ! Set inverse observation error to small value
+          if (domain_p==1) then
+
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: set ivar_obs_f for ALK to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+             
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for ALK to normal'
+             thisobs%ivar_obs_f(:) = ivariance_obs_g
+          end if
+       end if ! n_sweeps
+
+       ! **********************************************
+       ! *** Initialize local observation dimension ***
+       ! **********************************************
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_Alk_glodap, sradius_Alk_glodap, dim_obs_l)
+
     END IF
 
   END SUBROUTINE init_dim_obs_l_Alk_glodap

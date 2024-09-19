@@ -20,14 +20,15 @@ twin_experiment=.false.
 step_null=0            ! 0 for restart at first day of the year. Is reset by runscript.
 days_since_DAstart=1   ! 1 at the beginning. Is reset by runscript.
 
-path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/physics_covar/dist_cov72/'
+path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/BGC9_covar/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_monthly_mean=.false. ! true: monthly output; false: daily output
 write_ens=.false.          ! whether to write output for individual ensemble members
 
 ASIM_START_USE_CLIM_STATE=.false.
-this_is_pdaf_restart=.true.
+this_is_pdaf_restart=.false.
+start_from_ENS_spinup=.false.
 use_global_obs=0
 
 ASSIM_O_ssh = .false.
@@ -98,13 +99,15 @@ assim_o_Alk_glodap = .false.
 path_obs_Alk_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/Alk/'
 rms_obs_Alk_glodap = 4
 
-path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
+assim_o_pCO2_SOCAT = .false.
+path_obs_pCO2_SOCAT = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/SOCAT/pCO2/'
+rms_obs_pCO2_SOCAT = 5
 
 ! Wether to perturb BGC parameters:
 perturb_parameters=.true.
 perturb_scale=0.25
 
-assimilateBGC=.true.  ! false to de-activate BGC assimilation
+assimilateBGC=.false.  ! false to de-activate BGC assimilation
 assimilatePHY=.false. ! false to de-activate physics assimilation
 /
 
@@ -155,15 +158,17 @@ upd_Zo2N      = .true.
 ! Namelist for atmosphere stochasticity:
 &atmos_stoch
 
+path_atm_cov = '/albedo/work/projects/p_recompdaf/frbunsen/data/jra_core2/dist72_cov/'
+
 disturb_xwind=.true.
 disturb_ywind=.true.
 disturb_humi=.true.
 disturb_qlw=.true.
-disturb_qsr=.false.
+disturb_qsr=.true.
 disturb_tair=.true.
 disturb_prec=.false.
 disturb_snow=.false.
-disturb_mslp=.false.
+disturb_mslp=.true.
 
 varscale_wind = 0.2
 varscale_tair = 1.0

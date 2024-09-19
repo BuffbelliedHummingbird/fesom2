@@ -16,30 +16,33 @@
 !! 2022-03 - Frauke B    - Adapted for FESOM 2.1
 !!
 
-SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
+SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
 
   USE mod_assim_pdaf, &                    ! Variables for assimilation
        ONLY: id_lstate_in_pstate, &        ! Indices of local state vector in PE-local global state vector
              offset, &                     ! PE-local offsets of fields in state vector
              id, &                         ! Field IDs in state vector
              coords_l, &                   ! Coordinates of local analysis domain
-             mesh_fesom, &                 
+             mesh_fesom, nlmax, &                 
              nfields, bgcmin, bgcmax, phymin, phymax, &
                                           ! mesh_fesom % coord_nod2D, & ! vertex coordinates in radian measure
                                           ! mesh_fesom % nlevels, &     ! number of levels at (below) elem     considering bottom topography
                                           ! mesh_fesom % nlevels_nod2D  ! number of levels at (below) vertices considering bottom topography
                                           ! mesh_fesom % nl             ! number of levels not considering bottom topography
-             dim_fields_l, offset_l       ! Domain local (at 1 node) field dimensions
+             dim_fields_l, offset_l, &    ! Domain local (water column at one node) field dimensions
+             isweep
     USE PDAFomi, &
         ONLY: PDAFomi_set_debug_flag
     USE mod_parallel_pdaf, &
-        ONLY: mype_filter
+        ONLY: mype_filter, abort_parallel
     USE PDAF_mod_filter, &
         ONLY: state
     USE mod_nc_out_variables, &
         ONLY: sfields
-       
-  USE g_rotate_grid, &
+    USE g_parsup, &
+      ONLY: myDim_nod2D, &      ! Process-local number of vertices
+            myDim_elem2D        ! Process-local number of elements 
+    USE g_rotate_grid, &
        ONLY: r2g                           ! Transform from the mesh (rotated) coordinates 
                                            ! to geographical coordinates  
        ! glon, glat        :: [radian] geographical coordinates
@@ -53,26 +56,45 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   IMPLICIT NONE
 
 ! *** Arguments ***
-  INTEGER, INTENT(in)  :: step     ! Current time step
-  INTEGER, INTENT(in)  :: domain_p ! Current local analysis domain
-  INTEGER, INTENT(out) :: dim_l    ! Local state dimension
+  INTEGER, INTENT(in)  :: step              ! Current time step
+  INTEGER, INTENT(in)  :: nsweeped_domain_p ! Current local analysis domain, containing repititive sweeps
+  INTEGER, INTENT(out) :: dim_l             ! Local state dimension
 
 ! *** Local variables ***
   INTEGER :: nlay                                ! Number of layers for current domain
-  ! INTEGER :: dim_fields_l(nfields)             ! Field dimensions for current domain
-  ! INTEGER :: offset_l(nfields)                 ! Field offsets for current domain
   INTEGER :: i, b, p                             ! Counters
+  INTEGER :: domain_p                            ! Local analysis domain accounting for multiple sweeps
   
   ! integer :: myDebug_id(1)
   ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
   
-!~   if (mype_filter==0) write(*,*) 'init_dim_l_pdaf: domain_p', domain_p
+! ********************************************************
+! ***  Account for multi sweeps in local analysis loop ***
+! ********************************************************
+
+  if (nsweeped_domain_p <= myDim_nod2D) then
+  
+     domain_p = nsweeped_domain_p
+     ! Set index of sweep
+     isweep = 1
+     
+  else
+  
+     domain_p = nsweeped_domain_p - myDim_nod2D
+     ! Set index of sweep
+     isweep = 2
+  end if
 
 ! ****************************************
 ! *** Initialize local state dimension ***
 ! ****************************************
   
   nlay = mesh_fesom%nlevels_nod2D(domain_p)-1
+  
+  IF (nlay > nlmax) THEN
+  WRITE(*,*) 'FESOM-PDAF ', 'init_dim_l_pdaf ', 'domain_p ', domain_p, ' nlay exceeds layer bounds!'
+  CALL abort_parallel()
+  ENDIF
   
 !~   dim_fields_l (id%SSH)    = 1
 !~   dim_fields_l (id%u)      = nlay
@@ -158,7 +180,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   if (sfields(id%u)%updated) then
   id_lstate_in_pstate (offset_l(id%u)+1 : offset_l(id%u)+dim_fields_l(id%u)) &
         = offset(id%u) &
-        + (domain_p-1)*(mesh_fesom%nl-1) &
+        + (domain_p-1)*(nlmax) &
         + (/(i, i=1,dim_fields_l(id%u))/)
   endif
   
@@ -166,21 +188,21 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   if (sfields(id%v)%updated) then
   id_lstate_in_pstate (offset_l(id%v)+1 : offset_l(id%v)+dim_fields_l(id%v)) &
         = offset(id%v) &
-        + (domain_p-1)*(mesh_fesom%nl-1) &
+        + (domain_p-1)*(nlmax) &
         + (/(i, i=1,dim_fields_l(id%v))/)
   endif
         
   ! W
   ! id_lstate_in_pstate (offset_l(id%w)+1 : offset_l(id%w+1)) &
   !      = offset(id%w) &
-  !      + (domain_p-1)*(mesh_fesom%nl) &
+  !      + (domain_p-1)*(nlmax) &
   !      + (/(i, i=1,dim_fields_l(id%w))/)
   
   ! Temp
   if (sfields(id%temp)%updated) then
   id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp)+dim_fields_l(id%temp))&
          = offset(id%temp) &
-         + (domain_p-1)*(mesh_fesom%nl-1) &
+         + (domain_p-1)*(nlmax) &
          + (/(i, i=1,dim_fields_l(id%temp))/)
   endif
   
@@ -188,7 +210,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
   if (sfields(id%salt)%updated) then
   id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt)+dim_fields_l(id%salt)) &
         = offset(id%salt) &
-        + (domain_p-1)*(mesh_fesom%nl-1) &
+        + (domain_p-1)*(nlmax) &
         + (/(i, i=1,dim_fields_l(id%salt))/)
   endif
         
@@ -208,7 +230,7 @@ SUBROUTINE init_dim_l_pdaf(step, domain_p, dim_l)
       IF (sfields(b)% ndims == 2)   THEN
             id_lstate_in_pstate (offset_l(b)+1 : offset_l(b)+dim_fields_l(b))&
                    = offset(b) &
-                   + (domain_p-1)*(mesh_fesom%nl-1) &
+                   + (domain_p-1)*(nlmax) &
                    + (/(i, i=1,dim_fields_l(b))/)
       ENDIF
     ENDIF

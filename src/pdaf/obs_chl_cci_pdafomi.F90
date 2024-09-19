@@ -54,6 +54,8 @@ MODULE obs_chl_cci_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l, & ! Declaration of observation data types
        PDAFomi_set_debug_flag
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps             ! Variables for coupled data assimilation
 
   IMPLICIT NONE
   SAVE
@@ -78,6 +80,7 @@ MODULE obs_chl_cci_pdafomi
 
   REAL, ALLOCATABLE :: mean_chl_cci_p (:)    ! Mean value for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_chl_cci(:) ! Localization radius array
+  REAL, ALLOCATABLE :: ivariance_obs_g(:)    ! Global-earth inverse observation variances
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -175,7 +178,7 @@ CONTAINS
          ONLY: PDAFomi_gather_obs
     USE mod_assim_pdaf, &
          ONLY: offset, twin_experiment, use_global_obs, id, mesh_fesom, &
-         local_range, srange
+         local_range, srange, nlmax
     USE mod_assim_pdaf, &
          ONLY: delt_obs_ocn
     USE mod_parallel_pdaf, &
@@ -401,10 +404,10 @@ CONTAINS
 			  ! index for state vector
 			  
 			  thisobs%id_obs_p(1, i_obs) = &
-			  (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% DiaChl)
+			  (i-1) * (nlmax) + 1 + offset(id% DiaChl)
 			  
 			  thisobs%id_obs_p(2, i_obs) = &
-			  (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% PhyChl)
+			  (i-1) * (nlmax) + 1 + offset(id% PhyChl)
 			  
 			  ! index for all_obs_p and surface nod2d vector, respectively. 
 			  obs_include_index(i_obs) = i
@@ -482,15 +485,10 @@ CONTAINS
 		
 	ENDIF haveobs
 
-!~ ! ******************************************
-!~ ! *** No global observations? - Fake it! ***
-!~ ! ******************************************
+! ******************************************
+! *** No global observations? - Fake it! ***
+! ******************************************
 
-!~     CALL MPI_allreduce(dim_obs_p,dim_obs_f,1,MPI_INTEGER,MPI_SUM,COMM_filter,MPIerr)
-    
-!~     ! to avoid zero-allocation error,
-!~     ! make up a fictional observation with HUGE uncertainty
-!~     IF (dim_obs_f==0) THEN
     IF (dim_obs_p==0) THEN
        obs_p=1.0
        ivariance_obs_p=1E-12
@@ -506,17 +504,27 @@ CONTAINS
 ! *** Gather full observation arrays ***
 ! **************************************
 
-    IF (writepe) THEN
-    write(*,*) 'Frauke', 'dim_obs_p', dim_obs_p
-    write(*,*) 'Frauke', 'obs_p', obs_p
-    write(*,*) 'Frauke', 'ivariance_obs_p', ivariance_obs_p
-    write(*,*) 'Frauke', 'ocoord_n2d_p', ocoord_n2d_p
-    write(*,*) 'Frauke', 'lradius_chl_cci', lradius_chl_cci
-    write(*,*) 'Frauke', 'dim_obs', dim_obs
-    ENDIF
+!~     IF (writepe) THEN
+!~     write(*,*) 'Frauke', 'dim_obs_p', dim_obs_p
+!~     write(*,*) 'Frauke', 'obs_p', obs_p
+!~     write(*,*) 'Frauke', 'ivariance_obs_p', ivariance_obs_p
+!~     write(*,*) 'Frauke', 'ocoord_n2d_p', ocoord_n2d_p
+!~     write(*,*) 'Frauke', 'lradius_chl_cci', lradius_chl_cci
+!~     write(*,*) 'Frauke', 'dim_obs', dim_obs
+!~     ENDIF
 
     CALL PDAFomi_gather_obs(thisobs, dim_obs_p, obs_p, ivariance_obs_p, ocoord_n2d_p, &
          thisobs%ncoord, lradius_chl_cci, dim_obs)
+         
+    ! Global inverse variance array (thisobs%ivar_obs_f)
+    ! has been gathered, but, in case of coupled DA / "double-sweep",
+    ! it will be reset during each sweep. Thus, save a copy:
+    if (n_sweeps>1) then
+       if (allocated(ivariance_obs_g)) deallocate(ivariance_obs_g)
+       allocate(ivariance_obs_g(dim_obs))
+       ivariance_obs_g = thisobs%ivar_obs_f
+    end if
+
 
 ! ********************
 ! *** Finishing up ***
@@ -608,10 +616,11 @@ CONTAINS
 
     ! Include PDAFomi function
     USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l
-
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype, &
                               mype_debug, node_debug
+    ! Number of domains per sweep:
+    USE g_parsup, ONLY: myDim_nod2D
 
     IMPLICIT NONE
 
@@ -621,10 +630,6 @@ CONTAINS
     INTEGER, INTENT(in)  :: dim_obs      !< Full dimension of observation vector
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
 
-
-! **********************************************
-! *** Initialize local observation dimension ***
-! **********************************************
 
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
@@ -647,6 +652,34 @@ CONTAINS
        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: sradius_chl_cci', sradius_chl_cci
        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: dim_obs_l', dim_obs_l
        
+       ! ************************************************************
+       ! *** Adapt observation error for coupled DA (double loop) ***
+       ! ************************************************************
+    
+       if (n_sweeps>1) then
+       
+          ! Physics observations sweep.
+          ! Set inverse observation error to small value
+          if (domain_p==1) then
+
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: set ivar_obs_f for CHL to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+             
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for CHL to normal'
+             thisobs%ivar_obs_f(:) = ivariance_obs_g
+          end if
+       end if ! n_sweeps
+
+       ! **********************************************
+       ! *** Initialize local observation dimension ***
+       ! **********************************************
+
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_chl_cci, sradius_chl_cci, dim_obs_l)
 

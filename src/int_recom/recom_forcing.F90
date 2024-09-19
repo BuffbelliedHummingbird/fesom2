@@ -30,7 +30,7 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
 
   Real(kind=8)                              :: Latr          
   Integer                                   :: Nn            ! Total number of nodes
-  Real(kind=8),dimension(mesh%nl-1)	    :: zNodes	     ! Depth of nodes   zr(1:nzmax) = Z_3d_n(1:nzmax,n)
+  Real(kind=8),dimension(mesh%nl-1)	        :: zNodes	     ! Depth of nodes   zr(1:nzmax) = Z_3d_n(1:nzmax,n)
   Real(kind=8),dimension(mesh%nl-1,bgc_num) :: state         	
   Real(kind=8)                              :: SurfSW        ! [W/m2] ShortWave radiation at surface
   Real(kind=8)                              :: Loc_slp       ! [Pa] se-level pressure
@@ -163,12 +163,14 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
      
    o2flux_seaicemask = o2ex * 1.e3 ! back to mmol here [mmol/m2/s] 
 
-! Source-Minus-Sinks
+! Source-Minus-Sinks (sms)
 
 if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_sms'//achar(27)//'[0m'
 
+  ! computes sources and sinks
   call REcoM_sms(n, Nn, state, thick, recipthick, SurfSW, sms, Temp, SinkVel, zF, PAR, mesh)
 
+  ! update tracers
   state(1:nn,:)      = max(tiny,state(1:nn,:) + sms(1:nn,:))
   state(1:nn,ipchl)  = max(tiny_chl,state(1:nn,ipchl))
   state(1:nn,iphyn)  = max(tiny_N,  state(1:nn,iphyn))

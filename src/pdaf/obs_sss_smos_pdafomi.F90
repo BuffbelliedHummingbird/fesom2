@@ -176,7 +176,7 @@ CONTAINS
     USE PDAFomi, &
          ONLY: PDAFomi_gather_obs
     USE mod_assim_pdaf, &
-         ONLY: offset, twin_experiment, use_global_obs, id, mesh_fesom, &
+         ONLY: offset, twin_experiment, use_global_obs, id, mesh_fesom, nlmax, &
          local_range, srange
     USE mod_assim_pdaf, &
          ONLY: delt_obs_ocn
@@ -403,7 +403,7 @@ CONTAINS
 			  
 			  ! index for state vector
 			  thisobs%id_obs_p(1, i_obs) = &
-			  (i-1) * (mesh_fesom%nl-1) + 1 + offset(id% salt)
+			  (i-1) * (nlmax) + 1 + offset(id% salt)
 			  
 			  ! index for all_obs_p and surface nod2d vector, respectively. 
 			  obs_include_index(i_obs) = i

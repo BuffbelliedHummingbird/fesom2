@@ -21,9 +21,13 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
 
   USE mod_assim_pdaf, &           ! Variables for assimilation
        ONLY: id_lstate_in_pstate, ens_member_debug, &
-             nfields, dim_fields_l, offset_l
+             nfields, dim_fields_l, offset_l, &
+             isweep, cda_bio, cda_phy, type_sweep, &
+             step_null, delt_obs_ocn
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, mype_model
+  USE mod_nc_out_variables, &
+       ONLY: sfields
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
 
@@ -39,17 +43,48 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
   
 ! *** Local variables *** 
   INTEGER :: i, ifield            !< Counters
+  LOGICAL :: update_cda           !< Whether to perform DA update
   INTEGER :: memberid             !< Ensemble member
   CHARACTER(LEN=17) :: filename   !< Filename for debugging output
+  
   
 ! **************************************************
 ! *** Initialize elements of global state vector ***
 ! **************************************************
   
   DO ifield = 1, nfields
+  
+     ! Determine whether to apply update according to coupled data assimilation settings
+     
+     ! Physics field and physics sweep:
+     if ( .not. (sfields(ifield)%bgc) .and. (trim(type_sweep(isweep))=='phy')) then
+     update_cda = .true.
+     ! BGC field and BGC sweep:
+     elseif (   sfields(ifield)%bgc   .and. (trim(type_sweep(isweep))=='bio')) then
+     update_cda = .true.
+     
+     else
+        ! Check for strongly coupled DA configuration
+        if (type_sweep(isweep)=='phy' .and. trim(cda_phy)=='strong') then
+           update_cda = .true.
+        elseif (type_sweep(isweep)=='bio' .and. trim(cda_bio)=='strong') then
+           update_cda = .true.
+        else
+           update_cda = .false.
+        end if
+     end if
+     
+!~      if ((mype_filter==0) .and. (step==step_null+delt_obs_ocn)) &
+!~                   write (*,'(a,4x,a,1x,a,a,1x,a,1x,L)') 'FESOM-PDAF', &
+!~                    '--- l2g_state:',type_sweep(isweep),'-sweep, updating', sfields(ifield)%variable, update_cda
+  
+     if (update_cda) then
+     ! update field in global state vector from local state
      DO i = offset_l(ifield)+1, offset_l(ifield)+dim_fields_l(ifield)
        state_p(id_lstate_in_pstate(i)) = state_l(i)
      END DO
+     endif
+     
   END DO
   
 !~   IF ((mype_model==55) .AND. (domain==669)) THEN

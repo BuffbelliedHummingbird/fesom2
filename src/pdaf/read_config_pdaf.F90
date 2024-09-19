@@ -58,6 +58,15 @@ SUBROUTINE read_config_pdaf()
   USE obs_Alk_glodap_pdafomi, &
        ONLY: assim_o_Alk_glodap, path_obs_Alk_glodap, &
        rms_obs_Alk_glodap
+  USE obs_pco2_SOCAT_pdafomi, &
+       ONLY: assim_o_pCO2_SOCAT, path_obs_pCO2_SOCAT, &
+       rms_obs_pCO2_SOCAT
+  USE obs_o2_comf_pdafomi, &
+       ONLY: assim_o_o2_comf, path_obs_o2_comf, &
+       rms_obs_o2_comf
+  USE obs_n_comf_pdafomi, &
+       ONLY: assim_o_n_comf, path_obs_n_comf, &
+       rms_obs_n_comf
        
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
@@ -132,7 +141,16 @@ SUBROUTINE read_config_pdaf()
        rms_obs_DIC_glodap, &
        ! Alk GLODAP:
        assim_o_Alk_glodap, path_obs_Alk_glodap, &
-       rms_obs_Alk_glodap
+       rms_obs_Alk_glodap, &
+       ! pCO2 SOCAT:
+       assim_o_pCO2_SOCAT, path_obs_pCO2_SOCAT, &
+       rms_obs_pCO2_SOCAT, &
+       ! O2 COMFORT:
+       assim_o_o2_comf, path_obs_o2_comf, &
+       rms_obs_o2_comf, &
+       ! DIN COMFORT:
+       assim_o_n_comf, path_obs_n_comf, &
+       rms_obs_n_comf
 
   NAMELIST /atmos_stoch/ &
        path_atm_cov, &
@@ -153,7 +171,7 @@ SUBROUTINE read_config_pdaf()
 
   OPEN (20,file=nmlfile)
   READ (20,NML=pdaf)
-  CLOSE (20)
+  CLOSE(20)
 
   OPEN(30,file=nmlfile)
   READ(30,NML=atmos_stoch)
@@ -169,6 +187,10 @@ SUBROUTINE read_config_pdaf()
   
   CALL add_slash(path_obs_chl_cci)
   CALL add_slash(path_obs_DIC_glodap)
+  CALL add_slash(path_obs_Alk_glodap)
+  CALL add_slash(path_obs_pCO2_SOCAT)
+  CALL add_slash(path_obs_O2_comf)
+  CALL add_slash(path_obs_N_comf)
   
 ! *** Is atmospheric stochasticity used at all?
 IF (disturb_humi   .OR. &
@@ -284,12 +306,26 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_chl_cci',      rms_obs_chl_cci
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'chl_cci_exclude_diff', chl_cci_exclude_diff
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'bias_obs_chl_cci',     bias_obs_chl_cci
+     
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_DIC_glodap',   assim_o_DIC_glodap
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_DIC_glodap',  path_obs_DIC_glodap
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_DIC_glodap',   rms_obs_DIC_glodap
+     
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_Alk_glodap',   assim_o_Alk_glodap
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_Alk_glodap',  path_obs_Alk_glodap
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_Alk_glodap',   rms_obs_Alk_glodap
+     
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_pCO2_SOCAT',   assim_o_pCO2_SOCAT
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_pCO2_SOCAT',  path_obs_pCO2_SOCAT
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_pCO2_SOCAT',   rms_obs_pCO2_SOCAT
+     
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_n_comf',       assim_o_n_comf
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_n_comf',      path_obs_n_comf
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_n_comf',       rms_obs_n_comf
+     
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'assim_o_o2_comf',      assim_o_o2_comf
+     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_o2_comf',     path_obs_o2_comf
+     WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_o2_comf',      rms_obs_o2_comf
      
      ! Physics initial ensemble covariance
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)

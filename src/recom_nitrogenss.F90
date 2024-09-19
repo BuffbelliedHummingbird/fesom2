@@ -6,13 +6,13 @@ subroutine recom_nitogenss(mesh)
   use recom_config
   use REcoM_ciso
 
-   use g_clock
+  use g_clock
   use o_PARAM
   use g_PARSUP
   use g_rotate_grid
   use g_config
   use mod_MESH
-  use i_arrays 		! a_ice, m_ice 
+  use i_arrays          ! a_ice, m_ice 
   use o_param           ! num_tracers
   use i_param
   use o_arrays

@@ -9,11 +9,11 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE mod_assim_pdaf, &
        ONLY: file_init, path_init, read_inistate, file_inistate, varscale, &
        offset, ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, mesh_fesom, &
-       id, dim_fields, offset, start_from_ENS_spinup
+       id, dim_fields, offset, start_from_ENS_spinup, nlmax
   USE mod_nc_out_variables, &
        ONLY: sfields
   USE mod_parallel_pdaf, &
-       ONLY: mype_filter, COMM_filter, abort_parallel
+       ONLY: mype_filter, COMM_filter, abort_parallel, mype_world
   USE g_PARSUP, &
        ONLY: MPIerr, edim_nod2d, mydim_nod2d
   USE o_arrays, &
@@ -22,6 +22,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
        ONLY: a_ice
   USE g_ic3d
   USE recom_config, ONLY: tiny
+  USE g_clock, ONLY: daynew, timenew
 
   IMPLICIT NONE
 
@@ -41,7 +42,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! Called by: PDAF_init       (as U_init_ens)
 
 ! *** local variables ***
-  INTEGER :: i, j, member, s, row, col, k ! Counters
+  INTEGER :: i, j, member, s, row, col, k, n ! Counters
   INTEGER :: rank                      ! Rank stored in init file
   INTEGER :: dim_p_cov                 ! Local state dimension in covariance file
   INTEGER,ALLOCATABLE :: offsets_cov(:)! Local field offsets in covariance file
@@ -60,10 +61,13 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   INTEGER :: dim_p_read
   LOGICAL :: runningmean               ! True: Initialize state vector from
                                        ! nc-file running mean
-  REAL, ALLOCATABLE :: ens_p_per(:,:)  ! Ensemble states of to-be-perturbed fields
-  INTEGER :: o1,o2,f1,f2             ! Indeces
-  INTEGER, ALLOCATABLE :: idxs(:)      ! Field indeces of to-be-perturbed model fields
+  REAL, ALLOCATABLE :: ens_p_per(:,:)  ! Ensemble of field perturbations
+  INTEGER :: o1,o2,f1,f2               ! Indeces
+  INTEGER, ALLOCATABLE :: id_per_mod(:)! Field indeces of to-be-perturbed fields in model state vector
+  INTEGER, ALLOCATABLE :: id_per_cov(:)! Field indeces of to-be-perturbed fields in covariance file
+  INTEGER, ALLOCATABLE :: id_cov_mod(:)! Field indeces of covariance fields in model state vector
   INTEGER :: nfields_per               ! Number of to-be-perturbed fields
+  INTEGER :: nfields_cov               ! Number of fields in covariance file
   
   TYPE field_ids                       ! Field IDs for covariance matrix
      INTEGER :: ssh
@@ -77,7 +81,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
      INTEGER :: O2
   END TYPE field_ids
   
-  TYPE(field_ids) :: id_cov           ! ! Type variable holding field IDs in covariance matrix
+  TYPE(field_ids) :: id_cov            ! Type variable holding field IDs in covariance matrix
   
   INTEGER :: n_treshold_ssh_p,  &
              n_treshold_temp_p, &
@@ -89,7 +93,32 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
              n_treshold_salt_g, &
              n_treshold_sic_g          ! Global counters for treshold-based corrections
              
-             
+  ! Debugging:
+  LOGICAL            :: debugmode
+  LOGICAL            :: write_debug
+  INTEGER            :: fileID_debug
+  CHARACTER(len=3)   :: day_string
+  CHARACTER(len=5)   :: tim_string
+  
+  ! Set debug output
+  debugmode    = .false.
+  IF (.not. debugmode) THEN
+     write_debug = .false.
+  ELSE
+     IF (mype_world>0) THEN
+        write_debug = .false.
+     ELSE
+        write_debug = .true.
+     ENDIF
+  ENDIF
+  
+  IF (write_debug) THEN
+         ! print state vector
+         WRITE(day_string, '(i3.3)') daynew
+         WRITE(tim_string, '(i5.5)') int(timenew)
+         fileID_debug=10
+         open(unit=fileID_debug, file='init_ens_pdaf_'//day_string//'_'//tim_string//'.txt', status='unknown')
+  ENDIF
              
 ! no need to initialize the ensemble in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
@@ -105,6 +134,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! **********************
 
   ! Fields in covariance input file:
+  nfields_cov = 9
+  
   id_cov% ssh  = 1
   id_cov% u    = 2
   id_cov% v    = 3
@@ -115,39 +146,70 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   id_cov% DIN  = 8
   id_cov% O2   = 9
   
-  ! Positions of to-be-perturbed state fields in the full state vector:
-  nfields_per = 9
-  ALLOCATE(idxs(nfields_per))
-  idxs = (/ id%ssh,  &
-            id%u,    &
-            id%v,    &
-            id%temp, &
-            id%salt, &
-            id%DIC,  &
-            id%Alk,  &
-            id%DIN,  &
-            id%O2      /)
+  ! Positions of covariance fields in the full model state vector:
+  ALLOCATE(id_cov_mod(nfields_cov))
+  id_cov_mod = (/ id%ssh,  &
+                  id%u,    &
+                  id%v,    &
+                  id%temp, &
+                  id%salt, &
+                  id%DIC,  &
+                  id%Alk,  &
+                  id%DIN,  &
+                  id%O2      /)
   
-  ! Dimension of to-be-perturbed vector is
-  ! sum of to to-be-perturbed field dimensions
+  ! Dimension of covariance matrix and EOF must be
+  ! sum of field dimensions:
   dim_p_cov =  0
-  DO j=1, nfields_per
-     dim_p_cov = dim_p_cov + dim_fields(idxs(j))
+  DO j=1, nfields_cov
+     dim_p_cov = dim_p_cov + dim_fields(id_cov_mod(j))
   END DO
   
   ! Offsets in covariance matrix:
-  ALLOCATE(offsets_cov(nfields_per))
+  ALLOCATE(offsets_cov(nfields_cov))
   offsets_cov(1) = 0
-  do j=2, nfields_per
-     offsets_cov(j) = offsets_cov(j-1) + dim_fields(idxs(j-1))
+  do j=2, nfields_cov
+     offsets_cov(j) = offsets_cov(j-1) + dim_fields(id_cov_mod(j-1))
   enddo
   
+  ! Positions of to-be-perturbed state fields in the full model state vector:
+  nfields_per = 7
+!~   nfields_per = 9
+  ALLOCATE(id_per_mod(nfields_per))
+  id_per_mod = (/ id%ssh,  &
+!~                   id%u,    &
+!~                   id%v,    &
+                  id%temp, &
+                  id%salt, &
+                  id%DIC,  &
+                  id%Alk,  &
+                  id%DIN,  &
+                  id%O2      /)
+                  
+  ! Positions of to-be-perturbed fields in covariance vector:
+  ALLOCATE(id_per_cov(nfields_per))
+  id_per_cov = (/ id_cov%ssh,  &
+!~                   id_cov%u,    &
+!~                   id_cov%v,    &
+                  id_cov%temp, &
+                  id_cov%salt, &
+                  id_cov%DIC,  &
+                  id_cov%Alk,  &
+                  id_cov%DIN,  &
+                  id_cov%O2      /)
+  
   if (mype_filter==0) then
-  do j=1,nfields_per
+  do j=1,nfields_cov
       WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7)') 'PE0-dim and offset of covariance field ', &
-                                              trim(sfields(idxs(j))%variable), &
-                                              dim_fields(idxs(j)), &
+                                              trim(sfields(id_cov_mod(j))%variable), &
+                                              dim_fields(id_cov_mod(j)), &
                                               offsets_cov(j)
+  enddo
+  do j=1,nfields_per
+      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7)') 'PE0-dim and offset of to-be-perturbed fields ', &
+                                              trim(sfields(id_per_mod(j))%variable), &
+                                              dim_fields(id_per_mod(j)), &
+                                              offset(id_per_mod(j))
   enddo
   endif
   
@@ -271,8 +333,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 
         fac = varscale * SQRT(REAL(dim_ens-1))
         
-        ! =========          =====             =====        =========
-        ! ens_p_per := fac * eof_p * transpose(Omega) + 0 * ens_p_per
+        ! =========          =====             =====        =============
+        ! ens_p_per := fac * eof_p * transpose(Omega) + 0 * ens_p_per (0)
 
         CALL DGEMM('n', 't', dim_p_cov, dim_ens, dim_ens-1, &
              fac, eof_p, dim_p_cov, Omega, dim_ens, 0.0, ens_p_per, dim_p_cov) ! matrix operation
@@ -288,20 +350,33 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
    ! Add perturbation to to-be-perturbed part of full state vector:
    DO j = 1,nfields_per
       ! field offset in covariance matrix
-      o1 = offsets_cov(j)
-      o2 = offsets_cov(j) + dim_fields(idxs(j))
+      o1 = offsets_cov(id_per_cov(j)) + 1
+      o2 = offsets_cov(id_per_cov(j)) + dim_fields(id_per_mod(j))
       ! field offset in full state vector
-      f1 = offset(idxs(j))
-      f2 = offset(idxs(j)) + dim_fields(idxs(j))
+      f1 = offset(id_per_mod(j)) + 1
+      f2 = offset(id_per_mod(j)) + dim_fields(id_per_mod(j))
+      
+      IF (write_debug) THEN
+        DO n=f1,f2
+        WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6,G15.6,G15.6)') trim(sfields(id_per_mod(j))%variable), n, ens_p(n,:)
+        ENDDO
+      ENDIF
+      
       ens_p(f1:f2,:) = ens_p(f1:f2,:) + ens_p_per(o1:o2,:)
       
-!~       if (mype_filter==0) then
-!~       WRITE (*,'(1X,A15,1X,A5,1X,I7,1X,I7,1X,A15,1X,I7,1X,I7)') 'Index in covar: ', &
-!~                                                                  trim(sfields(idxs(j))%variable), &
-!~                                                                  o1, o2, &
-!~                                                                  'Index in state: ', &
-!~                                                                  f1, f2
-!~       endif
+      IF (write_debug) THEN
+        DO n=f1,f2
+        WRITE(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6,G15.6,G15.6)') trim(sfields(id_per_mod(j))%variable), n, ens_p(n,:)
+        ENDDO
+      ENDIF
+      
+      if (mype_filter==0) then
+      WRITE (*,'(1X,A15,1X,A5,1X,I7,1X,I7,1X,A15,1X,I7,1X,I7)') 'Index in covar: ', &
+                                                                 trim(sfields(id_per_mod(j))%variable), &
+                                                                 o1, o2, &
+                                                                 'Index in state: ', &
+                                                                 f1, f2
+      endif
       
    ENDDO
    
@@ -327,7 +402,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
       ! 3D fields
       n_treshold_temp_p = 0
       n_treshold_salt_p = 0
-      fields_3D: DO i = 1, (mesh_fesom%nl-1) * myDim_nod2D 
+      fields_3D: DO i = 1, (nlmax) * myDim_nod2D 
           ! temp: set to -1.895 Celsius where smaller than that
           IF ( ens_p(i+offset(id% temp),col) < -1.895D0) n_treshold_temp_p = n_treshold_temp_p + 1 ! counter
           ens_p(i+offset(id% temp),col)= max(ens_p(i+offset(id% temp),col),-1.895D0)               ! apply correction
@@ -363,8 +438,10 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! *** clean up ***
 ! ****************
 
-  DEALLOCATE(svals, eof_p, omega, idxs, offsets_cov)
+  DEALLOCATE(svals, eof_p, omega, id_per_cov, id_per_mod, id_cov_mod, offsets_cov)
   ENDIF ! this_is_pdaf_restart
+  
+  IF (write_debug) close(fileID_debug)
 
 END SUBROUTINE init_ens_pdaf
   

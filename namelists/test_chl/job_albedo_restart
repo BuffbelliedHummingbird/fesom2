@@ -7,13 +7,13 @@
 #SBATCH --hint=nomultithread
 #SBATCH --qos=12h
 
-#SBATCH --job-name=CHLcci
+#SBATCH --job-name=chl
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
 # Note: If this is not a PDAF-Restart, remove the
 # "rm work/ece.info"
-# file from previous test runs!
+# file from previous test runs manually!
 
 #set -x
 #ulimit -s unlimited
@@ -32,11 +32,11 @@ JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 exp_name='test_chl'
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
-# run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/${exp_name}/work
 
 # Settings:
 NENS=40           # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
+
 NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
@@ -59,7 +59,8 @@ force_run_from_scratch=true
 # This file is used to store information about restarts
 ece_info_file="ece.info"
 
-# Whether to initialize a perturbed BGC ensemble:
+# For a fresh start:
+# Whether to start from a perturbed BGC ensemble and initialize the restart files accordingly:
 BGC_init_ens=true
 
 # ----------------------------------------------------------------------
@@ -103,6 +104,7 @@ do
         leg_number=1
     else
         leg_is_restart=true
+	BGC_init_ens=false
         . ./${ece_info_file} # set leg start and end date from ece.info file
         leg_start_date=${leg_end_date}
         leg_number=$((leg_number+1))
@@ -172,7 +174,8 @@ do
             echo 'Preparing files for member '${ENS4str}
 
             if [ ! -d ${run_dir}/${ENSstr} ]; then
-                mkdir -p ${run_dir}/${ENSstr} 
+                mkdir -p ${run_dir}/${ENSstr}
+	        mkdir -p ${run_dir}/${ENSstr}/atmos/	
             fi
             
             cd ${run_dir}/${ENSstr}
@@ -199,20 +202,37 @@ do
             sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             
             sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-
+            
+	    if $BGC_init_ens
+	    then
+		    sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            else
+		    sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+	    fi
 
 
             # *** Restart files needed for FESOM-REcoM
             cp ../../restart_files/fesom.clock .
-            ln -s ../../restart_files/*.nc .
-            
+
 	    if $BGC_init_ens
-            then
-                    echo 'Replacing bio-restart files for member '${ENS4str}
-                    ln -fs ../../restart_files/BGC_ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
-            fi
-         
-    done
+	    then
+		    echo 'Preparing individual restart files for member '${ENS4str}
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).oce.restart.nc .
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).ice.restart.nc .
+                    
+		    cd atmos
+		    for((pe=0;pe<$fes_numproc;pe++))
+	            do
+			pe2str=`printf %02d $pe`
+		        ln -fs ../../../restart_files/ens${NENSstr}/${ENSstr}/atmos/atmos_00${pe2str}_$((${leg_start_date_yyyy}-1)).nc . 
+	            done
+		    cd ..
+	    else
+		    echo 'Copy identical restart files for member '${ENS4str}
+		    ln -fs ../../restart_files/*.nc .
+	    fi
+         done
     
     else # if ! $leg_is_restart
     
@@ -223,10 +243,11 @@ do
                 echo 'preparing namelists...'${ENS4str}
                 cd ${run_dir}/${ENSstr}
                 
-                sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                sed -i `grep -n this_is_pdaf_restart  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."    ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
-                sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                sed -i `grep -n step_null             ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"         ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
+		sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
             done
 
     fi # ! $leg_is_restart
@@ -252,13 +273,13 @@ do
     #  Mailbox size
 	# export MBX_SIZE=128000000
 
-	#  Increase per processor buffers to reduce retries
+	# Increase per processor buffers to reduce retries
 	# export MPI_BUFS_PER_PROC=256
 
 	#  Bind your OpenMP threads
 	export OMP_NUM_THREADS=1
 	# export KMP_AFFINITY=noverbose,granularity=thread,compact,1
-	#  Limit stacksize - adjust to your programs need
+	# Limit stacksize - adjust to your programs need
 	# export KMP_STACKSIZE=64m
 
 	# Enable ATP on ECMWF HPCF (recommended)
@@ -272,6 +293,8 @@ do
 	# export I_MPI_SLURM_EXT=1
 	# export I_MPI_LARGE_SCALE_THRESHOLD=8192
 	# export I_MPI_FABRICS=ofi # for infini-band
+	# export I_MPI_DEBUG=6
+	# export I_MPI_PLATFORM=auto
 	# export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
 
     # -------------------------------------------------------------------------

@@ -120,7 +120,7 @@ INTEGER :: dim_state_p            ! PE-local size of model state
 
 ! Declare Fortran type holding the indices of model fields in the state vector
 TYPE field_ids
-   INTEGER :: ssh
+   INTEGER :: ssh        ! physics
    INTEGER :: u 
    INTEGER :: v 
    INTEGER :: w 
@@ -128,36 +128,44 @@ TYPE field_ids
    INTEGER :: salt
    INTEGER :: a_ice
    INTEGER :: MLD1
-   INTEGER :: PhyChl
+   INTEGER :: MLD2
+   INTEGER :: PhyChl     ! chlorophyll
    INTEGER :: DiaChl
-   INTEGER :: DIC
+   INTEGER :: DIC        ! dissolved tracers
    INTEGER :: DOC
    INTEGER :: Alk
    INTEGER :: DIN
    INTEGER :: DON
    INTEGER :: O2
-   INTEGER :: pCO2s
+   INTEGER :: pCO2s      ! surface carbon diagnostics
    INTEGER :: CO2f
-   INTEGER :: PhyN
+   INTEGER :: alphaCO2
+   INTEGER :: PistonVel
+   INTEGER :: PhyN       ! small phyto
    INTEGER :: PhyC
-   INTEGER :: DiaN
+   INTEGER :: PhyCalc
+   INTEGER :: DiaN       ! diatoms
    INTEGER :: DiaC
    INTEGER :: DiaSi
-   INTEGER :: PAR
-   INTEGER :: NPPn
-   INTEGER :: NPPd
-   !   INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
-   !   INTEGER :: TDN    ! Total dissolved N = DIN + DON
-   INTEGER :: Zo1C
+   INTEGER :: Zo1C       ! zooplankton
    INTEGER :: Zo1N
    INTEGER :: Zo2C
    INTEGER :: Zo2N
-   INTEGER :: DetC
-   !   INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
-   INTEGER :: PhyCalc
+   INTEGER :: DetC       ! detritus
+   INTEGER :: DetCalc
+   INTEGER :: DetSi
+   INTEGER :: DetN
+   INTEGER :: Det2C
+   INTEGER :: Det2Calc
+   INTEGER :: Det2Si
+   INTEGER :: Det2N
+   INTEGER :: PAR        ! diags
+   INTEGER :: NPPn
+   INTEGER :: NPPd
    INTEGER :: export
-   INTEGER :: alphaCO2
-   INTEGER :: PistonVel
+   !   INTEGER :: TChl   ! Total chlorophyll = PhyChl + DiaChl
+   !   INTEGER :: TDN    ! Total dissolved N = DIN + DON
+   !   INTEGER :: TOC    ! Total organic carbon: PhyC + DiaC + DetC + DOC + HetC
 END TYPE field_ids
 
 ! Type variable holding field IDs in state vector
@@ -223,7 +231,8 @@ INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (
 INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
 !~ REAL, PARAMETER :: pi=3.14159265358979323846
-REAL, ALLOCATABLE :: state_fcst(:,:) ! State prior to assimilation, which is saved to use for correction
+REAL, ALLOCATABLE :: state_fcst(:,:)    ! State prior to assimilation, saved to use for correction
+REAL, ALLOCATABLE :: stdev_SSH_f_p(:)   ! forecast ensemble standard deviation at grid points for SSH field, saved to use for correction
 INTEGER :: num_day_in_month(0:1,12), endday_of_month_in_year(0:1,12), startday_of_month_in_year(0:1,12)
 REAL, ALLOCATABLE :: monthly_state_f(:)       ! forecasted monthly state
 REAL, ALLOCATABLE :: monthly_state_a(:)       ! analyzed monthly state
@@ -245,6 +254,13 @@ DATA startday_of_month_in_year(1,:) /1, 32, 61, 92, 122, 153, 183, 214, 245, 275
 
 type(t_mesh), pointer, save      :: mesh_fesom
 INTEGER :: nlmax
+
+! For weak coupling:
+integer :: n_sweeps                 !< Number of sweeps in local analysis loop
+character(len=3) :: type_sweep(2)   !< Type of sweep in local analysis loop
+integer :: isweep                   !< Index of sweep during the local analysis loop
+character(len=6) :: cda_phy   ! Flag whether strongly-coupled DA is done
+character(len=6) :: cda_bio   ! Flag whether strongly-coupled DA is done
 
 ! For debugging:
 INTEGER :: debug_id_depth, & ! Location for debugging output

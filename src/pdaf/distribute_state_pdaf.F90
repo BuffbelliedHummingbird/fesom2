@@ -28,8 +28,10 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
        ONLY: mype_submodel, mype_world, task_id, mype_model, npes_model, &
        COMM_model, MPIerr, mype_filter
   USE mod_assim_pdaf, &
-       ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, &
+       ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, nlmax, &
        dim_fields, id, istep_asml, step_null, start_from_ENS_spinup
+  USE mod_nc_out_variables, &
+       ONLY: sfields
   USE g_PARSUP, &
        ONLY: myDim_nod2D, myDim_elem2D, &
              eDim_nod2D, eDim_elem2D 
@@ -38,7 +40,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   USE i_arrays, &
        ONLY: a_ice
   USE g_clock, &
-       ONLY: daynew
+       ONLY: daynew,timenew
   USE g_comm_auto                        ! contains: interface exchange_nod()
 
   IMPLICIT NONE
@@ -53,11 +55,39 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! Called by: PDAF_get_state   (as U_dist_state)
 
 ! Local variables
-  INTEGER :: i, k         ! Counter
+  INTEGER :: i, k, b, s   ! Counter
   INTEGER :: node         ! Node index
   
   REAL, ALLOCATABLE :: U_node_upd(:,:,:) ! Velocity update on nodes
   REAL, ALLOCATABLE :: U_elem_upd(:,:,:) ! Velocity update on elements
+
+! Debugging:
+  LOGICAL            :: debugmode
+  LOGICAL            :: write_debug
+  INTEGER            :: fileID_debug
+  CHARACTER(len=5)   :: mype_string
+  CHARACTER(len=3)   :: day_string
+  CHARACTER(len=5)   :: tim_string
+  
+  ! Set debug output
+  debugmode    = .false.
+  IF (.not. debugmode) THEN
+     write_debug = .false.
+  ELSE
+     IF (mype_world>0) THEN
+        write_debug = .false.
+     ELSE
+        write_debug = .true.
+     ENDIF
+  ENDIF
+    
+  IF (write_debug) THEN
+         ! print state vector
+         WRITE(day_string, '(i3.3)') daynew
+         WRITE(tim_string, '(i5.5)') int(timenew)
+         fileID_debug=20
+         open(unit=fileID_debug, file='distribute_state_pdaf_'//day_string//'_'//tim_string//'.txt', status='unknown')
+  ENDIF
 
 ! **********************
 ! *** Initialization ***
@@ -68,7 +98,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
     if (mype_world==0) WRITE(*,*) 'FESOM-PDAF This is a restart: Skipping distribute_state_pdaf at initial step'
     
   ELSEIF (start_from_ENS_spinup .AND. (istep_asml==step_null)) THEN
-    if (mype_world==0) WRITE(*,*) 'FEqSOM-PDAF Model starts from perturbed ensemble: Skipping distribute_state_pdaf at initial step'
+    if (mype_world==0) WRITE(*,*) 'FESOM-PDAF Model starts from perturbed ensemble: Skipping distribute_state_pdaf at initial step'
     
   ELSE
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id
@@ -92,7 +122,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   
   ! SSH (1)
   DO i = 1, myDim_nod2D
-     eta_n(i) = state_p(i + offset(id% SSH))
+     s = i + offset(id% SSH)
+     if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%SSH)%variable, s, eta_n(i), state_p(s)
+     eta_n(i) = state_p(s)
   END DO
   
   ! u (2) and v (3) velocities
@@ -101,9 +133,15 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   U_node_upd = 0.0
   
   DO i = 1, myDim_nod2D
-   DO k = 1, mesh_fesom%nl-1
-      U_node_upd(1, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% u)) - Unode(1, k, i) ! u
-      U_node_upd(2, k, i) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% v)) - Unode(2, k, i) ! v
+   DO k = 1, nlmax
+      ! u
+      s = (i-1) * (nlmax) + k + offset(id% u)
+      U_node_upd(1, k, i) = state_p(s) - Unode(1, k, i)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%u)%variable, s, Unode(1, k, i), state_p(s)
+      ! v
+      s = (i-1) * (nlmax) + k + offset(id% v)
+      U_node_upd(2, k, i) = state_p(s) - Unode(2, k, i)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%v)%variable, s, Unode(2, k, i), state_p(s)
    END DO
   END DO
   
@@ -122,26 +160,32 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 
   ! Element-wise version not interpolated onto nodes. Removed in favor of the above:
   ! DO i = 1, myDim_elem2D
-  !  DO k = 1, mesh_fesom%nl-1
-  !      UV(1,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(2)) ! u
-  !      UV(2,k,i) = state_p((i-1)*(mesh_fesom%nl-1) + k + offset(3)) ! v
+  !  DO k = 1, nlmax
+  !      UV(1,k,i) = state_p((i-1)*(nlmax) + k + offset(2)) ! u
+  !      UV(2,k,i) = state_p((i-1)*(nlmax) + k + offset(3)) ! v
   !  END DO
   ! END DO
 
 
   ! w (4) velocity: not updated and thus no need to distribute.
   ! DO i = 1, myDim_nod2D
-  !  DO k = 1, mesh_fesom%nl
-  !      wvel(k,i) = state_p((i-1)*mesh_fesom%nl + k + offset(id% w)) ! w
+  !  DO k = 1, nlmax
+  !      wvel(k,i) = state_p((i-1)*nlmax + k + offset(id% w)) ! w
   !  END DO
   ! END DO
   
   ! Temp (5) and salt (6)
   
   DO i = 1, myDim_nod2D
-   DO k = 1, mesh_fesom%nl-1
-      tr_arr(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% temp)) ! T
-      tr_arr(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% salt)) ! S
+   DO k = 1, nlmax
+      ! T
+      s = (i-1) * (nlmax) + k + offset(id% temp)
+      tr_arr(k, i, 1) = state_p(s)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%temp)%variable, s, tr_arr(k, i, 1), state_p(s)
+      ! S
+      s = (i-1) * (nlmax) + k + offset(id% salt)
+      tr_arr(k, i, 2) = state_p(s)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%salt)%variable, s, tr_arr(k, i, 2), state_p(s)
    END DO
   END DO
   
@@ -166,37 +210,82 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 
 ! 3D fields:
   DO i = 1, myDim_nod2D
-   DO k = 1, mesh_fesom%nl-1
+   DO k = 1, nlmax
+   
+      if (write_debug) then
+      ! small phytoplankton:
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyChl )%variable,   (i-1) * (nlmax) + k + offset(id% PhyChl ),   tr_arr(k, i,  8),   state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyN   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyN   ),   tr_arr(k, i,  6),   state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyC   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyC   ),   tr_arr(k, i,  7),   state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyCalc)%variable,   (i-1) * (nlmax) + k + offset(id% PhyCalc),   tr_arr(k, i, 22),   state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
+      ! diatoms:                                                                                                                                                      
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaChl )%variable,   (i-1) * (nlmax) + k + offset(id% DiaChl ),   tr_arr(k, i, 17),   state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaN   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaN   ),   tr_arr(k, i, 15),   state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaC   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaC   ),   tr_arr(k, i, 16),   state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DiaSi  ),   tr_arr(k, i, 18),   state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
+      ! small, fast-growing zooplankton                                                                                                                           
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1C)   ,   tr_arr(k, i, 12),   state_p((i-1) * (nlmax) + k + offset(id% Zo1C))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1N)   ,   tr_arr(k, i, 11),   state_p((i-1) * (nlmax) + k + offset(id% Zo1N))
+      ! macrozooplankton/antarctic krill:                                                                                                                                
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2C)   ,   tr_arr(k, i, 26),   state_p((i-1) * (nlmax) + k + offset(id% Zo2C))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2N)   ,   tr_arr(k, i, 25),   state_p((i-1) * (nlmax) + k + offset(id% Zo2N))
+      ! dissolved tracer pools:                                                                                                                                           
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIC    )%variable,   (i-1) * (nlmax) + k + offset(id% DIC    ),   tr_arr(k, i,  4),   state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DOC    )%variable,   (i-1) * (nlmax) + k + offset(id% DOC    ),   tr_arr(k, i, 14),   state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Alk    )%variable,   (i-1) * (nlmax) + k + offset(id% Alk    ),   tr_arr(k, i,  5),   state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIN    )%variable,   (i-1) * (nlmax) + k + offset(id% DIN    ),   tr_arr(k, i,  3),   state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DON    )%variable,   (i-1) * (nlmax) + k + offset(id% DON    ),   tr_arr(k, i, 13),   state_p((i-1) * (nlmax) + k + offset(id% DON    ))
+      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% O2     )%variable,   (i-1) * (nlmax) + k + offset(id% O2     ),   tr_arr(k, i, 24),   state_p((i-1) * (nlmax) + k + offset(id% O2     ))
+      ! detritus:                                                                                                                                                        
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetC   )%variable,   (i-1) * (nlmax) + k + offset(id% DetC   ),   tr_arr(k, i, 10),   state_p((i-1) * (nlmax) + k + offset(id% DetC    ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetCalc)%variable,   (i-1) * (nlmax) + k + offset(id% DetCalc),   tr_arr(k, i, 23),   state_p((i-1) * (nlmax) + k + offset(id% DetCalc ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DetSi  ),   tr_arr(k, i, 19),   state_p((i-1) * (nlmax) + k + offset(id% DetSi   ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetN   )%variable,   (i-1) * (nlmax) + k + offset(id% DetN   ),   tr_arr(k, i,  9),   state_p((i-1) * (nlmax) + k + offset(id% DetN    ))
+      
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2C   ),   tr_arr(k, i, 28),   state_p((i-1) * (nlmax) + k + offset(id% Det2C    ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Calc)%variable,   (i-1) * (nlmax) + k + offset(id% Det2Calc),   tr_arr(k, i, 30),   state_p((i-1) * (nlmax) + k + offset(id% Det2Calc ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Si  )%variable,   (i-1) * (nlmax) + k + offset(id% Det2Si  ),   tr_arr(k, i, 29),   state_p((i-1) * (nlmax) + k + offset(id% Det2Si   ))
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2N   ),   tr_arr(k, i, 27),   state_p((i-1) * (nlmax) + k + offset(id% Det2N    ))
+      endif ! write_debug
    
       ! small phytoplankton:
-      tr_arr(k, i,  8) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyChl ))
-      tr_arr(k, i,  6) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyN   ))
-      tr_arr(k, i,  7) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyC   ))
-      tr_arr(k, i, 22) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PhyCalc))
+      tr_arr(k, i,  8) = state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
+      tr_arr(k, i,  6) = state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
+      tr_arr(k, i,  7) = state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
+      tr_arr(k, i, 22) = state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
       ! diatoms:
-      tr_arr(k, i, 17) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaChl ))
-      tr_arr(k, i, 15) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaN   ))
-      tr_arr(k, i, 16) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaC   ))
-      tr_arr(k, i, 18) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DiaSi  ))
+      tr_arr(k, i, 17) = state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
+      tr_arr(k, i, 15) = state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
+      tr_arr(k, i, 16) = state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
+      tr_arr(k, i, 18) = state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
       ! small, fast-growing zooplankton
-      tr_arr(k, i, 12) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
-      tr_arr(k, i, 11) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo1N)) ! intracellular conc of nitrogen in zooplankton 1
+      tr_arr(k, i, 12) = state_p((i-1) * (nlmax) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
+      tr_arr(k, i, 11) = state_p((i-1) * (nlmax) + k + offset(id% Zo1N)) ! intracellular conc of nitrogen in zooplankton 1
       ! macrozooplankton/antarctic krill:
-      tr_arr(k, i, 26) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
-      tr_arr(k, i, 27) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
+      tr_arr(k, i, 26) = state_p((i-1) * (nlmax) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
+      tr_arr(k, i, 25) = state_p((i-1) * (nlmax) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
       ! dissolved tracer pools:
-      tr_arr(k, i,  4) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIC    ))
-      tr_arr(k, i, 14) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DOC    ))
-      tr_arr(k, i,  5) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% Alk    ))
-      tr_arr(k, i,  3) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DIN    ))
-      tr_arr(k, i, 13) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DON    ))
-      tr_arr(k, i, 24) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% O2     ))
+      tr_arr(k, i,  4) = state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
+      tr_arr(k, i, 14) = state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
+      tr_arr(k, i,  5) = state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
+      tr_arr(k, i,  3) = state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
+      tr_arr(k, i, 13) = state_p((i-1) * (nlmax) + k + offset(id% DON    ))
+      tr_arr(k, i, 24) = state_p((i-1) * (nlmax) + k + offset(id% O2     ))
       ! detritus:
-      tr_arr(k, i, 10) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% DetC   ))
+      tr_arr(k, i, 10) = state_p((i-1) * (nlmax) + k + offset(id% DetC   ))
+      tr_arr(k, i, 23) = state_p((i-1) * (nlmax) + k + offset(id% DetCalc))
+      tr_arr(k, i, 19) = state_p((i-1) * (nlmax) + k + offset(id% DetSi  ))
+      tr_arr(k, i,  9) = state_p((i-1) * (nlmax) + k + offset(id% DetN   ))
+      
+      tr_arr(k, i, 28) = state_p((i-1) * (nlmax) + k + offset(id% Det2C   ))
+      tr_arr(k, i, 30) = state_p((i-1) * (nlmax) + k + offset(id% Det2Calc))
+      tr_arr(k, i, 29) = state_p((i-1) * (nlmax) + k + offset(id% Det2Si  ))
+      tr_arr(k, i, 27) = state_p((i-1) * (nlmax) + k + offset(id% Det2N   ))
+      
       ! diagnostic fields:
-!     PAR3D (k, i)     = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% PAR    )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
-!     diags3D(k, i, 1) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPn   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
-!     diags3D(k, i, 2) = state_p((i-1) * (mesh_fesom%nl-1) + k + offset(id% NPPd   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+!     PAR3D (k, i)     = state_p((i-1) * (nlmax) + k + offset(id% PAR    )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+!     diags3D(k, i, 1) = state_p((i-1) * (nlmax) + k + offset(id% NPPn   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
+!     diags3D(k, i, 2) = state_p((i-1) * (nlmax) + k + offset(id% NPPd   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)      
       
    END DO
   END DO   
@@ -219,8 +308,8 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   call exchange_nod( tr_arr(:,:,18) )
   call exchange_nod( tr_arr(:,:,12) ) ! zooplankton 1
   call exchange_nod( tr_arr(:,:,11) )
-  call exchange_nod( tr_arr(:,:,26) ) ! zooplanton 2
-  call exchange_nod( tr_arr(:,:,27) )
+  call exchange_nod( tr_arr(:,:,26) ) ! zooplankton 2
+  call exchange_nod( tr_arr(:,:,25) )
   call exchange_nod( tr_arr(:,:, 4) ) ! dissolved tracers
   call exchange_nod( tr_arr(:,:,14) )
   call exchange_nod( tr_arr(:,:, 5) )
@@ -228,6 +317,13 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   call exchange_nod( tr_arr(:,:,13) )
   call exchange_nod( tr_arr(:,:,24) )
   call exchange_nod( tr_arr(:,:,10) ) ! detritus
+  call exchange_nod( tr_arr(:,:,23) )
+  call exchange_nod( tr_arr(:,:,19) )
+  call exchange_nod( tr_arr(:,:, 9) )
+  call exchange_nod( tr_arr(:,:,28) )
+  call exchange_nod( tr_arr(:,:,30) )
+  call exchange_nod( tr_arr(:,:,29) )
+  call exchange_nod( tr_arr(:,:,27) )
 !  call exchange_nod( PAR3D          )
 !  call exchange_nod( GloPCO2surf )
 !  call exchange_nod( GloCO2flux  )
@@ -235,6 +331,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !  call exchange_nod( diags3D(:,:,2) )
 
   ! clean up:
+  if (write_debug) close(fileID_debug)
   deallocate(U_node_upd,U_elem_upd)
  
   ENDIF

@@ -100,10 +100,14 @@ LOGICAL :: disturb_mslp
 
 LOGICAL :: atmos_stochasticity_ON   ! if any atmospheric fields to be perturbed
 
-REAL :: varscale_wind = 0.1         ! scaling factors
+REAL :: varscale_wind = 0.2         ! scaling factors
+REAL :: varscale_humi = 1.0
+REAL :: varscale_qlw  = 1.0
+REAL :: varscale_qsr  = 1.0
 REAL :: varscale_tair = 1.0
-REAL :: varscale_humi = 1.0         ! 0.5
-REAL :: varscale_qlw  = 1.0         ! 0.5
+REAL :: varscale_prec = 1.0
+REAL :: varscale_snow = 1.0
+REAL :: varscale_mslp = 0.2
 
 LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospheric fields,
                                     ! i.e. writing output at every time step
@@ -432,11 +436,11 @@ IF(disturb_xwind) perturbation_xwind ( :myDim_nod2D) = (1-arc) * perturbation_xw
 IF(disturb_ywind) perturbation_ywind ( :myDim_nod2D) = (1-arc) * perturbation_ywind ( :myDim_nod2D) + arc * varscale_wind * perturbation(atm_offset(id_atm% ywind) : atm_offset(id_atm% ywind) +myDim_nod2D)
 IF(disturb_humi ) perturbation_humi  ( :myDim_nod2D) = (1-arc) * perturbation_humi  ( :myDim_nod2D) + arc * varscale_humi * perturbation(atm_offset(id_atm% humi ) : atm_offset(id_atm% humi ) +myDim_nod2D)
 IF(disturb_qlw  ) perturbation_qlw   ( :myDim_nod2D) = (1-arc) * perturbation_qlw   ( :myDim_nod2D) + arc * varscale_qlw  * perturbation(atm_offset(id_atm% qlw  ) : atm_offset(id_atm% qlw  ) +myDim_nod2D)
-IF(disturb_qsr  ) perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% qsr  ) : atm_offset(id_atm% qsr  ) +myDim_nod2D)
+IF(disturb_qsr  ) perturbation_qsr   ( :myDim_nod2D) = (1-arc) * perturbation_qsr   ( :myDim_nod2D) + arc * varscale_qsr  * perturbation(atm_offset(id_atm% qsr  ) : atm_offset(id_atm% qsr  ) +myDim_nod2D)
 IF(disturb_tair ) perturbation_tair  ( :myDim_nod2D) = (1-arc) * perturbation_tair  ( :myDim_nod2D) + arc * varscale_tair * perturbation(atm_offset(id_atm% tair ) : atm_offset(id_atm% tair ) +myDim_nod2D)
-IF(disturb_prec ) perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% prec ) : atm_offset(id_atm% prec ) +myDim_nod2D)
-IF(disturb_snow ) perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% snow ) : atm_offset(id_atm% snow ) +myDim_nod2D)
-IF(disturb_mslp ) perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc                 * perturbation(atm_offset(id_atm% mslp ) : atm_offset(id_atm% mslp ) +myDim_nod2D)
+IF(disturb_prec ) perturbation_prec  ( :myDim_nod2D) = (1-arc) * perturbation_prec  ( :myDim_nod2D) + arc * varscale_prec * perturbation(atm_offset(id_atm% prec ) : atm_offset(id_atm% prec ) +myDim_nod2D)
+IF(disturb_snow ) perturbation_snow  ( :myDim_nod2D) = (1-arc) * perturbation_snow  ( :myDim_nod2D) + arc * varscale_snow * perturbation(atm_offset(id_atm% snow ) : atm_offset(id_atm% snow ) +myDim_nod2D)
+IF(disturb_mslp ) perturbation_mslp  ( :myDim_nod2D) = (1-arc) * perturbation_mslp  ( :myDim_nod2D) + arc * varscale_mslp * perturbation(atm_offset(id_atm% mslp ) : atm_offset(id_atm% mslp ) +myDim_nod2D)
 
 ! fill external nodes:
 IF(disturb_xwind) CALL exchange_nod( perturbation_xwind)

@@ -2545,11 +2545,22 @@ subroutine oce_timestep_ale(n, mesh)
     use g_cvmix_tidal
     use Toy_Channel_Soufflet
     use oce_ale_interfaces
+#ifdef use_PDAF
+    use mod_carbon_fluxes_diags
+    use mod_assim_pdaf, ONLY: nlmax
+#endif
     
     IMPLICIT NONE
     real(kind=8)      :: t0,t1, t2, t30, t3, t4, t5, t6, t7, t8, t9, t10, loc, glo
     integer           :: n, node
     type(t_mesh), intent(in) , target :: mesh
+    
+#ifdef use_PDAF
+    ! mod_carbon_fluxes_diags
+    real, allocatable :: wlayers(:,:)
+    integer, allocatable :: tracerlist(:)
+    integer :: trcounter
+#endif
 
 #include "associate_mesh.h"
 
@@ -2798,5 +2809,63 @@ subroutine oce_timestep_ale(n, mesh)
         write(*,*)
         write(*,*)
     end if
+
+!___________________________________________________________________________
+! mod_carbonfluxes_diags    
+#ifdef use_PDAF
+    ! horizontal velocities at nodes
+    call compute_vel_nodes(mesh)
+    ! vertical velocities at layers
+    allocate(wlayers(nlmax,myDim_nod2D))
+    wlayers = 0.5*(wvel(1:nlmax,:myDim_nod2D) + wvel(2:nlmax+1,:myDim_nod2D)) ! positive upwards
+
+    ! alkalinity (5)
+    t_u_alk = tr_arr(:nlmax,:myDim_nod2D,5) * Unode(1,:nlmax,:myDim_nod2D)
+    t_v_alk = tr_arr(:nlmax,:myDim_nod2D,5) * Unode(2,:nlmax,:myDim_nod2D)
+    t_w_alk = tr_arr(:nlmax,:myDim_nod2D,5) * wlayers(:nlmax,:myDim_nod2D)
+    
+    ! DIC (4)
+    t_u_dic = tr_arr(:nlmax,:myDim_nod2D,4) * Unode(1,:nlmax,:myDim_nod2D)
+    t_v_dic = tr_arr(:nlmax,:myDim_nod2D,4) * Unode(2,:nlmax,:myDim_nod2D)
+    t_w_dic = tr_arr(:nlmax,:myDim_nod2D,4) * wlayers(:nlmax,:myDim_nod2D)
+    
+    ! Living biomass
+    allocate(tracerlist(5))
+    tracerlist(1) =  7 ! PhyC
+    tracerlist(2) = 12 ! HetC
+    tracerlist(3) = 22 ! PhyCalc
+    tracerlist(4) = 16 ! DiaC
+    tracerlist(5) = 26 ! Zoo2C
+    
+    t_u_livingmatter = 0.0
+    t_v_livingmatter = 0.0
+    t_w_livingmatter = 0.0
+    DO trcounter=1,5
+       t_u_livingmatter = t_u_livingmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * Unode(1,:nlmax,:myDim_nod2D)
+       t_v_livingmatter = t_v_livingmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * Unode(2,:nlmax,:myDim_nod2D)
+       t_w_livingmatter = t_w_livingmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * wlayers(:nlmax,:myDim_nod2D)
+    ENDDO
+    deallocate(tracerlist)
+    
+    ! Dead biomass
+    allocate(tracerlist(5))
+    tracerlist(1) = 28 ! DetZ2C
+    tracerlist(2) = 30 ! DetZ2Calc
+    tracerlist(3) = 10 ! DetC
+    tracerlist(4) = 23 ! DetCalc
+    tracerlist(5) = 14 ! DOC
+    
+    t_u_deadmatter = 0.0
+    t_v_deadmatter = 0.0
+    t_w_deadmatter = 0.0
+    DO trcounter=1,5
+       t_u_deadmatter = t_u_deadmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * Unode(1,:nlmax,:myDim_nod2D)
+       t_v_deadmatter = t_v_deadmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * Unode(2,:nlmax,:myDim_nod2D)
+       t_w_deadmatter = t_w_deadmatter + tr_arr(:nlmax,:myDim_nod2D,tracerlist(trcounter)) * wlayers(:nlmax,:myDim_nod2D)
+    ENDDO
+    deallocate(tracerlist)
+    
+    deallocate(wlayers)
+#endif
 
 end subroutine oce_timestep_ale

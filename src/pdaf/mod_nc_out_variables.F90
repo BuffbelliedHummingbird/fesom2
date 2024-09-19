@@ -11,6 +11,7 @@ IMPLICIT NONE
 
 character(len=200) :: filename_phy = ''       ! Full name of output file
 character(len=200) :: filename_bgc = ''       ! Full name of output file
+character(len=200) :: filename_std = ''       ! Full name of output file
 
 LOGICAL :: write_ens    = .true.          ! Whether to write ensemble states
 INTEGER :: write_pos_da = 1
@@ -26,7 +27,7 @@ type state_field
    character(len=10) :: variable = ''     ! Name of field
    character(len=50) :: long_name = ''    ! Long name of field
    character(len=20) :: units = ''        ! Unit of variable
-   integer :: varid(4)                    ! To write to netCDF file
+   integer :: varid(9)                    ! To write to netCDF file
    logical :: updated = .true.            ! Whether variable is updated through assimilation
    logical :: bgc = .false.               ! Whether variable is biogeochemistry (or physics)
 end type state_field
@@ -43,41 +44,58 @@ SUBROUTINE init_sfields()
 
 ! Local variables:
 CHARACTER(len=100) :: nmlfile ='namelist.fesom.pdaf'    ! name of namelist file
-LOGICAL            :: upd_ssh , &
+
+LOGICAL            :: upd_ssh , &           ! physics
                       upd_u   , &
                       upd_v   , &
                       upd_w   , &
                       upd_temp, &
                       upd_salt, &
                       upd_ice , &
-                      upd_MLD1, &
-                      upd_PhyChl   , &
+                      upd_MLD1, &           ! physics diagnostics
+                      upd_MLD2, &
+                      upd_PhyChl   , &      ! chlorophyll
                       upd_DiaChl   , &
-                      upd_DIC      , &
+                      upd_DIC      , &      ! dissolved tracers
                       upd_DOC      , &
                       upd_Alk      , &
                       upd_DIN      , &
                       upd_DON      , &
                       upd_O2       , &
-                      upd_pCO2s    , &
+                      upd_pCO2s    , &      ! surface carbon diags
                       upd_CO2f     , &
-                      upd_DiaN     , &
-                      upd_DiaC     , &
-                      upd_PAR      , &
-                      upd_NPPn     , &
-                      upd_NPPd     , &
-                      upd_DetC     , &
-                      upd_PhyCalc  , &
-                      upd_export   , &
                       upd_alphaCO2 , &
                       upd_PistonVel, &
-                      upd_Zo1C     , &
+                      upd_DiaN     , &      ! diatoms
+                      upd_DiaC     , &
+                      upd_DiaSi    , &
+                      upd_PhyCalc  , &      ! small phyto
+                      upd_PhyC     , &
+                      upd_PhyN     , &
+                      upd_Zo1C     , &      ! het
                       upd_Zo1N     , &
-                      upd_Zo2C     , &
-                      upd_Zo2N
+                      upd_Zo2C     , &      ! zoo 2
+                      upd_Zo2N     , &
+                      upd_DetC     , &      ! small det
+                      upd_DetCalc  , &
+                      upd_DetSi    , &
+                      upd_DetN     , &
+                      upd_Det2C    , &      ! large det
+                      upd_Det2N    , &
+                      upd_Det2Si   , &
+                      upd_Det2Calc , &
+                      upd_export   , &      ! diags
+                      upd_PAR      , &
+                      upd_NPPn     , &
+                      upd_NPPd
+                      
 INTEGER            :: b,p ! counters
 
 ALLOCATE(sfields(nfields))
+
+! ****************
+! *** Physics ****
+! ****************
 
 ! SSH
 sfields(id% ssh) % ndims = 1
@@ -135,6 +153,10 @@ sfields(id% salt) % updated = .true.
 sfields(id% salt) % bgc = .false.
 
 
+! **********************
+! *** Physics Diags ****
+! **********************
+
 ! ice
 sfields(id% a_ice) % ndims = 1
 sfields(id% a_ice) % variable = 'ice'
@@ -146,10 +168,22 @@ sfields(id% a_ice) % bgc = .false.
 ! MLD1
 sfields(id% MLD1) % ndims = 1
 sfields(id% MLD1) % variable = 'MLD1'
-sfields(id% MLD1) % long_name = 'Mixed layer depth (Large et al. 1997)'
+sfields(id% MLD1) % long_name = 'Boundary layer depth (Large et al. 1997)'
 sfields(id% MLD1) % units = 'm'
 sfields(id% MLD1) % updated = .false.
 sfields(id% MLD1) % bgc = .false.
+
+! MLD2
+sfields(id% MLD2) % ndims = 1
+sfields(id% MLD2) % variable = 'MLD2'
+sfields(id% MLD2) % long_name = 'Mixed layer depth (sigma 0.03; Boyer-Montegut et al. 2004)'
+sfields(id% MLD2) % units = 'm'
+sfields(id% MLD2) % updated = .false.
+sfields(id% MLD2) % bgc = .false.
+
+! **********************
+! *** Chlorophyll   ****
+! **********************
 
 ! chlorophyll small phytoplankton
 sfields(id% PhyChl) % ndims = 2
@@ -168,6 +202,10 @@ sfields(id% DiaChl) % long_name = 'Chlorophyll-a diatoms'
 sfields(id% DiaChl) % units = 'mg chl m-3'
 sfields(id% DiaChl) % updated = .false.
 sfields(id% DiaChl) % bgc = .true.
+
+! **************************
+! *** Dissolved tracers ****
+! **************************
 
 ! DIC
 sfields(id% DIC) % ndims = 2
@@ -223,6 +261,10 @@ sfields(id% O2) % units = 'mmol m-3'
 sfields(id% O2) % updated = .false.
 sfields(id% O2) % bgc = .true.
 
+! *****************************
+! *** Surface Carbon Diags ****
+! *****************************
+
 ! pCO2
 sfields(id% pCO2s) % ndims = 1
 sfields(id% pCO2s) % variable = 'pCO2s'
@@ -239,6 +281,26 @@ sfields(id% CO2f) % units = 'mmol C m-2 d-1'
 sfields(id% CO2f) % updated = .false.
 sfields(id% CO2f) % bgc = .true.
 
+! Solubility of CO2
+sfields(id% alphaCO2) % ndims = 1
+sfields(id% alphaCO2) % variable = 'alphaCO2'
+sfields(id% alphaCO2) % long_name = 'solubility of surface CO2'
+sfields(id% alphaCO2) % units = 'mol kg-1 atm-1'
+sfields(id% alphaCO2) % updated = .false.
+sfields(id% alphaCO2) % bgc = .true.
+
+! Piston velocity
+sfields(id% PistonVel) % ndims = 1
+sfields(id% PistonVel) % variable = 'Kw660'
+sfields(id% PistonVel) % long_name = 'air-sea piston velocity'
+sfields(id% PistonVel) % units = 'm/s'
+sfields(id% PistonVel) % updated = .false.
+sfields(id% PistonVel) % bgc = .true.
+
+! *****************************
+! *** Small Phyto          ****
+! *****************************
+
 ! PhyN
 sfields(id% PhyN) % ndims = 2
 sfields(id% PhyN) % variable = 'PhyN'
@@ -254,6 +316,18 @@ sfields(id% PhyC) % long_name = 'intracell carbon small phytoplankton'
 sfields(id% PhyC) % units = 'mmol C m-3'
 sfields(id% PhyC) % updated = .false.
 sfields(id% PhyC) % bgc = .true.
+
+! PhyCalc
+sfields(id% PhyCalc) % ndims = 2
+sfields(id% PhyCalc) % variable = 'PhyCalc'
+sfields(id% PhyCalc) % long_name = 'calcium carbonate small phytoplankton'
+sfields(id% PhyCalc) % units = 'mmol m-3'
+sfields(id% PhyCalc) % updated = .false.
+sfields(id% PhyCalc) % bgc = .true.
+
+! *****************************
+! *** diatoms              ****
+! *****************************
 
 ! DiaN
 sfields(id% DiaN) % ndims = 2
@@ -279,93 +353,9 @@ sfields(id% DiaSi) % units = 'mmol m-3'
 sfields(id% DiaSi) % updated = .false.
 sfields(id% DiaSi) % bgc = .true.
 
-! PAR
-sfields(id% PAR) % ndims = 2
-sfields(id% PAR) % variable = 'PAR'
-sfields(id% PAR) % long_name = 'photosynthetically active radiation'
-sfields(id% PAR) % units = 'W m-2'
-sfields(id% PAR) % updated = .false.
-sfields(id% PAR) % bgc = .true.
-
-! NPPn
-sfields(id% NPPn) % ndims = 2
-sfields(id% NPPn) % variable = 'NPPn'
-sfields(id% NPPn) % long_name = 'mean net primary production small phytoplankton'
-sfields(id% NPPn) % units = 'mmol C m-2 d-1'
-sfields(id% NPPn) % updated = .false.
-sfields(id% NPPn) % bgc = .true.
-
-! NPPd
-sfields(id% NPPd) % ndims = 2
-sfields(id% NPPd) % variable = 'NPPd'
-sfields(id% NPPd) % long_name = 'mean net primary production diatoms'
-sfields(id% NPPd) % units = 'mmol C m-2 d-1'
-sfields(id% NPPd) % updated = .false.
-sfields(id% NPPd) % bgc = .true.
-
-!~ ! TChl
-!~ sfields(id% TChl) % ndims = 2
-!~ sfields(id% TChl) % variable = 'TChl'
-!~ sfields(id% TChl) % long_name = 'Total chlorophyll (PhyChl+DiaChl)'
-!~ sfields(id% TChl) % units = 'mg chl m-3'
-!~ sfields(id% TChl) % updated = .false.
-!~ sfields(id% TChl) % bgc = .true.
-
-!~ ! TDN
-!~ sfields(id% TDN) % ndims = 2
-!~ sfields(id% TDN) % variable = 'TDN'
-!~ sfields(id% TDN) % long_name = 'Total dissolved nitrogen (DIN+DON)'
-!~ sfields(id% TDN) % units = 'mmol m-3'
-!~ sfields(id% TDN) % updated = .false.
-!~ sfields(id% TDN) % bgc = .true.
-
-! DetC
-sfields(id% DetC) % ndims = 2
-sfields(id% DetC) % variable = 'DetC'
-sfields(id% DetC) % long_name = 'carbon in detritus'
-sfields(id% DetC) % units = 'mmol C m-3'
-sfields(id% DetC) % updated = .false.
-sfields(id% DetC) % bgc = .true.
-
-!~ ! TOC
-!~ sfields(id% TOC) % ndims = 2
-!~ sfields(id% TOC) % variable = 'TOC'
-!~ sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
-!~ sfields(id% TOC) % units = 'mmol C m-3'
-!~ sfields(id% TOC) % updated = .false.
-!~ sfields(id% TOC) % bgc = .true.
-
-! PhyCalc
-sfields(id% PhyCalc) % ndims = 2
-sfields(id% PhyCalc) % variable = 'PhyCalc'
-sfields(id% PhyCalc) % long_name = 'calcium carbonate small phytoplankton'
-sfields(id% PhyCalc) % units = 'mmol m-3'
-sfields(id% PhyCalc) % updated = .false.
-sfields(id% PhyCalc) % bgc = .true.
-
-! Export production
-sfields(id% export) % ndims = 1
-sfields(id% export) % variable = 'export'
-sfields(id% export) % long_name = 'export through particle sinking at 190m'
-sfields(id% export) % units = 'mmol m-2 day-1'
-sfields(id% export) % updated = .false.
-sfields(id% export) % bgc = .true.
-
-! Solubility of CO2
-sfields(id% alphaCO2) % ndims = 1
-sfields(id% alphaCO2) % variable = 'alphaCO2'
-sfields(id% alphaCO2) % long_name = 'solubility of surface CO2'
-sfields(id% alphaCO2) % units = 'mol kg-1 atm-1'
-sfields(id% alphaCO2) % updated = .false.
-sfields(id% alphaCO2) % bgc = .true.
-
-! Piston velocity
-sfields(id% PistonVel) % ndims = 1
-sfields(id% PistonVel) % variable = 'Kw660'
-sfields(id% PistonVel) % long_name = 'air-sea piston velocity'
-sfields(id% PistonVel) % units = 'm/s'
-sfields(id% PistonVel) % updated = .false.
-sfields(id% PistonVel) % bgc = .true.
+! *****************************
+! *** zooplankton          ****
+! *****************************
 
 ! Zo1C
 sfields(id% Zo1C) % ndims = 2
@@ -399,6 +389,138 @@ sfields(id% Zo2N) % units = 'mmol C m-3'
 sfields(id% Zo2N) % updated = .false.
 sfields(id% Zo2N) % bgc = .true.
 
+! *****************************
+! *** detritus             ****
+! *****************************
+
+! DetC
+sfields(id% DetC) % ndims = 2
+sfields(id% DetC) % variable = 'DetC'
+sfields(id% DetC) % long_name = 'carbon in small detritus'
+sfields(id% DetC) % units = 'mmol C m-3'
+sfields(id% DetC) % updated = .false.
+sfields(id% DetC) % bgc = .true.
+
+! DetCalc
+sfields(id% DetCalc) % ndims = 2
+sfields(id% DetCalc) % variable = 'DetCalc'
+sfields(id% DetCalc) % long_name = 'calcite in small detritus'
+sfields(id% DetCalc) % units = 'mmol C m-3'
+sfields(id% DetCalc) % updated = .false.
+sfields(id% DetCalc) % bgc = .true.
+
+! DetN
+sfields(id% DetN) % ndims = 2
+sfields(id% DetN) % variable = 'DetN'
+sfields(id% DetN) % long_name = 'nitrogen in small detritus'
+sfields(id% DetN) % units = 'mmol C m-3'
+sfields(id% DetN) % updated = .false.
+sfields(id% DetN) % bgc = .true.
+
+! DetSi
+sfields(id% DetSi) % ndims = 2
+sfields(id% DetSi) % variable = 'DetSi'
+sfields(id% DetSi) % long_name = 'silicate in small detritus'
+sfields(id% DetSi) % units = 'mmol C m-3'
+sfields(id% DetSi) % updated = .false.
+sfields(id% DetSi) % bgc = .true.
+
+! Det2 C
+sfields(id% Det2C) % ndims = 2
+sfields(id% Det2C) % variable = 'Det2C'
+sfields(id% Det2C) % long_name = 'carbon in large detritus'
+sfields(id% Det2C) % units = 'mmol C m-3'
+sfields(id% Det2C) % updated = .false.
+sfields(id% Det2C) % bgc = .true.
+
+! Det2 Calc
+sfields(id% Det2Calc) % ndims = 2
+sfields(id% Det2Calc) % variable = 'Det2Calc'
+sfields(id% Det2Calc) % long_name = 'calcite in large detritus'
+sfields(id% Det2Calc) % units = 'mmol C m-3'
+sfields(id% Det2Calc) % updated = .false.
+sfields(id% Det2Calc) % bgc = .true.
+
+! Det2 N
+sfields(id% Det2N) % ndims = 2
+sfields(id% Det2N) % variable = 'Det2N'
+sfields(id% Det2N) % long_name = 'nitrogen in large detritus'
+sfields(id% Det2N) % units = 'mmol C m-3'
+sfields(id% Det2N) % updated = .false.
+sfields(id% Det2N) % bgc = .true.
+
+! Det2 Si
+sfields(id% Det2Si) % ndims = 2
+sfields(id% Det2Si) % variable = 'Det2Si'
+sfields(id% Det2Si) % long_name = 'silicate in large detritus'
+sfields(id% Det2Si) % units = 'mmol C m-3'
+sfields(id% Det2Si) % updated = .false.
+sfields(id% Det2Si) % bgc = .true.
+
+! *****************************
+! *** diagnostics          ****
+! *****************************
+
+! PAR
+sfields(id% PAR) % ndims = 2
+sfields(id% PAR) % variable = 'PAR'
+sfields(id% PAR) % long_name = 'photosynthetically active radiation'
+sfields(id% PAR) % units = 'W m-2'
+sfields(id% PAR) % updated = .false.
+sfields(id% PAR) % bgc = .true.
+
+! NPPn
+sfields(id% NPPn) % ndims = 2
+sfields(id% NPPn) % variable = 'NPPn'
+sfields(id% NPPn) % long_name = 'mean net primary production small phytoplankton'
+sfields(id% NPPn) % units = 'mmol C m-2 d-1'
+sfields(id% NPPn) % updated = .false.
+sfields(id% NPPn) % bgc = .true.
+
+! NPPd
+sfields(id% NPPd) % ndims = 2
+sfields(id% NPPd) % variable = 'NPPd'
+sfields(id% NPPd) % long_name = 'mean net primary production diatoms'
+sfields(id% NPPd) % units = 'mmol C m-2 d-1'
+sfields(id% NPPd) % updated = .false.
+sfields(id% NPPd) % bgc = .true.
+
+! Export production
+sfields(id% export) % ndims = 1
+sfields(id% export) % variable = 'export'
+sfields(id% export) % long_name = 'export through particle sinking at 190m'
+sfields(id% export) % units = 'mmol m-2 day-1'
+sfields(id% export) % updated = .false.
+sfields(id% export) % bgc = .true.
+
+
+
+!~ ! TChl
+!~ sfields(id% TChl) % ndims = 2
+!~ sfields(id% TChl) % variable = 'TChl'
+!~ sfields(id% TChl) % long_name = 'Total chlorophyll (PhyChl+DiaChl)'
+!~ sfields(id% TChl) % units = 'mg chl m-3'
+!~ sfields(id% TChl) % updated = .false.
+!~ sfields(id% TChl) % bgc = .true.
+
+!~ ! TDN
+!~ sfields(id% TDN) % ndims = 2
+!~ sfields(id% TDN) % variable = 'TDN'
+!~ sfields(id% TDN) % long_name = 'Total dissolved nitrogen (DIN+DON)'
+!~ sfields(id% TDN) % units = 'mmol m-3'
+!~ sfields(id% TDN) % updated = .false.
+!~ sfields(id% TDN) % bgc = .true.
+
+!~ ! TOC
+!~ sfields(id% TOC) % ndims = 2
+!~ sfields(id% TOC) % variable = 'TOC'
+!~ sfields(id% TOC) % long_name = 'Total Organic Carbon (PhyC+DiaC+DetC+DOC+HetC)'
+!~ sfields(id% TOC) % units = 'mmol C m-3'
+!~ sfields(id% TOC) % updated = .false.
+!~ sfields(id% TOC) % bgc = .true.
+
+
+
 ! ************************************************
 ! ***   Read updated variables from namelist   ***
 ! ************************************************
@@ -407,46 +529,55 @@ sfields(id% Zo2N) % bgc = .true.
   IF (mype_world==0) WRITE(*,*) 'Read namelist file for updated variables: ',nmlfile
   
   NAMELIST /updated/ &
-     upd_ssh , &
-     upd_ssh , &
+     upd_ssh , &           ! physics
      upd_u   , &
      upd_v   , &
      upd_w   , &
      upd_temp, &
      upd_salt, &
      upd_ice , &
-     upd_MLD1, &
-     upd_PhyChl   , &
+     upd_MLD1, &           ! physics diagnostics
+     upd_MLD2, &
+     upd_PhyChl   , &      ! chlorophyll
      upd_DiaChl   , &
-     upd_DIC      , &
+     upd_DIC      , &      ! dissolved tracers
      upd_DOC      , &
      upd_Alk      , &
      upd_DIN      , &
      upd_DON      , &
      upd_O2       , &
-     upd_pCO2s    , &
+     upd_pCO2s    , &      ! surface carbon diags
      upd_CO2f     , &
-     upd_DiaN     , &
-     upd_DiaC     , &
-     upd_PAR      , &
-     upd_NPPn     , &
-     upd_NPPd     , &
-     upd_DetC     , &
-     upd_PhyCalc  , &
-     upd_export   , &
      upd_alphaCO2 , &
      upd_PistonVel, &
-     upd_Zo1C     , &
+     upd_DiaN     , &      ! diatoms
+     upd_DiaC     , &
+     upd_DiaSi    , &
+     upd_PhyCalc  , &      ! small phyto
+     upd_PhyC     , &
+     upd_PhyN     , &
+     upd_Zo1C     , &      ! het
      upd_Zo1N     , &
-     upd_Zo2C     , &
-     upd_Zo2N
+     upd_Zo2C     , &      ! zoo 2
+     upd_Zo2N     , &
+     upd_DetC     , &      ! small det
+     upd_DetCalc  , &
+     upd_DetSi    , &
+     upd_DetN     , &
+     upd_Det2C    , &      ! large det
+     upd_Det2N    , &
+     upd_Det2Si   , &
+     upd_Det2Calc , &
+     upd_export   , &      ! diags
+     upd_PAR      , &
+     upd_NPPn     , &
+     upd_NPPd
      
 
   OPEN  (20,file=nmlfile)
   READ  (20,NML=updated)
   CLOSE (20)
   
-  sfields(id% ssh      ) % updated = upd_ssh
   sfields(id% ssh      ) % updated = upd_ssh
   sfields(id% u        ) % updated = upd_u
   sfields(id% v        ) % updated = upd_v
@@ -455,30 +586,50 @@ sfields(id% Zo2N) % bgc = .true.
   sfields(id% salt     ) % updated = upd_salt
   sfields(id% a_ice    ) % updated = upd_ice
   sfields(id% MLD1     ) % updated = upd_MLD1
+  sfields(id% MLD2     ) % updated = upd_MLD2
+  
   sfields(id% PhyChl   ) % updated = upd_PhyChl
   sfields(id% DiaChl   ) % updated = upd_DiaChl
+  
   sfields(id% DIC      ) % updated = upd_DIC
   sfields(id% DOC      ) % updated = upd_DOC
   sfields(id% Alk      ) % updated = upd_Alk
   sfields(id% DIN      ) % updated = upd_DIN
   sfields(id% DON      ) % updated = upd_DON
   sfields(id% O2       ) % updated = upd_O2
+  
   sfields(id% pCO2s    ) % updated = upd_pCO2s
   sfields(id% CO2f     ) % updated = upd_CO2f
+  sfields(id% alphaCO2 ) % updated = upd_alphaCO2
+  sfields(id% PistonVel) % updated = upd_PistonVel  
+  
   sfields(id% DiaN     ) % updated = upd_DiaN
   sfields(id% DiaC     ) % updated = upd_DiaC
-  sfields(id% PAR      ) % updated = upd_PAR
-  sfields(id% NPPn     ) % updated = upd_NPPn
-  sfields(id% NPPd     ) % updated = upd_NPPd
-  sfields(id% DetC     ) % updated = upd_DetC
+  sfields(id% DiaSi    ) % updated = upd_DiaSi
+  
   sfields(id% PhyCalc  ) % updated = upd_PhyCalc
-  sfields(id% export   ) % updated = upd_export
-  sfields(id% alphaCO2 ) % updated = upd_alphaCO2
-  sfields(id% PistonVel) % updated = upd_PistonVel
+  sfields(id% PhyC     ) % updated = upd_PhyC
+  sfields(id% PhyN     ) % updated = upd_PhyN
+  
   sfields(id% Zo1C     ) % updated = upd_Zo1C
   sfields(id% Zo1N     ) % updated = upd_Zo1N
   sfields(id% Zo2C     ) % updated = upd_Zo2C
   sfields(id% Zo2N     ) % updated = upd_Zo2N
+  
+  sfields(id% DetC     ) % updated = upd_DetC
+  sfields(id% DetCalc  ) % updated = upd_DetCalc
+  sfields(id% DetSi    ) % updated = upd_DetSi
+  sfields(id% DetN     ) % updated = upd_DetN
+  
+  sfields(id% Det2C     ) % updated = upd_Det2C
+  sfields(id% Det2Calc  ) % updated = upd_Det2Calc
+  sfields(id% Det2Si    ) % updated = upd_Det2Si
+  sfields(id% Det2N     ) % updated = upd_Det2N
+  
+  sfields(id% PAR      ) % updated = upd_PAR
+  sfields(id% NPPn     ) % updated = upd_NPPn
+  sfields(id% NPPd     ) % updated = upd_NPPd
+  sfields(id% export   ) % updated = upd_export
   
   ! If BGC or physics are not assimilated,
   ! do not update the respective part of state vector.  
@@ -486,7 +637,8 @@ sfields(id% Zo2N) % bgc = .true.
      do p=phymin,phymax
        sfields(p) % updated = .false.
      enddo
-  ELSEIF (.not. assimilateBGC) THEN
+  ENDIF
+  IF (.not. assimilateBGC) THEN
      do b=bgcmin,bgcmax
        sfields(b) % updated = .false.
      enddo
@@ -509,8 +661,9 @@ sfields(id% Zo2N) % bgc = .true.
   ENDDO
   IF (mype_world==0) THEN
      DO p=1,nfields_3D
-     WRITE (*,'(a, 10x,3a,1x,7a)') &
-          'FESOM-PDAF', '3D fields in state vector: ', sfields % variable(ids_3D(p))
+       WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', '3D fields in state vector: ', sfields(ids_3D(p)) % variable
+     ENDDO
   ENDIF
 
 END SUBROUTINE init_sfields

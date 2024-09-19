@@ -29,6 +29,12 @@ subroutine recom(mesh)
   use i_therm_param
   use g_comm
   use g_support
+#ifdef use_PDAF
+  use mod_carbon_fluxes_diags
+  use mod_assim_pdaf, only: nlmax
+#endif
+  
+  
   implicit none
   type(t_mesh), intent(in) , target :: mesh
 ! ======================================================================================
@@ -55,6 +61,11 @@ subroutine recom(mesh)
   real (kind=8), allocatable :: Temp(:),  zr(:), PAR(:)
   real(kind=8),  allocatable :: C(:,:)
   character(len=2)           :: tr_num_name
+#ifdef use_PDAF
+  integer                    :: nlay
+  real, allocatable          :: factorvolmass(:)
+#endif
+  
 #include "../associate_mesh.h"
 
   allocate(Temp(nl-1), zr(nl-1) , PAR(nl-1))
@@ -137,6 +148,18 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> bio_fluxes'
 
      allocate(Diags3Dloc(nzmax,8))
      Diags3Dloc(:,:) = 0.d0
+#ifdef use_PDAF
+     nlay = min(nzmax,nlmax)
+     ! initialize local carbon flux diags
+     allocate(s_bio_dicLoc         (nlay))
+     allocate(s_bio_livingmatterLoc(nlay))
+     allocate(s_bio_deadmatterLoc  (nlay))
+     allocate(s_bio_alkLoc         (nlay))
+     s_bio_dicLoc          = 0.d0
+     s_bio_livingmatterLoc = 0.d0
+     s_bio_deadmatterLoc   = 0.d0
+     s_bio_alkLoc          = 0.d0
+#endif
 
 if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forcing'//achar(27)//'[0m'
 
@@ -144,22 +167,21 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
 ! ======================================================================================
 !******************************** RECOM FORCING ****************************************
 
-     call REcoM_Forcing(zr, n, nzmax, C, SW, Loc_slp, Temp, Sali, PAR, mesh)
+     call REcoM_Forcing(zr, n, nzmax, C, SW, Loc_slp, Temp, Sali, PAR, mesh) ! includes call to recom_sms
 
-     tr_arr(1:nzmax, n, 3:num_tracers)       = C(1:nzmax, 1:bgc_num)
+     tr_arr(1:nzmax, n, 3:num_tracers)       = C(1:nzmax, 1:bgc_num)         ! tracer array is updated
 
      !!---- Local variables that have been changed during the time-step are stored so they can be saved
-     Benthos(n,1:benthos_num)     = LocBenthos(1:benthos_num)                                ! Updating Benthos values
+     Benthos(n,1:benthos_num)     = LocBenthos(1:benthos_num)                      ! Updating Benthos values
 
      Diags2D(n,1:8)               = LocDiags2D(1:8)                                ! Updating diagnostics
      GloPCO2surf(n)               = pco2surf(1)
      GlodPCO2surf(n)              = dpco2surf(1)
 
-     GloCO2flux(n)                = dflux(1)
+     GloCO2flux(n)                = dflux(1)                              !  [mmol/m2/day]
      GloCO2flux_seaicemask(n)     = co2flux_seaicemask(1)                 !  [mmol/m2/s]
      GloO2flux_seaicemask(n)      = o2flux_seaicemask(1)                  !  [mmol/m2/s]
      if (ciso) then
-!        tr_arr(1:nzmax, n, 25:40)    = C(1:nzmax,23:38)
         GloCO2flux_seaicemask_13(n)     = co2flux_seaicemask_13(1)        !  [mmol/m2/s]
         GloCO2flux_seaicemask_14(n)     = co2flux_seaicemask_14(1)        !  [mmol/m2/s]
      end if
@@ -168,7 +190,6 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
 
      AtmFeInput(n)                = FeDust
      AtmNInput(n)                 = NDust 
-!     DenitBen(n)                  = LocDenit
 
      PistonVelocity(n)         = kw660(1) ! CN: write Piston velocity                                
      alphaCO2(n)               = K0(1)  ! CN: write CO2 solubility
@@ -180,8 +201,29 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
      do idiags = 1,diags3d_num
        Diags3D(1:nzmax,n,idiags)  = Diags3Dloc(1:nzmax,idiags) ! 1=NPPnano, 2=NPPdia
      end do
-
      deallocate(Diags3Dloc)
+#ifdef use_PDAF
+     ! local diagnostics to global field
+     
+     allocate(factorvolmass(nlay))
+     if (cfconc) then
+       ! concentration
+       factorvolmass(:) = 1.0
+     else
+       ! mass
+       factorvolmass(:) = areasvol(1:nlay,n)*hnode_new(1:nlay,n)
+     endif
+     
+     s_bio_dic          (1:nlay,n) = s_bio_dicLoc(1:nlay)          !* factorvolmass
+     s_bio_livingmatter (1:nlay,n) = s_bio_livingmatterLoc(1:nlay) !* factorvolmass
+     s_bio_deadmatter   (1:nlay,n) = s_bio_deadmatterLoc(1:nlay)   !* factorvolmass
+     s_bio_alk          (1:nlay,n) = s_bio_alkLoc(1:nlay)          !* factorvolmass
+     deallocate(factorvolmass)
+     deallocate(s_bio_dicLoc          )
+     deallocate(s_bio_livingmatterLoc )
+     deallocate(s_bio_deadmatterLoc   )
+     deallocate(s_bio_alkLoc          )
+#endif
 
   end do
 
