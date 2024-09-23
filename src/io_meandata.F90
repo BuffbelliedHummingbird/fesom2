@@ -445,85 +445,238 @@ CASE ('salt      ')
     call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'salt',      'salinity',    'psu',    tr_arr(:,:,2),             io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
 CASE ('PAR       ')
     call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'PAR', 'PAR', 'W/m2',      PAR3D(:,:),             io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-CASE ('otracers  ')
-    do j=3, num_tracers
+
+! REcoM tracers
+CASE('DIN        ')
+    j = 3
     write (id_string, "(I4.4)") tracer_id(j)
       if (tracer_id(j)==1001) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DIN', 'Dissolved Inorganic Nitrogen', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1002) then
-         call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DIC', 'Dissolved Inorganic C', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1003) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DIC        ')
+    j = 4
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1002) then
+          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DIC', 'Dissolved Inorganic C', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Alk        ')
+    j = 5
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1003) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'Alk', 'Total Alkalinity', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1004) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('PhyN       ')
+    j = 6
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1004) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'PhyN', 'Intracellular conc of Nitrogen in small phytoplankton', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1005) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('PhyC       ')
+    j = 7
+    write (id_string, "(I4.4)") tracer_id(j)      
+      if (tracer_id(j)==1005) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'PhyC', 'Intracellular conc of Carbon in small phytoplankton', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1006) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('PhyChl     ')
+    j = 8
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1006) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'PhyChl', 'Current intracellular ChlA conc.', '[mg/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1007) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetN       ')
+    j = 9
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1007) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DetN', 'Conc of N in Detritus', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1008) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetC       ')
+    j = 10
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1008) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DetC', 'Conc of C in Detritus', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1009) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('HetN       ')
+    j = 11
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1009) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'HetN', 'Conc of N in heterotrophs', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1010) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('HetC       ')
+    j = 12
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1010) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'HetC', 'Conc of C in heterotrophs', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1011) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DON        ')
+    j = 13
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1011) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DON', 'Dissolved organic N in the water', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1012) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DOC        ')
+    j = 14
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1012) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DOC', 'Dissolved Organic C in the water', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)      
-
-      else if (tracer_id(j)==1013) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DiaN       ')
+    j = 15
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1013) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DiaN', 'DiaN', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1014) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DiaC       ')
+    j = 16
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1014) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DiaC', 'DiaC', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      
-      else if (tracer_id(j)==1015) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DiaChl     ')
+    j = 17
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1015) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DiaChl', 'DiaChl', '[mg/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1016) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DiaSi      ')
+    j = 18
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1016) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DiaSi', 'DiaSi', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      
-      else if (tracer_id(j)==1017) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetSi      ')
+    j = 19
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1017) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DetSi', 'DetSi', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1018) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DSi        ')
+    j = 20
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1018) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DSi', 'DSi', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      
-      else if (tracer_id(j)==1019) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Fe         ')
+    j = 21
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1019) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DFe', 'DFe', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1020) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('PhyCalc    ')
+    j = 22
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1020) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'PhyCalc', 'PhyCalc', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)      
-
-      else if (tracer_id(j)==1021) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetCalc    ')
+    j = 23
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1021) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'DetCalc', 'DetCalc', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-     
-      else if (tracer_id(j)==1022) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Oxy        ')
+    j = 24
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1022) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'O2', 'O2', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-
-      else if (tracer_id(j)==1023) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Zoo2N      ')
+    j = 25
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1023) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'Zoo2N', 'Intracellular conc of Nitrogen in second zooplankton', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1024) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Zoo2C      ')
+    j = 26
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1024) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'Zoo2C', 'Intracellular conc of Carbon in second zooplankton', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1025) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Det2Zn     ')
+    j = 27
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1025) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'idetz2n', 'idetz2n', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1026) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetZ2C     ')
+    j = 28
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1026) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'idetz2c', 'idetz2c', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1027) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetZ2Si    ')
+    j = 29
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1027) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'idetz2si', 'idetz2si', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      else if (tracer_id(j)==1028) then
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('DetZ2Calc  ')
+    j = 30
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1028) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'idetz2calc', 'idetz2calc', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
       else
-         call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'tra_'//id_string, 'passive tracer ID='//id_string, 'n/a', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
-      end if
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE ('otracers  ')
+    do j=31, num_tracers
+      write (id_string, "(I4.4)") tracer_id(j)
+      call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'tra_'//id_string, 'passive tracer ID='//id_string, 'n/a', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
     end do
+
 CASE ('slope_x   ')
     call def_stream((/nl-1,  nod2D/), (/nl-1, myDim_nod2D/),  'slope_x',   'neutral slope X',    'none', slope_tapered(1,:,:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
 CASE ('slope_y   ')
