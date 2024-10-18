@@ -48,6 +48,7 @@ IMPLICIT NONE
    real, allocatable :: s_diffV_alk         (:,:)  ! vertical diffusion
    real, allocatable :: s_diffH_alk         (:,:)  ! horizontal diffusion
    real, allocatable :: s_bio_alk           (:,:)  ! remineralization and calcification
+   real, allocatable :: s_benthos_alk       (:,:)  ! remineralization and diffusion from benthos
 
 !  DIC
    real, allocatable :: s_hor_dic           (:,:)  ! advection
@@ -55,6 +56,7 @@ IMPLICIT NONE
    real, allocatable :: s_diffV_dic         (:,:)  ! diffusion
    real, allocatable :: s_diffH_dic         (:,:)
    real, allocatable :: s_bio_dic           (:,:)  ! source of DIC from deadmatter (remineralization of DOC; calcite dissolution)
+   real, allocatable :: s_benthos_dic       (:,:)  ! remineralization and diffusion from benthos
 
 !  Living biomass (Phy, Dia, Het, Zoo)
    real, allocatable :: s_hor_livingmatter  (:,:)  ! advection
@@ -63,6 +65,7 @@ IMPLICIT NONE
    real, allocatable :: s_diffH_livingmatter(:,:)
    real, allocatable :: s_sink_livingmatter (:,:)  ! sinking in the water column
    real, allocatable :: s_bio_livingmatter  (:,:)  ! net source of alive biomass from DIC (photosynthesis - respiration; calcification)
+   real, allocatable :: s_benthos_livingmatter(:,:)! sinking into benthos
 
 !  Dead organic carbon (Detritus and DOC)
    real, allocatable :: s_hor_deadmatter    (:,:)  ! advection of detritus and DOC
@@ -71,12 +74,22 @@ IMPLICIT NONE
    real, allocatable :: s_diffH_deadmatter  (:,:)
    real, allocatable :: s_export            (:,:)  ! sinking of detritus in the water column
    real, allocatable :: s_bio_deadmatter    (:,:)  ! net source of dead organic C from living biomass (aggregation, mortality, excretion, sloppy feeding, etc.)
+   real, allocatable :: s_benthos_deadmatter(:,:)  ! sinking into benthos
    
 !  Domain-local arrays required for REcoM fluxes
    real, allocatable :: s_bio_dicLoc          (:)
    real, allocatable :: s_bio_livingmatterLoc (:)
    real, allocatable :: s_bio_deadmatterLoc   (:)
    real, allocatable :: s_bio_alkLoc          (:)
+
+!  _____________________________________________________   
+!  *** Tracer mass of carbon [mmol C ]               ***
+
+   ! Mean state
+   real, allocatable :: m_alk               (:,:)
+   real, allocatable :: m_dic               (:,:)
+   real, allocatable :: m_livingmatter      (:,:)
+   real, allocatable :: m_deadmatter        (:,:)
    
 !  ********************************************
 !  *** Diagnostic variables (monthly means) ***
@@ -97,6 +110,7 @@ IMPLICIT NONE
    real, allocatable :: tM_v_deadmatter      (:,:)
    real, allocatable :: tM_w_deadmatter      (:,:)
    real, allocatable :: tM_export            (:,:)
+   
    real, allocatable :: sM_hor_alk           (:,:)
    real, allocatable :: sM_ver_alk           (:,:)
    real, allocatable :: sM_diffV_alk         (:,:)
@@ -119,6 +133,15 @@ IMPLICIT NONE
    real, allocatable :: sM_diffH_deadmatter  (:,:)
    real, allocatable :: sM_export            (:,:)
    real, allocatable :: sM_bio_deadmatter    (:,:)
+   real, allocatable :: sM_benthos_alk         (:,:)
+   real, allocatable :: sM_benthos_dic         (:,:)
+   real, allocatable :: sM_benthos_livingmatter(:,:)
+   real, allocatable :: sM_benthos_deadmatter  (:,:)
+   
+   real, allocatable :: mM_alk               (:,:)
+   real, allocatable :: mM_dic               (:,:)
+   real, allocatable :: mM_livingmatter      (:,:)
+   real, allocatable :: mM_deadmatter        (:,:)
    
 CONTAINS
 
@@ -180,6 +203,11 @@ integer :: nl
    allocate(s_diffH_deadmatter   (nl-2,myDim_nod2D+eDim_nod2D))
    allocate(s_export             (nl-2,myDim_nod2D))
    allocate(s_bio_deadmatter     (nl-2,myDim_nod2D))
+   
+   allocate(s_benthos_alk         (nl-2,myDim_nod2D))
+   allocate(s_benthos_dic         (nl-2,myDim_nod2D))
+   allocate(s_benthos_livingmatter(nl-2,myDim_nod2D))
+   allocate(s_benthos_deadmatter  (nl-2,myDim_nod2D))
 
    allocate(tM_u_alk             (nl-2,myDim_nod2D))
    allocate(tM_v_alk             (nl-2,myDim_nod2D))
@@ -218,6 +246,21 @@ integer :: nl
    allocate(sM_export            (nl-2,myDim_nod2D))
    allocate(sM_bio_deadmatter    (nl-2,myDim_nod2D))
    
+   allocate(sM_benthos_alk         (nl-2,myDim_nod2D))
+   allocate(sM_benthos_dic         (nl-2,myDim_nod2D))
+   allocate(sM_benthos_livingmatter(nl-2,myDim_nod2D))
+   allocate(sM_benthos_deadmatter  (nl-2,myDim_nod2D))
+   
+   allocate(m_alk                (nl-2,myDim_nod2D))
+   allocate(m_dic                (nl-2,myDim_nod2D))
+   allocate(m_livingmatter       (nl-2,myDim_nod2D))
+   allocate(m_deadmatter         (nl-2,myDim_nod2D))
+   
+   allocate(mM_alk               (nl-2,myDim_nod2D))
+   allocate(mM_dic               (nl-2,myDim_nod2D))
+   allocate(mM_livingmatter      (nl-2,myDim_nod2D))
+   allocate(mM_deadmatter        (nl-2,myDim_nod2D))
+   
    t_u_alk              =0.0
    t_v_alk              =0.0
    t_w_alk              =0.0
@@ -255,6 +298,11 @@ integer :: nl
    s_diffH_deadmatter   =0.0
    s_export             =0.0
    s_bio_deadmatter     =0.0
+   
+   s_benthos_alk         =0.0
+   s_benthos_dic         =0.0
+   s_benthos_livingmatter=0.0
+   s_benthos_deadmatter  =0.0
 
    tM_u_alk             =0.0
    tM_v_alk             =0.0
@@ -293,8 +341,99 @@ integer :: nl
    sM_diffH_deadmatter  =0.0
    sM_export            =0.0
    sM_bio_deadmatter    =0.0
+   
+   sM_benthos_alk         =0.0
+   sM_benthos_dic         =0.0
+   sM_benthos_livingmatter=0.0
+   sM_benthos_deadmatter  =0.0
+   
+   m_alk               =0.0
+   m_dic               =0.0
+   m_livingmatter      =0.0
+   m_deadmatter        =0.0
+   
+   mM_alk               =0.0
+   mM_dic               =0.0
+   mM_livingmatter      =0.0
+   mM_deadmatter        =0.0
 
 END SUBROUTINE init_carbonfluxes_diags_arrays
+
+! ***********************************************
+! ***                                         ***
+! ***   init_carbonfluxes_amsldiags_arrays    ***
+! ***                                         ***
+! ***********************************************
+SUBROUTINE init_carbonfluxes_asmldiags_arrays()
+USE g_PARSUP, ONLY: &
+    myDim_nod2D, eDim_nod2D
+USE mod_assim_pdaf, ONLY: &
+    mesh_fesom, &
+    mF_alk               , &
+    mF_dic               , &
+    mF_livingmatter      , &
+    mF_deadmatter        , &
+    mA_alk               , &
+    mA_dic               , &
+    mA_livingmatter      , &
+    mA_deadmatter        , &
+    s_asml_alk           , &
+    s_asml_dic           , &
+    s_asml_livingmatter  , &
+    s_asml_deadmatter    , &
+    sM_asml_alk          , &
+    sM_asml_dic          , &
+    sM_asml_livingmatter , &
+    sM_asml_deadmatter   , &
+    factor_massvol
+
+implicit none
+integer :: nl
+
+   nl = mesh_fesom%nl
+   
+   allocate(mF_alk               (nl-2,myDim_nod2D))
+   allocate(mF_dic               (nl-2,myDim_nod2D))
+   allocate(mF_livingmatter      (nl-2,myDim_nod2D))
+   allocate(mF_deadmatter        (nl-2,myDim_nod2D))
+   
+   allocate(mA_alk               (nl-2,myDim_nod2D))
+   allocate(mA_dic               (nl-2,myDim_nod2D))
+   allocate(mA_livingmatter      (nl-2,myDim_nod2D))
+   allocate(mA_deadmatter        (nl-2,myDim_nod2D))
+   
+   allocate(s_asml_alk           (nl-2,myDim_nod2D))
+   allocate(s_asml_dic           (nl-2,myDim_nod2D))
+   allocate(s_asml_livingmatter  (nl-2,myDim_nod2D))
+   allocate(s_asml_deadmatter    (nl-2,myDim_nod2D))
+   
+   allocate(sM_asml_alk          (nl-2,myDim_nod2D))
+   allocate(sM_asml_dic          (nl-2,myDim_nod2D))
+   allocate(sM_asml_livingmatter (nl-2,myDim_nod2D))
+   allocate(sM_asml_deadmatter   (nl-2,myDim_nod2D))
+   
+   allocate(factor_massvol       (nl-2,myDim_nod2D))
+   
+   mF_alk               = 0.0
+   mF_dic               = 0.0
+   mF_livingmatter      = 0.0
+   mF_deadmatter        = 0.0
+   mA_alk               = 0.0
+   mA_dic               = 0.0
+   mA_livingmatter      = 0.0
+   mA_deadmatter        = 0.0
+   s_asml_alk           = 0.0
+   s_asml_dic           = 0.0
+   s_asml_livingmatter  = 0.0
+   s_asml_deadmatter    = 0.0
+   sM_asml_alk          = 0.0
+   sM_asml_dic          = 0.0
+   sM_asml_livingmatter = 0.0
+   sM_asml_deadmatter   = 0.0
+   
+   factor_massvol = 0.0
+   
+END SUBROUTINE init_carbonfluxes_asmldiags_arrays
 
 ! ***********************************************
 ! ***                                         ***
@@ -307,6 +446,7 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
 
       USE g_clock, &
         ONLY: month,num_day_in_month,fleapyear,cyearnew
+      USE g_events
       USE g_config, &
         ONLY: step_per_day
       USE g_parsup, &
@@ -335,9 +475,9 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
       ! *** set "now_to_write_monthly" at last day of month ***
       call monthly_event(now_to_write_monthly)
       
-      IF (writepe) WRITE (*, '(/a, 1x, a, 1x, i3, 1x, a, 1x, l)') 'FESOM-PDAF', 'Call carbonflux diagnostics at step', mstep, 'nowtowritemonthly', now_to_write_monthly
+!~       IF (writepe) WRITE (*, '(/a, 1x, a, 1x, i5, 1x, a, 1x, l)') 'FESOM-PDAF', 'Call carbonflux diagnostics at step', mstep, 'nowtowritemonthly', now_to_write_monthly
       
-      IF (.not. now_to_write_monthly) THEN
+!~       IF (.not. now_to_write_monthly) THEN
       ! ***
       ! *** add instantaneous data to monthly
       ! ***
@@ -380,7 +520,18 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
       sM_export             = sM_export             + s_export
       sM_bio_deadmatter     = sM_bio_deadmatter     + s_bio_deadmatter
       
-      ELSE
+      sM_benthos_alk          = sM_benthos_alk          + s_benthos_alk
+      sM_benthos_dic          = sM_benthos_dic          + s_benthos_dic
+      sM_benthos_livingmatter = sM_benthos_livingmatter + s_benthos_livingmatter
+      sM_benthos_deadmatter   = sM_benthos_deadmatter   + s_benthos_deadmatter
+      
+      mM_alk               = mM_alk + m_alk
+      mM_dic               = mM_dic + m_dic
+      mM_livingmatter      = mM_livingmatter + m_livingmatter
+      mM_deadmatter        = mM_deadmatter   + m_deadmatter
+
+      
+      IF (now_to_write_monthly) THEN
       ! ***
       ! *** compute monthly mean, compute ensemble mean, write output and reset monthly data to zero
       ! ***
@@ -425,6 +576,16 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
       sM_diffH_deadmatter  = sM_diffH_deadmatter   * weights
       sM_export            = sM_export             * weights
       sM_bio_deadmatter    = sM_bio_deadmatter     * weights
+      
+      sM_benthos_alk          = sM_benthos_alk          * weights
+      sM_benthos_dic          = sM_benthos_dic          * weights
+      sM_benthos_livingmatter = sM_benthos_livingmatter * weights
+      sM_benthos_deadmatter   = sM_benthos_deadmatter   * weights
+      
+      mM_alk               = mM_alk          * weights
+      mM_dic               = mM_dic          * weights
+      mM_livingmatter      = mM_livingmatter * weights
+      mM_deadmatter        = mM_deadmatter   * weights
 
       
       ! compute ensemble mean
@@ -466,6 +627,14 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
          CALL MPI_REDUCE( MPI_IN_PLACE,  sM_diffH_deadmatter  , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
          CALL MPI_REDUCE( MPI_IN_PLACE,  sM_export            , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
          CALL MPI_REDUCE( MPI_IN_PLACE,  sM_bio_deadmatter    , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  sM_benthos_livingmatter,nlmax* myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  sM_benthos_deadmatter, nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  sM_benthos_dic       , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  sM_benthos_alk       , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  mM_alk               , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  mM_dic               , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  mM_livingmatter      , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( MPI_IN_PLACE,  mM_deadmatter        , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM,  0          , COMM_COUPLE, mpierror)
          
          ! write output
          call write_carbonfluxes_diags_out(month)
@@ -508,7 +677,14 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
          CALL MPI_REDUCE( sM_diffH_deadmatter  , sM_diffH_deadmatter  , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
          CALL MPI_REDUCE( sM_export            , sM_export            , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
          CALL MPI_REDUCE( sM_bio_deadmatter    , sM_bio_deadmatter    , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
-         
+         CALL MPI_REDUCE( sM_benthos_livingmatter, sM_benthos_livingmatter, nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( sM_benthos_deadmatter,   sM_benthos_deadmatter  , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( sM_benthos_dic         , sM_benthos_dic         , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( sM_benthos_alk         , sM_benthos_alk         , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( mM_dic               , mM_dic               , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( mM_alk               , mM_alk               , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( mM_livingmatter      , mM_livingmatter      , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
+         CALL MPI_REDUCE( mM_deadmatter        , mM_deadmatter        , nlmax * myDim_nod2D, MPI_DOUBLE_PRECISION, MPI_SUM, 0          , COMM_COUPLE, mpierror)
       ENDIF ! filterpe
       
       ! reset monthly data to zero
@@ -548,6 +724,15 @@ SUBROUTINE carbonfluxes_diags_output_monthly(mstep)
       sM_diffH_deadmatter  = 0.0
       sM_export            = 0.0
       sM_bio_deadmatter    = 0.0
+      sM_benthos_deadmatter   = 0.0
+      sM_benthos_livingmatter = 0.0
+      sM_benthos_dic          = 0.0
+      sM_benthos_alk          = 0.0
+      mM_dic           = 0.0
+      mM_alk           = 0.0
+      mM_livingmatter  = 0.0
+      mM_deadmatter    = 0.0
+
       
       ENDIF ! now_to_write_monthly
   
@@ -593,7 +778,7 @@ SUBROUTINE init_carbonfluxes_diags_out()
       USE recom_config, &
          ONLY: secondsperday
       USE g_clock, &
-         ONLY: cyearnew, num_day_in_month, fleapyear, yearold
+         ONLY: cyearnew, num_day_in_month, fleapyear, yearold, yearnew
       USE g_parsup, &
          ONLY: myDim_nod2D
       USE g_comm_auto, &
@@ -605,6 +790,7 @@ SUBROUTINE init_carbonfluxes_diags_out()
       IMPLICIT NONE
       
       character(len=200) :: filename
+      character(len=200) :: units
       INTEGER :: fileid
       INTEGER :: dimIDs(3)
       INTEGER :: varid_nod2, varid_iter, &
@@ -620,6 +806,14 @@ SUBROUTINE init_carbonfluxes_diags_out()
       
       REAL, allocatable :: lon(:)
       REAL, allocatable :: lat(:)
+
+      LOGICAL :: file_exists
+
+      filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.cfx.'//cyearnew//'.nc'
+
+      INQUIRE(file=filename, exist=file_exists)
+
+      IF (.not. file_exists) THEN
       
       ! gather GEO coordinates (from all PEs)
       allocate(lon(mesh_fesom% nod2D),lat(mesh_fesom% nod2D))
@@ -627,11 +821,8 @@ SUBROUTINE init_carbonfluxes_diags_out()
       call gather_nod(mesh_fesom%geo_coord_nod2D(2, 1:myDim_nod2D), lat)
       
       IF (writepe) THEN
-      
       ! initialize file
-      filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.cfx.'//cyearnew//'.nc'
       WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize carbon flux diags NetCDF file: '//TRIM(filename)
-      
       ! open file
       call check(NF90_CREATE(trim(filename),NF90_NETCDF4,fileid))
       
@@ -659,7 +850,7 @@ SUBROUTINE init_carbonfluxes_diags_out()
       call check( nf90_put_att(fileid, varid_lon,  'units', 'degE [-180;180]'))
       call check( nf90_put_att(fileid, varid_lat,  'units', 'degN [-90;90]'))
       
-      write(att_text, '(a14,I4.4,a1,I2.2,a1,I2.2,a6)') 'seconds since ', yearold, '-', 1, '-', 1, ' 0:0:0'
+      write(att_text, '(a14,I4.4,a1,I2.2,a1,I2.2,a6)') 'seconds since ', yearnew, '-', 1, '-', 1, ' 0:0:0'
       call check( nf90_put_att(fileid, varid_iter, 'long_name', 'time'))
       call check( nf90_put_att(fileid, varid_iter, 'standard_name', 'time'))
       call check( nf90_put_att(fileid, varid_iter, 'units', trim(att_text)))
@@ -688,6 +879,12 @@ SUBROUTINE init_carbonfluxes_diags_out()
       dimIDs(1) = dimID_nod2
       dimIDs(2) = dimID_nz1
       dimIDs(3) = dimID_iter
+      
+      if (cfconc) then
+         units = 'mmol  m$^{-3}$ s$^{-1}$'
+      else
+         units = 'mmol s$^{-1}$'
+      endif
       
       call check( NF90_DEF_VAR(fileid, 't_u_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
@@ -743,102 +940,152 @@ SUBROUTINE init_carbonfluxes_diags_out()
       
       call check( NF90_DEF_VAR(fileid, 't_export', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_hor_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_ver_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffV_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
 
       call check( NF90_DEF_VAR(fileid, 's_diffH_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_bio_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_hor_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_ver_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffV_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffH_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_bio_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_hor_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_ver_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffV_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffH_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_sink_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_bio_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_hor_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_ver_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffV_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_diffH_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_export', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
       
       call check( NF90_DEF_VAR(fileid, 's_bio_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
       call check( nf90_put_att(fileid, varid, 'long_name', ''))
-      call check( nf90_put_att(fileid, varid, 'units',     'mmol  m$^{-3}$ s$^{-1}$'))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
+      
+      call check( NF90_DEF_VAR(fileid, 's_benthos_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
+      
+      call check( NF90_DEF_VAR(fileid, 's_benthos_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
+      
+      call check( NF90_DEF_VAR(fileid, 's_benthos_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
+      
+      call check( NF90_DEF_VAR(fileid, 's_benthos_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     TRIM(units)))
+      
+      call check( NF90_DEF_VAR(fileid, 'm_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol'))
+      
+      call check( NF90_DEF_VAR(fileid, 'm_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol'))
+      
+      call check( NF90_DEF_VAR(fileid, 'm_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol'))
+      
+      call check( NF90_DEF_VAR(fileid, 'm_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol'))
+      
+      call check( NF90_DEF_VAR(fileid, 's_asml_dic', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol s$^{-1}$'))
+      
+      call check( NF90_DEF_VAR(fileid, 's_asml_alk', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol s$^{-1}$'))
+      
+      call check( NF90_DEF_VAR(fileid, 's_asml_livingmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol s$^{-1}$'))
+      
+      call check( NF90_DEF_VAR(fileid, 's_asml_deadmatter', NF90_FLOAT, dimIDs(1:ndims), varid))
+      call check( nf90_put_att(fileid, varid, 'long_name', ''))
+      call check( nf90_put_att(fileid, varid, 'units',     'mmol s$^{-1}$'))
       
       call check(NF90_ENDDEF(fileid))
       call check(NF90_CLOSE(fileid))
       
-      ENDIF
+      ENDIF ! writepe
 
       deallocate(lat,lon)
+
+      ENDIF ! .not. file_exists
 
 END SUBROUTINE init_carbonfluxes_diags_out
 
@@ -1027,6 +1274,38 @@ IF (writepe) call putvar(fileid,varname,data3_g,writepos)
 
 varname =      's_bio_deadmatter'   
 CALL gather_nod(sM_bio_deadmatter   , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      's_benthos_deadmatter'   
+CALL gather_nod(sM_benthos_deadmatter   , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      's_benthos_livingmatter'   
+CALL gather_nod(sM_benthos_livingmatter   , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      's_benthos_dic'   
+CALL gather_nod(sM_benthos_dic   , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      's_benthos_alk'   
+CALL gather_nod(sM_benthos_alk   , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      'm_dic'   
+CALL gather_nod(mM_dic          , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      'm_alk'   
+CALL gather_nod(mM_alk          , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      'm_livingmatter'   
+CALL gather_nod(mM_livingmatter , data3_g) 
+IF (writepe) call putvar(fileid,varname,data3_g,writepos)
+
+varname =      'm_deadmatter'   
+CALL gather_nod(mM_deadmatter   , data3_g) 
 IF (writepe) call putvar(fileid,varname,data3_g,writepos)
 
 deallocate(data3_g)

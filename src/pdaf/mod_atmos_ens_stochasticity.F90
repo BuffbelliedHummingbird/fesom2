@@ -395,25 +395,21 @@ IF (istep==1) THEN
 	IF(disturb_snow ) ALLOCATE(perturbation_snow  (myDim_nod2D + eDim_nod2D))
 	IF(disturb_mslp ) ALLOCATE(perturbation_mslp  (myDim_nod2D + eDim_nod2D))
 	IF(disturb_qsr  ) ALLOCATE(ipsr               (myDim_nod2D + eDim_nod2D))
+	
+	IF(disturb_xwind) perturbation_xwind = 0.0
+	IF(disturb_ywind) perturbation_ywind = 0.0
+	IF(disturb_humi ) perturbation_humi  = 0.0
+	IF(disturb_qlw  ) perturbation_qlw   = 0.0
+	IF(disturb_qsr  ) perturbation_qsr   = 0.0
+	IF(disturb_tair ) perturbation_tair  = 0.0
+	IF(disturb_prec ) perturbation_prec  = 0.0
+	IF(disturb_snow ) perturbation_snow  = 0.0
+	IF(disturb_mslp ) perturbation_mslp  = 0.0
 
 	IF (this_is_pdaf_restart .OR. start_from_ENS_spinup) THEN
         IF (mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','this is a restart: read atmospheric perturbation from restart file'
 		CALL read_atmos_stochasticity_restart()
-
-	ELSE
-
-		IF(disturb_xwind) perturbation_xwind = 0.0
-		IF(disturb_ywind) perturbation_ywind = 0.0
-		IF(disturb_humi ) perturbation_humi  = 0.0
-		IF(disturb_qlw  ) perturbation_qlw   = 0.0
-		IF(disturb_qsr  ) perturbation_qsr   = 0.0
-		IF(disturb_tair ) perturbation_tair  = 0.0
-		IF(disturb_prec ) perturbation_prec  = 0.0
-		IF(disturb_snow ) perturbation_snow  = 0.0
-		IF(disturb_mslp ) perturbation_mslp  = 0.0
-
-ENDIF
-
+	ENDIF ! restart
 
 !~ ! debugging output:
 !~ ALLOCATE(atmdata_debug(nfields,myDim_nod2D))
@@ -428,7 +424,7 @@ ENDIF
 !~ IF(disturb_mslp ) atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
 
 
-END IF
+END IF ! istep==1
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
 ! perturb[n+1] = (1 - arc) * perturb[n] + arc * varscale * random

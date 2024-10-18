@@ -46,18 +46,7 @@ subroutine recom_sinking_new(tr_num,mesh)
 
 #include "../associate_mesh.h"
 
-!< Constant sinking velocities (we prescribe themunder namelist recom)
-
-! sinking of carbon detritus; tracer_id(tr_num):
-! 1008 ! idetc
-! 1021 ! idetcal
-! 1026 ! idetz2c
-! 1028 ! idetz2calc
-  
-! sinking of alive carbon biomass; tracer_id(tr_num):
-! 1005 ! iphyc
-! 1020 ! iphycal
-! 1014 ! idiac
+! Constant sinking velocities from namelist
 
     Vsink=0.0_WP
 
@@ -66,22 +55,30 @@ subroutine recom_sinking_new(tr_num,mesh)
         tracer_id(tr_num)==1017 .or.    &  !idetsi
         tracer_id(tr_num)==1021 ) then     !idetcal
 	   
-            Vsink = VDet ! [m/day]
+            Vsink = VDet       ! [m/day; positive downward]
           
     elseif(tracer_id(tr_num)==1004 .or. &  !iphyn
-        tracer_id(tr_num)==1005 .or.    &  !iphyc
-        tracer_id(tr_num)==1020 .or.    &  !iphycal
-        tracer_id(tr_num)==1006 ) then     !ipchl
+           tracer_id(tr_num)==1005 .or. &  !iphyc
+           tracer_id(tr_num)==1020 .or. &  !iphycal
+           tracer_id(tr_num)==1006 ) then  !ipchl
 
-            Vsink = VPhy ! [m/day]
+            Vsink = VPhy       ! [m/day; positive downward]
 
     elseif(tracer_id(tr_num)==1013 .or. &  !idian
-        tracer_id(tr_num)==1014 .or.    &  !idiac
-        tracer_id(tr_num)==1016 .or.    &  !idiasi
-        tracer_id(tr_num)==1015 ) then     !idchl
+           tracer_id(tr_num)==1014 .or. &  !idiac
+           tracer_id(tr_num)==1016 .or. &  !idiasi
+           tracer_id(tr_num)==1015 ) then  !idchl
 
-            Vsink = VDia  ! [m/day]           
+            Vsink = VDia       ! [m/day; positive downward]
+            
+    elseif(tracer_id(tr_num)==1025 .or. &  !idetz2n
+           tracer_id(tr_num)==1026 .or. &  !idetz2c
+           tracer_id(tr_num)==1027 .or. &  !idetz2si
+           tracer_id(tr_num)==1028 ) then  !idetz2calc 
+                
+            Vsink = VDet_zoo2  ! [m/day; positive downward]
     end if
+    
 
 if (Vsink .gt. 0.1) then ! No sinking if Vsink < 0.1 m/day
 
@@ -102,20 +99,45 @@ if (Vsink .gt. 0.1) then ! No sinking if Vsink < 0.1 m/day
       Wvel_flux(nzmin:nzmax+1)= 0.d0  ! Vertical velocity for BCG tracers
                                                                      
       do nz=nzmin,nzmax+1
-          if (allow_var_sinking) then 
-             Wvel_flux(nz) = -((Vdet_a * abs(zbar_3d_n(nz,n))/SecondsPerDay) + Vsink/SecondsPerDay)
-          else
-             Wvel_flux(nz) = -Vsink/SecondsPerDay   ! [m/s]
-          end if
-
-            ! We assume constant sinking for second detritus
+      
+          ! Constant sinking for plankton and second detritus
+          
             if(tracer_id(tr_num)==1025 .or. &  !idetz2n
                tracer_id(tr_num)==1026 .or. &  !idetz2c
                tracer_id(tr_num)==1027 .or. &  !idetz2si
-               tracer_id(tr_num)==1028 ) then  !idetz2calc      
-               Wvel_flux(nz) = -VDet_zoo2/SecondsPerDay ! --> VDet_zoo2
-
+               tracer_id(tr_num)==1028 ) then  !idetz2calc
+               
+               Wvel_flux(nz) = -VSink/SecondsPerDay ! [m/sec; negative downward]
+            
+            elseif(tracer_id(tr_num)==1004 .or. &  !iphyn
+                   tracer_id(tr_num)==1005 .or. &  !iphyc
+                   tracer_id(tr_num)==1020 .or. &  !iphycal
+                   tracer_id(tr_num)==1006 ) then  !ipchl
+          
+               Wvel_flux(nz) = -VSink/SecondsPerDay ! [m/sec; negative downward]
+          
+            elseif(tracer_id(tr_num)==1013 .or. &  !idian
+                   tracer_id(tr_num)==1014 .or. &  !idiac
+                   tracer_id(tr_num)==1016 .or. &  !idiasi
+                   tracer_id(tr_num)==1015 ) then  !idchl
+          
+               Wvel_flux(nz) = -VSink/SecondsPerDay ! [m/sec; negative downward]
             endif
+            
+          ! Variable sinking for first detritus
+          
+          if (tracer_id(tr_num)==1007 .or.    &  !idetn
+              tracer_id(tr_num)==1008 .or.    &  !idetc
+              tracer_id(tr_num)==1017 .or.    &  !idetsi
+              tracer_id(tr_num)==1021 ) then     !idetcal
+          
+              if (allow_var_sinking) then
+                 Wvel_flux(nz) = - (Vsink+Vdet_a * abs(zbar_3d_n(nz,n))) / SecondsPerDay   ! [m/sec; negative downward]
+              else
+                 Wvel_flux(nz) = -Vsink/SecondsPerDay                                      ! [m/sec; negative downward]
+              endif
+          endif
+
       end do
 
 if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old recom
@@ -123,7 +145,6 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old
       k=nod_in_elem2D_num(n)
       ! Screening minimum depth in neigbouring nodes around node n
       nlevels_nod2D_minimum=minval(nlevels(nod_in_elem2D(1:k, n))-1)
-      !nlevels_nod2D_minimum=minval(nlevels(nod_in_elem2D(1:k, n)))
 
       vd_flux(nzmin:nzmax+1)= 0.0_WP
 
@@ -170,7 +191,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old
             tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
             tracer_id(tr_num) == 1028 ) then         ! idetz2calc
             
-            t_export(nz,n) = t_export(nz,n) + (-tv)  ! we want positive upwards: inverse sign
+            t_export(nz,n) = t_export(nz,n) + (-tv)   ! we want positive upwards: inverse sign
         endif
         
         ! alive carbon biomass

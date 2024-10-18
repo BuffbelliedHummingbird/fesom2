@@ -198,7 +198,7 @@ CONTAINS
     INCLUDE 'netcdf.inc'
 
 ! *** Arguments ***
-    INTEGER, INTENT(in)    :: step       !< Current time step
+    INTEGER, INTENT(in)    :: step       !< Current time step; set to stepnull at each model (re)start; stepnull is 0 at beginning of year
     INTEGER, INTENT(inout) :: dim_obs    !< Dimension of full observation vector
 
 ! *** Local variables ***

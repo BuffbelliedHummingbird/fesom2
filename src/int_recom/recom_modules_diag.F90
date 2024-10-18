@@ -20,6 +20,7 @@ module recom_diag
   use REcoM_GloVar
   use io_mesh_info
   use recom_config
+  use g_events
 
   implicit none
 #include "netcdf.inc"
@@ -42,6 +43,9 @@ module recom_diag
   real(kind=WP),  save,  target                 :: valDetSi
   real(kind=WP),  save,  target                 :: valDetz2Si
   real(kind=WP),  save,  target                 :: valBenSi
+  real(kind=WP),  save,  target                 :: valZo2C
+  real(kind=WP),  save,  target                 :: valDet2C
+  real(kind=WP),  save,  target                 :: valDet2Calc
 
   real(kind=WP),  save,  target                 :: total_silicate
 
@@ -100,6 +104,34 @@ subroutine compute_carbon_diag(mode,mesh)
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
            write(*,*) 'total integral of PhyC at timestep :', mstep, valPhyC
         end if
+        
+        !PhyCalc
+        call integrate_nod(tr_arr(:,:,22), valPhyCalc, mesh)
+        total_carbon=total_carbon+valPhyCalc
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of PhyCalc at timestep :', mstep, valPhyCalc
+        end if
+        
+        !DiaC
+        call integrate_nod(tr_arr(:,:,16), valDiaC, mesh)
+        total_carbon=total_carbon+valDiaC
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of DiaC at timestep :', mstep, valDiaC
+        end if
+        
+        !HetC
+        call integrate_nod(tr_arr(:,:,12), valHetC, mesh)
+        total_carbon=total_carbon+valHetC
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of HetC at timestep :', mstep, valHetC
+        end if
+        
+        !Zo2C
+        call integrate_nod(tr_arr(:,:,26), valZo2C, mesh)
+        total_carbon=total_carbon+valZo2C
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of Zo2C at timestep :', mstep, valZo2C
+        end if
 
         !DetC
         call integrate_nod(tr_arr(:,:,10), valDetC, mesh)
@@ -108,32 +140,25 @@ subroutine compute_carbon_diag(mode,mesh)
            write(*,*) 'total integral of DetC at timestep :', mstep, valDetC
         end if
 
-        !HetC
-        call integrate_nod(tr_arr(:,:,12), valHetC, mesh)
-        total_carbon=total_carbon+valHetC
-        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
-           write(*,*) 'total integral of HetC at timestep :', mstep, valHetC
-        end if
-
-        !DiaC
-        call integrate_nod(tr_arr(:,:,16), valDiaC, mesh)
-        total_carbon=total_carbon+valDiaC
-        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
-           write(*,*) 'total integral of DiaC at timestep :', mstep, valDiaC
-        end if
-
-       !PhyCalc
-        call integrate_nod(tr_arr(:,:,22), valPhyCalc, mesh)
-        total_carbon=total_carbon+valPhyCalc
-        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
-           write(*,*) 'total integral of PhyCalc at timestep :', mstep, valPhyCalc
-        end if
-
         !DetCalc
         call integrate_nod(tr_arr(:,:,23), valDetCalc, mesh)
         total_carbon=total_carbon+valDetCalc
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
            write(*,*) 'total integral of DetCalc at timestep :', mstep, valDetCalc
+        end if
+        
+        !Det2C
+        call integrate_nod(tr_arr(:,:,28), valDet2C, mesh)
+        total_carbon=total_carbon+valDet2C
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of Det2C at timestep :', mstep, valDet2C
+        end if
+        
+        !Det2Calc
+        call integrate_nod(tr_arr(:,:,30), valDet2Calc, mesh)
+        total_carbon=total_carbon+valDet2Calc
+        if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
+           write(*,*) 'total integral of Det2Calc at timestep :', mstep, valDet2Calc
         end if
 
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) then
@@ -195,7 +220,7 @@ subroutine write_recom_diag(mode, mesh)
   integer                            :: status, ncid, j, k
   character(2000)                    :: filename
   integer                            :: recID, tID, tcID, tsID, tsdelID
-  integer                            :: valDICID, valDOCID, valPhyCID, valDetCID, valHetCID, valDiaCID, valPhyCalcID, valDetCalcID
+  integer                            :: valDICID, valDOCID, valPhyCID, valDetCID, valHetCID, valDiaCID, valPhyCalcID, valDetCalcID, valZo2CID, valDet2CID, valDet2CalcID
   integer                            :: valDSiID, valDiaSiID, valDetSiID, valDetz2SiID, valBenSiID
   integer                            :: rec_count=0
   character(2000)                    :: att_text
@@ -251,10 +276,13 @@ subroutine write_recom_diag(mode, mesh)
      status = nf_def_var(ncid, 'total_DOC', NF_DOUBLE, 1, recID, valDOCID)
      status = nf_def_var(ncid, 'total_PhyC', NF_DOUBLE, 1, recID, valPhyCID)
      status = nf_def_var(ncid, 'total_DetC', NF_DOUBLE, 1, recID, valDetCID)
+     status = nf_def_var(ncid, 'total_Det2C', NF_DOUBLE, 1, recID, valDet2CID)
      status = nf_def_var(ncid, 'total_HetC', NF_DOUBLE, 1, recID, valHetCID)
+     status = nf_def_var(ncid, 'total_Zo2C', NF_DOUBLE, 1, recID, valZo2CID)
      status = nf_def_var(ncid, 'total_DiaC', NF_DOUBLE, 1, recID, valDiaCID)
      status = nf_def_var(ncid, 'total_PhyCalc', NF_DOUBLE, 1, recID, valPhyCalcID)
      status = nf_def_var(ncid, 'total_DetCalc', NF_DOUBLE, 1, recID, valDetCalcID)
+     status = nf_def_var(ncid, 'total_Det2Calc', NF_DOUBLE, 1, recID, valDet2CalcID)
 
      status = nf_def_var(ncid, 'total_silicate', NF_DOUBLE, 1, recID, tsID)
 
@@ -293,10 +321,13 @@ if (do_output) then
   status = nf_inq_varid(ncid, 'total_DOC', valDOCID)
   status = nf_inq_varid(ncid, 'total_PhyC', valPhyCID)
   status = nf_inq_varid(ncid, 'total_DetC', valDetCID)
+  status = nf_inq_varid(ncid, 'total_Det2C', valDet2CID)
   status = nf_inq_varid(ncid, 'total_HetC', valHetCID)
+  status = nf_inq_varid(ncid, 'total_Zo2C', valZo2CID)
   status = nf_inq_varid(ncid, 'total_DiaC', valDiaCID)
   status = nf_inq_varid(ncid, 'total_PhyCalc', valPhyCalcID)
   status = nf_inq_varid(ncid, 'total_DetCalc', valDetCalcID)
+  status = nf_inq_varid(ncid, 'total_Det2Calc', valDet2CalcID)
 
   status = nf_inq_varid(ncid, 'total_silicate', tsID)
 
@@ -328,10 +359,13 @@ if (do_output) then
   status = nf_put_vara_double(ncid, valDOCID, rec_count, 1, valDOC, 1)
   status = nf_put_vara_double(ncid, valPhyCID, rec_count, 1, valPhyC, 1)
   status = nf_put_vara_double(ncid, valDetCID, rec_count, 1, valDetC, 1)
+  status = nf_put_vara_double(ncid, valDet2CID, rec_count, 1, valDet2C, 1)
   status = nf_put_vara_double(ncid, valHetCID, rec_count, 1, valHetC, 1)
+  status = nf_put_vara_double(ncid, valZo2CID, rec_count, 1, valZo2C, 1)
   status = nf_put_vara_double(ncid, valDiaCID, rec_count, 1, valDiaC, 1)
   status = nf_put_vara_double(ncid, valPhyCalcID, rec_count, 1, valPhyCalc, 1)
   status = nf_put_vara_double(ncid, valDetCalcID, rec_count, 1, valDetCalc, 1)
+  status = nf_put_vara_double(ncid, valDet2CalcID, rec_count, 1, valDet2Calc, 1)
 
   status = nf_put_vara_double(ncid, tsID, rec_count, 1, total_silicate, 1)
 

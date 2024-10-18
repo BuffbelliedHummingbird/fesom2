@@ -24,7 +24,7 @@ path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/dist_cov72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_3D_monthly_mean=.false.
-write_ens_snapshot=.true.
+w_memb_snapshot=.true.
 
 str_daspec='FESOM_PDAF_TEST72'
 

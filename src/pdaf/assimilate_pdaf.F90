@@ -58,7 +58,8 @@ SUBROUTINE assimilate_pdaf(istep)
 ! *** Call assimilation routine ***
 ! *********************************
 
-  istep_asml = istep + step_null
+  istep_asml = istep + step_null  ! istep:       starting at 1 at each model (re)start
+                                  ! istep_asml:  starting at 1 at beginning of each year
 
   if(mype_submodel==0 .and. task_id==1) write (*,'(a,i1.1,a,i,a,i,a,i)') &
           'FESOM ',task_id,' ',mype_submodel,' assimilate_pdaf, istep', istep, '  istep_asml', istep_asml

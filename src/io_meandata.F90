@@ -4,6 +4,7 @@ module io_MEANDATA
   use, intrinsic :: iso_fortran_env, only: real64, real32
   use io_data_strategy_module
   use async_threads_module
+  use g_events
 
   implicit none
 #include "netcdf.inc"
@@ -303,7 +304,7 @@ CASE ('fer_C     ')
 !___________________________________________________________________________________________________________________________________
 ! output RECOM 2D  
 
-!CO2y,aCO2,rDIN,rDON,rDOC,rDSi,NPPn,NPPd,GPPn,GPPd,NNAn,NNAd,GNAn,GNAd,benCalc,benSi,benC,benN,denb,aN,aFe,Hp,CO2f,dpCO2s,pCO2s
+! CO2y,aCO2,rDIN,rDON,rDOC,rDSi,NPPn,NPPd,GPPn,GPPd,NNAn,NNAd,GNAn,GNAd,benCalc,benSi,benC,benN,denb,aN,aFe,Hp,CO2f,dpCO2s,pCO2s
 #if defined(__recom)
 
 CASE ('alphaCO2  ')

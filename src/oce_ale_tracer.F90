@@ -207,6 +207,16 @@ subroutine solve_tracers_ale(mesh)
     s_diffV_livingmatter=0.0
     s_diffV_dic=0.0
     s_diffV_alk=0.0
+    ! benthos fluxes
+    s_benthos_alk=0.0
+    s_benthos_dic=0.0
+    s_benthos_deadmatter=0.0
+    s_benthos_livingmatter=0.0
+    ! mass
+    m_dic=0.0
+    m_alk=0.0
+    m_livingmatter=0.0
+    m_deadmatter=0.0
     
     ! apply volume-mass scaling to REcoM-SMS fluxes
     allocate(f_massvol(nlmax,myDim_nod2D))
@@ -244,7 +254,8 @@ subroutine solve_tracers_ale(mesh)
         call relax_to_clim(tr_num, mesh)
         if ((toy_ocean) .AND. (TRIM(which_toy)=="soufflet")) call relax_zonal_temp(mesh)
         call exchange_nod(tr_arr(:,:,tr_num))
-    end do
+        
+    end do ! tracer loop
 #if defined(__recom)
     call exchange_nod(export)
 #endif
@@ -292,6 +303,30 @@ subroutine solve_tracers_ale(mesh)
     end do
     
 #ifdef use_PDAF
+    ! carbon mass diagnostics
+    allocate(f_massvol(nlmax,myDim_nod2D))
+    f_massvol = areasvol(:nlmax,:myDim_nod2D) * hnode_new(:nlmax,:myDim_nod2D)
+    
+    m_dic             =   tr_arr(:nlmax,:myDim_nod2D, 4) * f_massvol
+    
+    m_alk             =   tr_arr(:nlmax,:myDim_nod2D, 5) * f_massvol
+    
+    m_livingmatter    = ( tr_arr(:nlmax,:myDim_nod2D, 7) &
+                        + tr_arr(:nlmax,:myDim_nod2D,12) &
+                        + tr_arr(:nlmax,:myDim_nod2D,22) &
+                        + tr_arr(:nlmax,:myDim_nod2D,16) &
+                        + tr_arr(:nlmax,:myDim_nod2D,26) &
+                        ) * f_massvol
+                        
+    m_deadmatter      = ( tr_arr(:nlmax,:myDim_nod2D,28) &
+                        + tr_arr(:nlmax,:myDim_nod2D,30) &
+                        + tr_arr(:nlmax,:myDim_nod2D,10) &
+                        + tr_arr(:nlmax,:myDim_nod2D,23) &
+                        + tr_arr(:nlmax,:myDim_nod2D,14) &
+                        ) * f_massvol
+                        
+    deallocate(f_massvol)
+
     ! debugging messages written at first day of year
     IF (daynew <= 1) THEN
       
@@ -557,23 +592,29 @@ if (1) then
             nzmin=ulevels_nod2D(n)
             tr_arr(nzmin:nzmax,n,tr_num)=tr_arr(nzmin:nzmax,n,tr_num)+ &
                                                 dtr_bf(nzmin:nzmax,n)
+                                                
 ! update carbon flux diagnostics for remineralization from benthos
 #ifdef use_PDAF
-        IF (nzmax<=nlmax) THEN
         nzmaxpdaf = MIN(nlmax,nzmax)
+        
+        allocate(factorvolmass(nzmaxpdaf-nzmin+1))
+        if (cfconc) then
+           ! concentration
+           factorvolmass = 1.0/dt
+        else
+           ! mass
+           factorvolmass = hnode_new(nzmin:nzmaxpdaf,n)*areasvol(nzmin:nzmaxpdaf,n)/dt
+        endif
         
         ! alkalinity
         if (tracer_id(tr_num) == 1003) then
-            if (cfconc) then
-              ! concentration
-              s_bio_alk(nzmin:nzmaxpdaf,n) = s_bio_alk(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)/dt
-            else
-              ! mass
-              s_bio_alk(nzmin:nzmaxpdaf,n) = s_bio_alk(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)/dt*hnode_new(nzmin:nzmaxpdaf,n)*areasvol(nzmin:nzmaxpdaf,n)
-            endif
+            s_benthos_alk(nzmin:nzmaxpdaf,n) = s_benthos_alk(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorvolmass
         endif
-        
-       ENDIF ! (nz<=nlmax)
+        ! dic
+        if (tracer_id(tr_num) == 1002) then
+            s_benthos_dic(nzmin:nzmaxpdaf,n) = s_benthos_dic(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+        endif
+        deallocate(factorvolmass)
 #endif
         end do
     end if
@@ -615,31 +656,41 @@ end if ! if (0)
                                                 vert_sink(nzmin:nzmax,n)
             tr_arr(nzmin:nzmax,n,tr_num)=tr_arr(nzmin:nzmax,n,tr_num)+ &
                                                 str_bf(nzmin:nzmax,n)
+                                                
 ! update carbon flux diagnostics for sinking into benthos
 #ifdef use_PDAF
-       ! IF (nz<=nlmax) THEN
-       !  nzmaxpdaf = MIN(nlmax,nzmax)
-       !  
-       !  ! detritus ("export")
-       !  if (tracer_id(tr_num) == 1008 .or.    &      ! idetc
-       !      tracer_id(tr_num) == 1021 .or.    &      ! idetcal
-       !      tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
-       !      tracer_id(tr_num) == 1028 ) then         ! idetz2calc
-       !      
-       !      s_export(nzmin:nzmaxpdaf,n) = s_export(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)/dt
-       !  endif
-       !  
-       !  ! alive carbon biomass
-       !  if (tracer_id(tr_num) == 1005 .or.    &   ! iphyc
-       !      tracer_id(tr_num) == 1020 .or.    &   ! iphycal
-       !      tracer_id(tr_num) == 1014 ) then      ! idiac
-       !      
-       !      s_sink_livingmatter(nzmin:nzmaxpdaf,n) = s_sink_livingmatter(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)/dt
-       !  endif
-       ! ENDIF ! (nz<=nlmax)
+        nzmaxpdaf = MIN(nlmax,nzmax)
+        
+        allocate(factorvolmass(nzmaxpdaf-nzmin+1))
+        if (cfconc) then
+           ! concentration
+           factorvolmass = 1.0/dt
+        else
+           ! mass
+           factorvolmass = hnode_new(nzmin:nzmaxpdaf,n)*areasvol(nzmin:nzmaxpdaf,n)/dt
+        endif
+        
+       ! detritus
+       if (tracer_id(tr_num) == 1008 .or.    &      ! idetc
+           tracer_id(tr_num) == 1021 .or.    &      ! idetcal
+           tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
+           tracer_id(tr_num) == 1028 ) then         ! idetz2calc
+           
+           s_benthos_deadmatter(nzmin:nzmaxpdaf,n) = s_benthos_deadmatter(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+       endif
+       
+       ! alive carbon biomass
+       if (tracer_id(tr_num) == 1005 .or.    &   ! iphyc
+           tracer_id(tr_num) == 1020 .or.    &   ! iphycal
+           tracer_id(tr_num) == 1014 ) then      ! idiac
+           
+           s_benthos_livingmatter(nzmin:nzmaxpdaf,n) = s_benthos_livingmatter(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+       endif
+       deallocate(factorvolmass)
 #endif
         end do                             
     end if
+    
 if (0) then
 ! 3) Nitrogen SS
     if (NitrogenSS .and. tracer_id(tr_num)==1008) then ! idetc
@@ -1288,7 +1339,11 @@ use ver_sinking_recom_benthos_interface
             tracer_id(tr_num)==1021 ) then  !idetcal
             
             Vben = VDet
-	    if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + VDet
+            
+            ! Variable sinking
+            ! No sinking if VDet==0; next line is an intentional bug!
+            if ((allow_var_sinking) .and. (VDet .gt. 0.1)) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + VDet
+            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
 
         elseif(tracer_id(tr_num)==1004 .or. &  !iphyn
                tracer_id(tr_num)==1005 .or. &  !iphyc
@@ -1296,7 +1351,8 @@ use ver_sinking_recom_benthos_interface
                tracer_id(tr_num)==1006 ) then  !ipchl
 
             Vben = VPhy
-	    if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + VPhy
+            ! No variable sinking: next line is an intentional bug!
+            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
 
         elseif(tracer_id(tr_num)==1013 .or. &  !idian
                tracer_id(tr_num)==1014 .or. &  !idiac
@@ -1304,17 +1360,16 @@ use ver_sinking_recom_benthos_interface
                tracer_id(tr_num)==1015 ) then  !idchl
 
             Vben = VDia
-	    if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + VDia
+            ! No variable sinking: next line is an intentional bug!
+            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
       
-! Constant vertical sinking for the second detritus class
-
-!   if (REcoM_Second_Zoo) then ! No variable sinking
         elseif(tracer_id(tr_num)==1025 .or. &  !idetz2n
                tracer_id(tr_num)==1026 .or. &  !idetz2c
                tracer_id(tr_num)==1027 .or. &  !idetz2si
                tracer_id(tr_num)==1028 ) then  !idetz2calc
 
-               Vben = VDet_zoo2
+             Vben = VDet_zoo2
+             ! No variable sinking
         endif
 
         Vben= Vben/SecondsPerDay ! conversion [m/d] --> [m/s] (vertical velocity, note that it is positive here)
@@ -1339,7 +1394,7 @@ use ver_sinking_recom_benthos_interface
         end if
         do nz=ul1,nl1
            str_bf(nz,n) = str_bf(nz,n) + (aux(nz))*dt/area(nz,n)/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
-           !add_benthos_2d(n) = add_benthos_2d(n) - (aux(nz+1))*dt
+           
            add_benthos_2d(n) = add_benthos_2d(n) - (aux(nz))*dt
            
            if (aux1(nz) .le. tiny) then ! if the area is very small or zero

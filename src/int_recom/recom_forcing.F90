@@ -24,7 +24,9 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
   use i_therm_param
   use g_comm
   use g_support
-
+#ifdef use_PDAF
+    use mod_parallel_pdaf, only: abort_parallel
+#endif
   Implicit none
   type(t_mesh), intent(in) , target         :: mesh
 
@@ -142,6 +144,9 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
       print*, 'Latd: ', Latd   
       print*, 'ULoc: ', ULoc
       print*, 'Loc_ice_conc: ', Loc_ice_conc
+#ifdef use_PDAF
+      call abort_parallel()
+#endif
       stop
     endif
 

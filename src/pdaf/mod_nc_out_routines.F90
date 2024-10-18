@@ -22,7 +22,7 @@ USE mod_obs_f_pdaf, &
 USE g_config, &
    ONLY: runid
 USE g_clock, &
-   ONLY: cyearnew, timeold, dayold, yearold
+   ONLY: cyearnew, timeold, dayold, yearold, num_day_in_month, fleapyear
 USE g_parsup, &
    ONLY: myDim_nod2D
 USE g_comm_auto, &
@@ -33,33 +33,35 @@ IMPLICIT NONE
 
 ! Private variables:
 INTEGER :: i                          ! counter (state variables)
-INTEGER :: j                          ! counter (ini/forc/ana)
+INTEGER :: j                          ! counter (ini/forc/ana/mean)
 INTEGER :: member                     ! counter (ensemble member)
 INTEGER :: n                          ! counter (nodes)
 INTEGER :: l                          ! counter (levels/layers)
 
-CHARACTER(len=2) :: memberstr         ! ensemble member
-INTEGER :: fileid                     ! ID of netCDF file
-CHARACTER, dimension(4) :: IFA = ['i', 'f', 'a', 'm']
-                                      ! "i" (initial), 
-                                      ! "f" (forecast),
-                                      ! "a" (analysis),
-                                      ! "m" (daily means)
-CHARACTER(len=8), dimension(4) :: IFA_long = ['initial','forecast','analysis','daymean']
-INTEGER :: dimID_nod2, dimID_iter, &
-           dimID_nz, dimID_nz1
+CHARACTER(len=2)   :: memberstr       ! ensemble member
+CHARACTER(len=200) :: filename        ! name of output file
+INTEGER :: fileid                     ! IDs of netCDF files
+INTEGER :: fidphyday, fidbgcday, &    ! IDs of netCDF files
+           fidphymon, fidbgcmon
+CHARACTER, dimension(4) :: IFA              ! Type character ('i','a','f','m)
+CHARACTER(len=8), dimension(4) :: IFA_long  ! Type characterG
+INTEGER :: dimID_nod2, dimID_time, &
+           dimID_nz, dimID_iter
 INTEGER :: dimIDs(3)
-INTEGER :: varid_nod2, varid_iter, &
-           varid_nz, varid_nz1, &
+INTEGER :: varid_nod2, varid_nz, &    ! netCDF IDs for dimensions
+           varid_time, varid_iter, &              
            varid_lon, varid_lat, &
-           varid_forget, varid_time
+           varid_forget               ! netCDF ID for forgetting factor
 INTEGER :: ndims
 INTEGER :: nlay
 
 REAL, allocatable :: lon(:)
 REAL, allocatable :: lat(:)
 
-LOGICAL, private :: DEBUGOUTPUT = .true.
+LOGICAL :: debug = .true.
+
+! SHOULD BE DELEDTED AT THE END:
+LOGICAL :: DEBUGOUTPUT = .false.
 
 CONTAINS
 
@@ -88,13 +90,25 @@ END SUBROUTINE check
 ! ***   netCDF_init            ***
 ! ***                          ***
 ! ********************************
-! Calls netCDF_init_mm on main PE depending on whether "m"ean or ensemble "m"ember
-! file(s) are to be initialized.
+! This routine initializes netCDF output for monthly and daily physics and BGC fields.
+! It is called from init_PDAF on all PEs.
+! It is optionally called for the ensemble mean and/or for each ensemble member.
 
-SUBROUTINE netCDF_init(mm)
+SUBROUTINE netCDF_init(memb)
 
 ! *** Arguments ***
-CHARACTER(len=4) :: mm ! Mean state or member?
+INTEGER :: memb ! Zero:    Mean state
+                ! Number:  Ensemble member
+                
+! initialize:
+IFA(ff)='f' ! "f" (forecast)
+IFA(aa)='a' ! "a" (analysis)
+IFA(mm)='m' ! "m" (daily means)
+IFA(ii)='i' ! "i" (initial)
+IFA_long(ff)='forecast'
+IFA_long(aa)='analysis'
+IFA_long(mm)='daymean'
+IFA_long(ii)='initial'
 
 ! gather GEO coordinates (from all PEs)
 allocate(lon(mesh_fesom% nod2D),lat(mesh_fesom% nod2D))
@@ -103,133 +117,192 @@ call gather_nod(mesh_fesom%geo_coord_nod2D(2, 1:myDim_nod2D), lat)
 
 ! initialize file (on main PE)
 IF (writepe) THEN
-  IF (mm=='mean') THEN
-  
-     filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.nc'
-     filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.nc'
+     ! _______________________________________
+     ! create and open file, define dimensions and coordinates
+     IF (w_day) CALL netCDF_deffile('phy','day',memb,fidphyday)
+     IF (w_day) CALL netCDF_deffile('bgc','day',memb,fidbgcday)
+     IF (w_mon) CALL netCDF_deffile('phy','mon',memb,fidphymon)
+     IF (w_mon) CALL netCDF_deffile('bgc','mon',memb,fidphymon)
      
-     call netCDF_init_mm    (filename_phy, phymin, phymax)
-     call netCDF_init_rmsens(filename_phy, phymin, phymax)
+     ! _______________________________________
+     ! define variables and close file
+     CALL netCDF_defvar(memb)
      
-     call netCDF_init_mm    (filename_bgc, bgcmin, bgcmax)
-     call netCDF_init_rmsens(filename_bgc, bgcmin, bgcmax)
-  
-  ELSEIF (mm=='memb') THEN
-     DO member=1, dim_ens
-     
-        WRITE(memberstr,'(i2.2)') member
-        filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
-        filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.'//memberstr//'.nc'
-
-        call netCDF_init_mm(filename_phy, phymin, phymax)
-        call netCDF_init_mm(filename_bgc, bgcmin, bgcmax)
-     
-     ENDDO
-  ELSE
-     WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initializing mean or member netCDF file?'
-  ENDIF ! mean/memb
-
 ENDIF ! writepe
-deallocate(lat,lon)
-
-
+deallocate(lon,lat)
 END SUBROUTINE netCDF_init
 
 ! ********************************
-! ***                          ***
-! ***   netCDF_init_mm         ***
-! ***                          ***
+! ***   netCDF_deffile         ***
 ! ********************************
-! Initializes a netCDF file.
+! This routine creates and opens the netCDF output file into put-var mode
+! It is called from netCDF_init on writepe
 
-SUBROUTINE netCDF_init_mm(filename, istart, iend)
-
-character(len=200), intent(in) :: filename ! Full name of output file
-integer, intent(in) :: istart              ! First field in state vector
-integer, intent(in) :: iend                ! Last field in state vector
-
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize assimilation NetCDF file: '//TRIM(filename)
+SUBROUTINE netCDF_deffile(typ,freq,memb,fid)
+! *** Arguments ***
+CHARACTER(len=3), intent (in)  :: typ   ! phy or bgc
+CHARACTER(len=3), intent (in)  :: freq  ! day or mon
+INTEGER,          intent (in)  :: memb  ! Zero:    Mean state
+                                        ! Number:  Ensemble member
+INTEGER,          intent (out) :: fid   ! file ID
+! *** Local variables ***
+character(40) :: att_text
+              
+IF (memb==0) THEN
+  ! mean state
+  filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.'//typ//'.'//cyearnew//'.'//freq//'.nc'
+ELSE
+  ! ensemble member
+  WRITE(memberstr,'(i2.2)') memb
+  filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.'//typ//'.'//cyearnew//'.'//freq//'.'//memberstr//'.nc'
+ENDIF
 
 ! open file
-call check(NF90_CREATE(trim(filename),NF90_NETCDF4,fileid))
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'Init output to file '//filename
+
+call check(NF90_CREATE(trim(filename),NF90_NETCDF4,fid))
 
 ! define dimensions
-call check( NF90_DEF_DIM(fileid, 'nod2', mesh_fesom%nod2d, dimID_nod2))
-call check( NF90_DEF_DIM(fileid, 'nz',   nlmax,            dimID_nz))
-call check( NF90_DEF_DIM(fileid, 'nz1',  nlmax,            dimID_nz1))
-call check( NF90_DEF_DIM(fileid, 'time', NF90_UNLIMITED,   dimID_iter))
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'define dimensions'
+
+call check( NF90_DEF_DIM(fid, 'nod2', mesh_fesom%nod2d, dimID_nod2))
+call check( NF90_DEF_DIM(fid, 'nz',   nlmax,            dimID_nz))
+call check( NF90_DEF_DIM(fid, 'time', NF90_UNLIMITED,   dimID_time))
 
 ! dimension variables
-call check( nf90_def_var(fileid, 'nod2', NF90_INT,   dimID_nod2, varid_nod2))
-call check( nf90_def_var(fileid, 'nz',   NF90_FLOAT, dimID_nz,   varid_nz))
-call check( nf90_def_var(fileid, 'nz1',  NF90_FLOAT, dimID_nz1,  varid_nz1))
-call check( nf90_def_var(fileid, 'time', NF90_INT,   dimID_iter, varid_iter))
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'define dimension variables'
 
-call check( nf90_def_var(fileid, 'lon', NF90_FLOAT,   dimID_nod2, varid_lon))
-call check( nf90_def_var(fileid, 'lat', NF90_FLOAT,   dimID_nod2, varid_lat))
+call check( nf90_def_var(fid, 'nod2', NF90_INT,   dimID_nod2, varid_nod2))
+call check( nf90_def_var(fid, 'nz',   NF90_FLOAT, dimID_nz,   varid_nz))
+call check( nf90_def_var(fid, 'time', NF90_INT,   dimID_time, varid_time))
+
+call check( nf90_def_var(fid, 'lon', NF90_FLOAT,   dimID_nod2, varid_lon))
+call check( nf90_def_var(fid, 'lat', NF90_FLOAT,   dimID_nod2, varid_lat))
 
 ! dimension description
-call check( nf90_put_att(fileid, varid_nod2, 'long_name', 'surface nodes'))
-call check( nf90_put_att(fileid, varid_nz,   'long_name', 'vertical levels (upper layer bounds)'))
-call check( nf90_put_att(fileid, varid_nz,   'units', 'm'))
-call check( nf90_put_att(fileid, varid_nz1,  'long_name', 'vertical layers (mid-layer depths)'))
-call check( nf90_put_att(fileid, varid_nz1,  'units', 'm'))
-call check( nf90_put_att(fileid, varid_iter, 'long_name', 'iteration'))
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'define dimension description'
 
-call check( nf90_put_att(fileid, varid_lon,  'long_name', 'longitude'))
-call check( nf90_put_att(fileid, varid_lat,  'long_name', 'latitude'))
-call check( nf90_put_att(fileid, varid_lon,  'units', 'degE [-180;180]'))
-call check( nf90_put_att(fileid, varid_lat,  'units', 'degN [-90;90]'))
+call check( nf90_put_att(fid, varid_nod2, 'long_name', 'surface nodes'))
+call check( nf90_put_att(fid, varid_nz,  'long_name', 'vertical layers (mid-layer depths)'))
+call check( nf90_put_att(fid, varid_nz,  'units', 'm'))
+call check( nf90_put_att(fid, varid_time, 'long_name', 'time'))
 
+call check( nf90_put_att(fid, varid_lon,  'long_name', 'longitude'))
+call check( nf90_put_att(fid, varid_lat,  'long_name', 'latitude'))
+call check( nf90_put_att(fid, varid_lon,  'units', 'degE [-180;180]'))
+call check( nf90_put_att(fid, varid_lat,  'units', 'degN [-90;90]'))
+
+! dimension description time
+write(att_text, '(a14,I4.4,a1,I2.2,a1,I2.2,a6)') 'seconds since ', yearold, '-', 1, '-', 1, ' 0:0:0'
+
+call check( nf90_put_att(fid, varid_time, 'long_name', 'time'))
+call check( nf90_put_att(fid, varid_time, 'standard_name', 'time'))
+call check( nf90_put_att(fid, varid_time, 'units', trim(att_text)))
+call check( nf90_put_att(fid, varid_time, 'axis', 'T'))
+call check( nf90_put_att(fid, varid_time, 'stored_direction', 'increasing'))
 
 ! fill dimension variables
-call check (nf90_enddef(fileid))
-call check (nf90_put_var(fileid, varid_nz,   mesh_fesom% zbar(1:nlmax)))
-call check (nf90_put_var(fileid, varid_nz1,  mesh_fesom% Z   (1:nlmax)))
-call check (nf90_put_var(fileid, varid_nod2, [(n,n=1,mesh_fesom% nod2D)]))
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'fill dimension variables'
 
-call check (nf90_put_var(fileid, varid_lon,  REAL(180./pi * lon, 4)))
-call check (nf90_put_var(fileid, varid_lat,  REAL(180./pi * lat, 4)))
+call check (nf90_enddef(fid))
+call check (nf90_put_var(fid, varid_nz,   mesh_fesom% Z   (1:nlmax)))
+call check (nf90_put_var(fid, varid_nod2, [(n,n=1,mesh_fesom% nod2D)]))
 
+call check (nf90_put_var(fid, varid_lon,  REAL(180./pi * lon, 4)))
+call check (nf90_put_var(fid, varid_lat,  REAL(180./pi * lat, 4)))
+             
+END SUBROUTINE netCDF_deffile
+     
+     
+! ********************************
+! ***   netCDF_defvar          ***
+! ********************************
+! This routine defines variables
+! It is called from netCDF_init on writepe
+! It closes the netCDF file
 
-! define state variables
-call check (nf90_redef(fileid))
-DO j = 1, 3 ! ini / forc / ana
-  DO i = istart, iend ! state fields
-    
-    ! don't write analysis for not-updated variables
-    IF ((.not. DEBUGOUTPUT) .and. (j==3) .and. (.not. (sfields(i)% updated))) CYCLE
-    
-    ! set dimensions according to field before defining variables
-    dimIDs(1) = dimID_nod2
-    IF (sfields(i)% ndims == 1) THEN ! surface fields
-      dimIDs(2) = dimID_iter
-    ELSEIF (sfields(i)% ndims == 2) THEN ! 3D-fields
-      dimIDs(2) = dimID_nz1
-      IF (.not.(sfields(i)%nz1)) dimIDs(2) = dimID_nz ! variables on levels (vertical velocity)
-      dimIDs(3) = dimID_iter
-    ENDIF
-    
-    ! number of dimensions
-    IF (IFA(j)=='i') THEN
-      ndims = sfields(i)% ndims     ! no iteration
-    ELSE
-      ndims = sfields(i)% ndims +1  ! plus iteration
-    ENDIF
-    
-    ! define variable
-    call check( NF90_DEF_VAR(fileid, TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimIDs(1:ndims), sfields(i)% varid(j)))
-    ! variable description
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
+SUBROUTINE netCDF_defvar(memb)
+! *** Arguments ***
+INTEGER, intent (in)  :: memb  ! Zero:    Mean state
+                               ! Number:  Ensemble member
+! *** Local ***
+LOGICAL :: defthis       ! True:  Define this field
+LOGICAL :: writedaily    ! True:  Field is written at any day
+                         ! False: Field is written at now_to_write_monthly
 
+if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'define output variables'
+
+! switch to netCDF variable definition mode
+IF (w_day) call check (nf90_redef(fidbgcday))
+IF (w_mon) call check (nf90_redef(fidbgcmon))
+IF (w_day) call check (nf90_redef(fidphyday))
+IF (w_mon) call check (nf90_redef(fidphymon))
+
+! LOOP: define state fields
+DO j = 1, 4 ! ini / forc / ana / mean
+  DO i = 1, nfields ! state fields
+     
+    ! define this field?
+    !         ___activated_____________       ___ens-mean/member_________________________
+    defthis = (sfields(i)%output(j,oo)) .and. ((memb >0) .eqv. (sfields(i)%output(j,ee)))
+    
+    if (debug) write(*,'(a10,1x,a2,1x,i3,1x,l2)') sfields(i)%variable, IFA(j), memb, defthis
+!~     if (debug) write(*,'(a25,1x,l2)') '(sfields(i)%output(j,oo))', (sfields(i)%output(j,oo))
+!~     if (debug) write(*,'(a25,1x,l2)') '(memb >0)', (memb >0)
+!~     if (debug) write(*,'(a25,1x,l2)') '(sfields(i)%output(j,ee))', (sfields(i)%output(j,ee))
+    
+    
+    ! yes, define this field:
+    IF (defthis) THEN
+     
+         ! daily / monthly field?
+         writedaily = sfields(i)%output(j,dd)
+     
+         ! choose file according to fields
+         IF (      (sfields(i)%bgc) .and. writedaily) fileid = fidbgcday
+         IF (.not. (sfields(i)%bgc) .and. writedaily) fileid = fidphyday
+         IF (      (sfields(i)%bgc) .and. .not. writedaily) fileid = fidbgcmon
+         IF (.not. (sfields(i)%bgc) .and. .not. writedaily) fileid = fidphymon
+         
+         ! set dimensions according to field before defining variables
+         dimIDs(1) = dimID_nod2
+         IF (sfields(i)% ndims == 1) THEN     ! surface fields
+           dimIDs(2) = dimID_time
+         ELSEIF (sfields(i)% ndims == 2) THEN ! 3D-fields
+           dimIDs(2) = dimID_nz
+           dimIDs(3) = dimID_time
+         ENDIF
+         
+         ! number of dimensions
+         IF (IFA(j)=='i') THEN
+           ndims = sfields(i)% ndims     ! initial field: no iteration
+         ELSE
+           ndims = sfields(i)% ndims +1  ! plus iteration
+         ENDIF
+         
+         ! define variable
+         call check( NF90_DEF_VAR(fileid, TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimIDs(1:ndims), sfields(i)% varid(j)))
+         ! variable description
+         call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
+         call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
+    
+    ENDIF ! defthis
   ENDDO ! state fields
 ENDDO ! ini / forc / ana
 
-call check(NF90_ENDDEF(fileid))
-call check(NF90_CLOSE(fileid))
+IF (w_day) call check (nf90_enddef(fidbgcday))
+IF (w_mon) call check (nf90_enddef(fidbgcmon))
+IF (w_day) call check (nf90_enddef(fidphyday))
+IF (w_mon) call check (nf90_enddef(fidphymon))
 
-END SUBROUTINE netCDF_init_mm
+IF (w_day) call check (nf90_close(fidbgcday))
+IF (w_mon) call check (nf90_close(fidbgcmon))
+IF (w_day) call check (nf90_close(fidphyday))
+IF (w_mon) call check (nf90_close(fidphymon))
+
+END SUBROUTINE netCDF_defvar
+
+
 
 ! ********************************
 ! ***                          ***
@@ -237,278 +310,341 @@ END SUBROUTINE netCDF_init_mm
 ! ***                          ***
 ! ********************************
 
-SUBROUTINE netCDF_out(writetype, writepos, iteration, state_p, ens_p, rms, forget)
+SUBROUTINE netCDF_out(writetype, state_p, memb, now_to_write_monthly, rms, forget, m_state_p)
+
+USE g_clock, ONLY: daynew, month, day_in_month, fleapyear
+USE recom_config, ONLY: SecondsPerDay
 
 ! ARGUMENTS:
-CHARACTER(len=1), intent(in) :: writetype          ! Write (i) initial, (a) assimilated, (f) forecast, (m) daily-average fields
-INTEGER, INTENT(in) :: writepos                    ! Write position
-INTEGER, INTENT(in) :: iteration                   ! Current model time step
-REAL, target, INTENT(in)    :: state_p(dim_state_p)        ! Ensemble mean state vector
-REAL, target, INTENT(in)    :: ens_p(dim_state_p, dim_ens) ! Ensemble states
-REAL, INTENT(in) :: rms(nfields)                   ! RMS ensemble spread
-REAL, INTENT(in) :: forget                         ! Forgetting factor
+CHARACTER(len=1), intent(in) :: writetype              ! Write (i) initial, (a) assimilated, (f) forecast, (m) daily-average fields
+REAL, INTENT(in)    :: state_p(dim_state_p)            ! State vector; can be ensemble-mean or member
+INTEGER, INTENT(in) :: memb                            ! Number of ensemble-member or zero for ensemble-mean
+LOGICAL, INTENT(in) :: now_to_write_monthly            ! Whether it's time to write monthly output
+REAL, INTENT(in), optional :: rms(nfields)             ! RMS ensemble spread; passed during analysis phase
+REAL, INTENT(in), optional :: forget                   ! Forgetting factor; passed during analysis phase
+REAL, INTENT(in), optional :: m_state_p(dim_state_p)   ! Monthly mean or snapshot; passed at the end of month
 
 ! Local variables:
-REAL, pointer :: state_ptr(:)                      ! Points to state vector (mean or ensemble member state)
 REAL, allocatable :: myData2(:)                    ! Temporary array for pe-local surface fields
 REAL, allocatable :: myData3(:,:)                  ! Temporary array for pe-local 3D-fields
 REAL, allocatable :: data2_g(:)                    ! Temporary array for global surface fields
 REAL, allocatable :: data3_g(:,:)                  ! Temporary array for global 3D-fields
-
-! character(len=200) :: filename                     ! Full name of output file
-integer            :: fileid_bgc, fileid_phy        ! nc-file ID for biogeochemistry and physics output file
-
-allocate(state_ptr(dim_state_p))
+LOGICAL :: writethisnow  ! True:  Write this field
+LOGICAL :: writedaily    ! True:  Field is written at any day
+                         ! False: Field is written at now_to_write_monthly
+INTEGER :: writepos
 
 ! Print screen information:
 IF (writepe) THEN
   IF (writetype == 'i') THEN
-     WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write initial ocean state to NetCDF at step ', &
-          iteration, ' position ', writepos
+     WRITE (*, '(a, 8x, a, i4,1x,a,i3)') 'FESOM-PDAF', 'Write initial ocean state to NetCDF at day ', &
+          daynew, 'mens/memb', memb
   ELSE IF (writetype== 'f') THEN
-     WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write ocean forecast to NetCDF at step ', &
-          iteration, ' position ', writepos
+     WRITE (*, '(a, 8x, a, i4,1x,a,i3)') 'FESOM-PDAF', 'Write forecast to NetCDF at day ', &
+          daynew, 'mens/memb', memb
   ELSE IF (writetype== 'a') THEN
-     WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write ocean analysis to NetCDF at step ', &
-          iteration, ' position ', writepos
+     WRITE (*, '(a, 8x, a, i4,1x,a,i3)') 'FESOM-PDAF', 'Write analysis to NetCDF at day ', &
+          daynew, 'mens/memb', memb
   ELSE IF (writetype== 'm') THEN
-     WRITE (*, '(a, 8x, a, i9, a, i5)') 'FESOM-PDAF', 'Write ocean daily mean to NetCDF at step ', &
-          iteration, ' position ', writepos
+     WRITE (*, '(a, 8x, a, i4,1x,a,i3)') 'FESOM-PDAF', 'Write m-field to NetCDF at day ', &
+          daynew, 'mens/memb', memb
   END IF
 END IF ! writepe
 
-DO member=0, dim_ens
-  
-  ! Set file name and ensemble mean or member data:
-  IF (member==0) THEN ! mean state
-    filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.nc'
-    filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.nc'
-    state_ptr => state_p
-  ELSE ! ensemble member state
-    IF (.not. (write_ens)) EXIT
-    IF (writetype== 'm') EXIT
-    WRITE(memberstr,'(i2.2)') member
-    filename_phy = TRIM(DAoutput_path)//'fesom-recom-pdaf.phy.'//cyearnew//'.'//memberstr//'.nc'
-    filename_bgc = TRIM(DAoutput_path)//'fesom-recom-pdaf.bgc.'//cyearnew//'.'//memberstr//'.nc'
-    state_ptr => ens_p(:,member)
-  ENDIF ! mean/member
-  
-  ! Open netCDF file:
-  IF (writepe) THEN
-    call check( nf90_open(TRIM(filename_phy), nf90_write, fileid_phy))
-    call check( nf90_open(TRIM(filename_bgc), nf90_write, fileid_bgc))
-  
-    ! Non field-specific writing:
-    IF (writetype=='a') THEN
-      call check( nf90_inq_varid(fileid_phy, "time", varid_iter))
-      call check( nf90_inq_varid(fileid_bgc, "time", varid_iter))
+IF (writetype == 'i') j=ii
+IF (writetype == 'a') j=aa
+IF (writetype == 'f') j=ff
+IF (writetype == 'm') j=mm
+
+IF (writepe) THEN
+! Open netCDF files
+    IF (w_day) THEN
+    ! daily file
+      CALL netCDF_openfile('phy','day',memb,fidphyday)
+      CALL netCDF_openfile('bgc','day',memb,fidbgcday)
+    ENDIF
+    IF (w_mon .and. now_to_write_monthly) THEN
+    ! monthly file
+      CALL netCDF_openfile('phy','mon',memb,fidphymon)
+      CALL netCDF_openfile('bgc','mon',memb,fidbgcmon)
+    ENDIF ! w_mon
+END IF ! writepe
+
+IF (writepe) THEN
+    ! time-variable
+    ! written during forecast phase
+    IF (writetype=='f') THEN
       
-      call check( nf90_put_var  (fileid_phy, varid_iter, iteration, &
-                                 start=(/ writepos /)))
-      call check( nf90_put_var  (fileid_bgc, varid_iter, iteration, &
-                                 start=(/ writepos /)))
-                                 
-      IF (member==0) THEN
-        call check( nf90_inq_varid(fileid_phy, "forget", varid_forget))
-        call check( nf90_put_var  (fileid_phy, varid_forget, REAL(forget,4), &
-                                   start=(/ writepos /)))
-      ENDIF ! member
+      ! write day
+      IF (w_day) THEN
+      call check( nf90_inq_varid(fidphyday, "day"  , varid_time))
+      call check( nf90_put_var  (fidphyday, varid_time, (daynew-1)*SecondsPerDay, &
+                                 start=(/ daynew /)))
+      call check( nf90_inq_varid(fidbgcday, "day"  , varid_time))
+      call check( nf90_put_var  (fidbgcday, varid_time, (daynew-1)*SecondsPerDay, &
+                                 start=(/ daynew /)))
+      ENDIF ! w_day
+              
+      ! write month
+      IF (w_mon .and. now_to_write_monthly) THEN                          
+          call check( nf90_inq_varid(fidphymon, "month",  varid_time))
+          call check( nf90_put_var  (fidphymon, varid_time, (daynew+1-num_day_in_month(fleapyear,month))*SecondsPerDay, &
+                                     start=(/ month /)))
+          call check( nf90_inq_varid(fidbgcmon, "month",  varid_time))
+          call check( nf90_put_var  (fidbgcmon, varid_time, (daynew+1-num_day_in_month(fleapyear,month))*SecondsPerDay, &
+                                     start=(/ month /)))
+      ENDIF ! w_mon
+        
+!~         ! write forgetting factor
+!~         if (.not. present(forget)) WRITE (*, '(a, 8x, a)') 'FESOM-PDAF', 'Please pass forget argument!'
+!~         call check( nf90_inq_varid(fileid_phy, "forget", varid_forget))
+!~         call check( nf90_put_var  (fileid_phy, varid_forget, REAL(forget,4), &
+!~                                    start=(/ daynew /)))
     ENDIF ! writetype
   ENDIF ! writepe
 
   ! Field-specific:
   DO i=1, nfields
     
-    ! don't write analysis of not-updated variables
-    IF ((.not. DEBUGOUTPUT) .and. (writetype=='a') .and. (.not. (sfields(i)% updated))) CYCLE
+    writedaily = sfields(i)%output(i,dd)
     
-    ! physics or biogeochemistry?
-    IF (sfields(i)% bgc) THEN
-      fileid = fileid_bgc
-    ELSE
-      fileid = fileid_phy
-    ENDIF
+    ! write this field?
+    writethisnow =       (sfields(i)%output(j,oo)) &                    ! - output for field activated
+                   .and. ((memb >0) .eqv. (sfields(i)%output(j,ee))) &  ! - memb-output to memb-file; ensm-output to ensm-file
+                   .and. (writedaily .or. now_to_write_monthly)         ! - do it at the right time
     
-    ! --------------
-    ! surface fields
-    ! --------------
-    IF (sfields(i)% ndims == 1) THEN
-      ! select pe-local field from state vector
-      allocate(myData2(myDim_nod2d))
-      DO n = 1, myDim_nod2D
-        myData2(n) = state_ptr(n + offset(i))
-      END DO
-      ! gather global field
-      allocate(data2_g(mesh_fesom% nod2D))
-      CALL gather_nod(myData2, data2_g)
-      
+    if (debug) write(*,'(a10,1x,a2,1x,i3,1x,l2)') sfields(i)%variable, IFA(j), memb, writethisnow
+    
+    ! yes, write this field:
+    IF (writethisnow) THEN
+    
+      ! choose file according to fields
       IF (writepe) THEN
-        ! Inquire variable ID
-        call check( nf90_inq_varid(fileid, TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(1)))
-        ! Write variable to netCDF:
-        IF (writetype=='i') THEN ! initial field
-          call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4)))
-        ELSE                     ! forecast, analysis and mean fields
-          call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4), &
+        IF (      (sfields(i)%bgc) .and. writedaily) fileid = fidbgcday
+        IF (.not. (sfields(i)%bgc) .and. writedaily) fileid = fidphyday
+        IF (      (sfields(i)%bgc) .and. .not. writedaily) fileid = fidbgcmon
+        IF (.not. (sfields(i)%bgc) .and. .not. writedaily) fileid = fidphymon
+      ENDIF ! writepe
+      
+      ! --------------
+      ! surface fields
+      ! --------------
+      IF (sfields(i)% ndims == 1) THEN
+         ! select pe-local field from state vector
+         allocate(myData2(myDim_nod2d))
+         DO n = 1, myDim_nod2D
+           IF (writedaily) THEN
+              myData2(n) = state_p(n + offset(i))
+              writepos = daynew
+           ELSE
+              myData2(n) = m_state_p(n + offset(i))
+              writepos = month
+           ENDIF ! writedaily
+         END DO ! n = 1, myDim_nod2D
+         ! gather global field
+         allocate(data2_g(mesh_fesom% nod2D))
+         CALL gather_nod(myData2, data2_g)
+         
+         IF (writepe) THEN
+           ! Inquire variable ID
+           call check( nf90_inq_varid(fileid, TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(1)))
+           ! Write variable to netCDF
+           IF (writetype=='i') THEN ! initial field
+              call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4)))
+           ELSE                     ! forecast, analysis or m-fields
+              call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(data2_g,4), &
                                    start=(/ 1, writepos /), &
                                    count=(/ mesh_fesom% nod2D, 1 /) ))
-                                   ! (dims: 1-nod2, 2-iter)
-        ENDIF ! writetype (i,f,a,m)
-      ENDIF ! writepe
-      deallocate(myData2, data2_g)
-      
-    ! ---------
-    ! 3D fields
-    ! ---------
-    ELSEIF ((sfields(i)% ndims == 2)) THEN
-      ! Levels or layers?
-      IF (sfields(i)% nz1) THEN
-        nlay = nlmax
-      ELSE
-        nlay = nlmax
-      ENDIF
-      ! select pe-local field from state vector
-      allocate(myData3(nlay, myDim_nod2d))
-      DO n = 1, myDim_nod2D
-      DO l = 1, nlay
-        myData3(l, n) = state_ptr((n-1) * nlay + l + offset(i))
-      END DO
-      END DO
-      ! gather global field
-      allocate(data3_g(nlay,mesh_fesom% nod2D))
-      CALL gather_nod(myData3, data3_g)
-      
-      IF (writepe) THEN
-        ! Inquire variable ID
-        call check( nf90_inq_varid(fileid, TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(1)))
-        ! Write variable to netCDF:
-        IF (writetype=='i') THEN ! initial field
-          call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4)))
-        ELSE                     ! forecast, analysis and mean fields
-          call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4), &
-                                   start=(/ 1, 1, writepos /), &
-                                   count=(/ mesh_fesom% nod2D, nlay, 1 /) ))
-                                   ! dims: 1-nod2, 2-nz / nz1, 3-iter
-        ENDIF ! writetype
-      ENDIF ! writepe
-      deallocate(myData3, data3_g)
-      
-    ENDIF ! surface / 3D-fields
+                                   ! (dims: 1-nod2, 2-time)
+           ENDIF ! writetype
+         ENDIF ! writepe
+         deallocate(myData2, data2_g)
+       
+       ! ---------
+       ! 3D fields
+       ! ---------
+       ELSEIF ((sfields(i)% ndims == 2)) THEN
+         nlay = nlmax
+         ! select pe-local field from state vector
+         allocate(myData3(nlay, myDim_nod2d))
+         DO n = 1, myDim_nod2D
+         DO l = 1, nlay
+           IF (writedaily) THEN
+              myData3(l, n) = state_p((n-1) * nlay + l + offset(i))
+              writepos = daynew
+           ELSE
+              myData3(l, n) = m_state_p((n-1) * nlay + l + offset(i))
+              writepos = month
+           ENDIF ! writedaily
+         END DO
+         END DO
+         ! gather global field
+         allocate(data3_g(nlay,mesh_fesom% nod2D))
+         CALL gather_nod(myData3, data3_g)
+         
+         IF (writepe) THEN
+           ! Inquire variable ID
+           call check( nf90_inq_varid(fileid, TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(1)))
+           ! Write variable to netCDF:
+           IF (writetype=='i') THEN ! initial field
+             call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4)))
+           ELSE                     ! forecast, analysis and mean fields
+             call check( nf90_put_var(fileid, sfields(i)% varid(1), REAL(TRANSPOSE(data3_g),4), &
+                                      start=(/ 1, 1, writepos /), &
+                                      count=(/ mesh_fesom% nod2D, nlay, 1 /) ))
+                                      ! dims: 1-nod2, 2-nz / nz1, 3-iter
+           ENDIF ! writetype
+         ENDIF ! writepe
+         deallocate(myData3, data3_g)
+         
+       ENDIF ! surface / 3D-fields  
+    ENDIF ! writethisnow
     
-    ! ---------------------
-    ! RMS (Ensemble spread)
-    ! ---------------------
-    IF (member/=0) CYCLE
-    IF (writetype=='m') CYCLE
+!~     ! ---------------------
+!~     ! RMS (Ensemble spread)
+!~     ! ---------------------
+!~     IF (member/=0) CYCLE
+!~     IF (writetype=='m') CYCLE
     
-    IF (writepe) THEN
-      ! Inquire variable ID
-      call check( nf90_inq_varid(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(2)))
-      ! Write RMS to netCDF
-      call check( nf90_put_var(fileid, sfields(i)% varid(2), REAL(rms(i),4), &
-                               start=(/ writepos /)))
-    ENDIF ! writepe
-                             
+!~     IF (writepe) THEN
+!~       ! Inquire variable ID
+!~       call check( nf90_inq_varid(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//writetype, sfields(i)% varid(2)))
+!~       ! Write RMS to netCDF
+!~       call check( nf90_put_var(fileid, sfields(i)% varid(2), REAL(rms(i),4), &
+!~                                start=(/ writepos /)))
+!~     ENDIF ! writepe
+!~     ENDIF ! don't write analysis of not-updated variables            
+
   ENDDO ! nfields
   
   ! Close file:
   IF (writepe) THEN
-    call check (nf90_close(fileid_phy))
-    call check (nf90_close(fileid_bgc))
+    IF (w_day) call check (nf90_close(fidbgcday))
+    IF (w_day) call check (nf90_close(fidphyday))
+    IF (w_mon .and. now_to_write_monthly) call check (nf90_close(fidbgcmon))
+    IF (w_mon .and. now_to_write_monthly) call check (nf90_close(fidphymon))
   ENDIF ! writepe
   
-ENDDO ! dim_ens
+
 END SUBROUTINE netCDF_out
 
 ! ********************************
-! ***                          ***
-! ***   netCDF_init_rmsens     ***
-! ***                          ***
+! ***   netCDF_openfile         ***
 ! ********************************
+! This routine opens the netCDF output file into put-var mode
+! It is called from netCDF_out on writepe
 
-! Inits netCDF output for ensemble spread (root-mean-square deviation)
-
-SUBROUTINE netCDF_init_rmsens(filename, istart, iend)
-
-character(len=200), intent(in) :: filename ! Full name of output file
-integer, intent(in) :: istart              ! First field in state vector
-integer, intent(in) :: iend                ! Last field in state vector
+SUBROUTINE netCDF_openfile(typ,freq,memb,fid)
+! *** Arguments ***
+CHARACTER(len=3), intent (in)  :: typ   ! phy or bgc
+CHARACTER(len=3), intent (in)  :: freq  ! day or mon
+INTEGER,          intent (in)  :: memb    ! Zero:    Mean state
+                                        ! Number:  Ensemble member
+INTEGER,          intent (out) :: fid   ! file ID
+              
+IF (memb==0) THEN
+  ! mean state
+  filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.'//typ//'.'//cyearnew//'.'//freq//'.nc'
+ELSE
+  ! ensemble member
+  WRITE(memberstr,'(i2.2)') memb
+  filename = TRIM(DAoutput_path)//'fesom-recom-pdaf.'//typ//'.'//cyearnew//'.'//freq//'.'//memberstr//'.nc'
+ENDIF
 
 ! open file
-call check( nf90_open(TRIM(filename), nf90_write, fileid))
+call check(NF90_OPEN(trim(filename),NF90_write,fid))
+END SUBROUTINE netCDF_openfile
 
-! inquire dimension ID
-call check( nf90_inq_dimid( fileid, "time", dimID_iter))
-call check( nf90_inq_dimid( fileid, "nod2", dimID_nod2))
-call check( nf90_inq_dimid( fileid, "nz",   dimID_nz))
-call check( nf90_inq_dimid( fileid, "nz1",  dimID_nz1))
 
-! ********************
-! define rms variables
-! ********************
-DO j = 1, 3 ! ini / forc / ana
-  DO i = istart, iend ! state fields
+!~ ! ********************************
+!~ ! ***                          ***
+!~ ! ***   netCDF_init_rmsens     ***
+!~ ! ***                          ***
+!~ ! ********************************
+
+!~ ! Inits netCDF output for ensemble spread (root-mean-square deviation)
+
+!~ SUBROUTINE netCDF_init_rmsens(filename, istart, iend)
+
+!~ character(len=200), intent(in) :: filename ! Full name of output file
+!~ integer, intent(in) :: istart              ! First field in state vector
+!~ integer, intent(in) :: iend                ! Last field in state vector
+
+!~ ! open file
+!~ call check( nf90_open(TRIM(filename), nf90_write, fileid))
+
+!~ ! inquire dimension ID
+!~ call check( nf90_inq_dimid( fileid, "time", dimID_iter))
+!~ call check( nf90_inq_dimid( fileid, "nod2", dimID_nod2))
+!~ call check( nf90_inq_dimid( fileid, "nz",   dimID_nz))
+!~ call check( nf90_inq_dimid( fileid, "nz1",  dimID_nz1))
+
+!~ ! ********************
+!~ ! define rms variables
+!~ ! ********************
+!~ DO j = 1, 3 ! ini / forc / ana
+!~   DO i = istart, iend ! state fields
     
-    ! don't write analysis of not-updated variables
-    IF ((.not. DEBUGOUTPUT) .and. (j==3) .and. (.not. (sfields(i)% updated))) CYCLE
-    ! set dimension
-    IF (j==1) THEN
-      ! initial RMS
-      ! define dimensionless (1D) variable
-    call check( NF90_DEF_VAR(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, sfields(i)% varid(j)))
-    ELSE
-      ! forecast / analysis RMS
-      ! define timeseries variable
-    call check( NF90_DEF_VAR(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimID_iter, sfields(i)% varid(j)))
-    ENDIF
+!~     ! don't write analysis of not-updated variables
+!~     IF ((.not. DEBUGOUTPUT) .and. (j==3) .and. (.not. (sfields(i)% updated))) CYCLE
+!~     ! set dimension
+!~     IF (j==1) THEN
+!~       ! initial RMS
+!~       ! define dimensionless (1D) variable
+!~     call check( NF90_DEF_VAR(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, sfields(i)% varid(j)))
+!~     ELSE
+!~       ! forecast / analysis RMS
+!~       ! define timeseries variable
+!~     call check( NF90_DEF_VAR(fileid, 'rms_'//TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimID_iter, sfields(i)% varid(j)))
+!~     ENDIF
     
-    ! variable description
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', 'Ensemble spread surface (RMS) for '//trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
+!~     ! variable description
+!~     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', 'Ensemble spread surface (RMS) for '//trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
     
-  ENDDO ! state fields
-ENDDO ! ini / ana / forc
+!~   ENDDO ! state fields
+!~ ENDDO ! ini / ana / forc
 
-! ***************************
-! define daily mean variables
-! ***************************
+!~ ! ***************************
+!~ ! define daily mean variables
+!~ ! ***************************
 
-j = 4 ! daily mean data
-DO i = istart, iend ! state fields
+!~ j = 4 ! daily mean data
+!~ DO i = istart, iend ! state fields
 
-    ! set dimensions according to field before defining variables
-    dimIDs(1) = dimID_nod2
-    IF (sfields(i)% ndims == 1) THEN ! surface fields
-      dimIDs(2) = dimID_iter
-    ELSEIF (sfields(i)% ndims == 2) THEN ! 3D-fields
-      dimIDs(2) = dimID_nz1
-      IF (.not.(sfields(i)%nz1)) dimIDs(2) = dimID_nz ! variables on levels (vertical velocity)
-      dimIDs(3) = dimID_iter
-    ENDIF
+!~     ! set dimensions according to field before defining variables
+!~     dimIDs(1) = dimID_nod2
+!~     IF (sfields(i)% ndims == 1) THEN ! surface fields
+!~       dimIDs(2) = dimID_iter
+!~     ELSEIF (sfields(i)% ndims == 2) THEN ! 3D-fields
+!~       dimIDs(2) = dimID_nz1
+!~       IF (.not.(sfields(i)%nz1)) dimIDs(2) = dimID_nz ! variables on levels (vertical velocity)
+!~       dimIDs(3) = dimID_iter
+!~     ENDIF
     
-    ! number of dimensions
-    ndims = sfields(i)% ndims +1  ! plus iteration
+!~     ! number of dimensions
+!~     ndims = sfields(i)% ndims +1  ! plus iteration
     
-    ! define variable
-    call check( NF90_DEF_VAR(fileid, TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimIDs(1:ndims), sfields(i)% varid(j)))
-    ! variable description
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
-    call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
+!~     ! define variable
+!~     call check( NF90_DEF_VAR(fileid, TRIM(sfields(i)% variable)//'_'//IFA(j), NF90_FLOAT, dimIDs(1:ndims), sfields(i)% varid(j)))
+!~     ! variable description
+!~     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
+!~     call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
 
-  ENDDO ! state fields
+!~   ENDDO ! state fields
   
-! ***************************
-! define forget
-! ***************************
+!~ ! ***************************
+!~ ! define forget
+!~ ! ***************************
 
-! define variable
-call check( NF90_DEF_VAR(fileid,'forget', NF90_FLOAT, dimID_iter, varID_forget))
-! variable description
-call check( nf90_put_att(fileid, varID_forget, 'long_name', 'variable forgetting factor, snapshots'))
+!~ ! define variable
+!~ call check( NF90_DEF_VAR(fileid,'forget', NF90_FLOAT, dimID_iter, varID_forget))
+!~ ! variable description
+!~ call check( nf90_put_att(fileid, varID_forget, 'long_name', 'variable forgetting factor, snapshots'))
 
 
-! close file
-call check (nf90_close(fileid))
-END SUBROUTINE netCDF_init_rmsens
+!~ ! close file
+!~ call check (nf90_close(fileid))
+!~ END SUBROUTINE netCDF_init_rmsens
 
 
 
@@ -589,11 +725,11 @@ call check (nf90_put_var(fileid, varid_lat,  REAL(180./pi * lat, 4)))
 ! define field variables
 call check (nf90_redef(fileid))
 
-DO j = 1, 3 ! ini/forc/ana
+DO j = 1, 4 ! ini/forc/ana
   DO i = 1, nfields
  
     ! don't write analysis for not-updated variables
-    IF ((DEBUGOUTPUT) .or. (j<3) .or. ((sfields(i)% updated))) THEN
+    ! IF ((DEBUGOUTPUT) .or. (j<3) .or. ((sfields(i)% updated))) THEN
     
     ! **********************
     ! *** surface STD fields
@@ -642,7 +778,7 @@ DO j = 1, 3 ! ini/forc/ana
     call check( nf90_put_att(fileid, sfields(i)% varid(j+prme), 'units',      sfields(i)% units))
     
     ENDIF ! 3D-fields
-    ENDIF ! don't write analysis for not-updated variables
+    ! ENDIF ! don't write analysis for not-updated variables
   ENDDO ! i, nfields
 ENDDO ! j, ini/forc/ana
 
@@ -721,7 +857,7 @@ ENDIF ! writepe
   DO i = 1, nfields
  
     ! don't write analysis for not-updated variables
-    IF ((DEBUGOUTPUT) .or. (.not. (writetype=='a')) .or. ((sfields(i)% updated))) THEN
+    ! IF ((DEBUGOUTPUT) .or. (.not. (writetype=='a')) .or. ((sfields(i)% updated))) THEN
     
     ! **********************
     ! *** surface STD fields
@@ -802,7 +938,7 @@ ENDIF ! writepe
     ENDIF ! writepe
     i3D = i3D+1
     ENDIF ! 3D-fields
-    ENDIF ! don't write analysis for not-updated variables
+    ! ENDIF ! don't write analysis for not-updated variables
     ENDDO ! i, nfields
 
 IF (writepe) call check (nf90_close(fileid))

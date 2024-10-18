@@ -6,7 +6,9 @@ MODULE io_BLOWUP
         USE MOD_MESH
 	use o_arrays
 	use i_arrays
-	implicit none
+        use g_events
+
+        implicit none
 #include "netcdf.inc"
 	!___________________________________________________________________________
 	type nc_dims

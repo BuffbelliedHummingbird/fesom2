@@ -293,8 +293,6 @@ type(t_mesh),   save,  target  :: mesh
         !___compute BGC fluxes and update BGC tracers
         if (use_REcoM) then
            call recom(mesh)
-!           if (mype==0 .and. n==1)  print *, achar(27)//'[46;1m'//'     --> call RECOM         '//achar(27)//'[0m'
-!           call compute_recom_diagnostics(1, mesh)
         end if
 #endif
 
@@ -320,17 +318,17 @@ type(t_mesh),   save,  target  :: mesh
         
 #ifdef use_PDAF
         CALL timeit(7, 'new')
-        CALL assimilate_PDAF(mstep)
+        CALL assimilate_PDAF(mstep) ! mstep: starting at 1 at each model (re)start
         CALL timeit(7, 'old')
         t4b = MPI_Wtime()
         CALL carbonfluxes_diags_output_monthly(mstep)
 #endif
 
         !___prepare output______________________________________________________
-#ifndef use_PDAF
+! #ifndef use_PDAF
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call output (n)'//achar(27)//'[0m'
         call output (n, mesh)
-#endif
+! endif
         ! call output (n, mesh)
         t5 = MPI_Wtime()
         call restart(n, .false., .false., mesh)

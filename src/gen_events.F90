@@ -1,3 +1,5 @@
+module g_events
+contains
 !
 !--------------------------------------------------------------------------------------------
 !
@@ -18,15 +20,26 @@ end subroutine annual_event
 !
 !--------------------------------------------------------------------------------------------
 !
-subroutine monthly_event(do_output)
+subroutine monthly_event(do_output, N_opt)
   !decides whether it's time to do output
   use g_clock
   implicit none
 
+  ! arguments
   logical :: do_output
+  integer, intent(in), optional :: N_opt ! length of time-period N, optional
+  ! local variable
+  integer :: N_nec                       ! length of time-period N, necessary
+    
+  if (present(N_opt)) then
+     N_nec = N_opt
+  else
+     N_nec = 1
+  endif
 
   if (day_in_month==num_day_in_month(fleapyear,month) .and. &
-       timenew==86400.) then
+      timenew==86400.                                 .and. &
+      (mod(month, N_nec)==0)) then
      do_output=.true.
   else
      do_output=.false.
@@ -105,3 +118,4 @@ end subroutine handle_err
 !
 !--------------------------------------------------------------------------------------------
 !
+end module g_events

@@ -7,6 +7,7 @@ MODULE io_RESTART
   use o_arrays
   use i_arrays
   use g_cvmix_tke
+  use g_events
   use g_cvmix_idemix
 #if defined(__recom)
   use REcoM_GloVar
@@ -322,7 +323,7 @@ if(mype==0)  write(*,*) 'REcoM_restart= ',REcoM_restart
   if (restart_length_unit.eq.'y') then
      call annual_event(is_restart)
   else if (restart_length_unit.eq.'m') then 
-     call monthly_event(is_restart) 
+     call monthly_event(is_restart, restart_length) 
   else if (restart_length_unit.eq.'d') then
      call daily_event(is_restart, restart_length)
   else if (restart_length_unit.eq.'h') then

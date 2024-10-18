@@ -88,7 +88,6 @@ INTEGER :: DA_couple_type ! (0) for weakly-coupled, (1) for strongly-coupled ass
 INTEGER :: type_forget  ! Type of forgetting factor
 REAL    :: forget       ! Forgetting factor for filter analysis
 INTEGER :: dim_bias     ! dimension of bias vector
-REAL    :: varscale=1.0 ! Scaling factor for initial ensemble variance
 ! SEIK/ETKF/LSEIK/ETKFS
 INTEGER :: type_trans    ! Type of ensemble transformation
                          ! SEIK/LSEIK:
@@ -203,9 +202,22 @@ CHARACTER(len=120) :: file_rawprof_prefix  = ''   ! file name prefix for profile
 CHARACTER(len=120) :: file_rawprof_suffix  = '.nc'! file name suffix for profile observations 
 LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
 
+! Initial ensemble covariance
+REAL    :: varscale=1.0 ! Scaling factor for initial ensemble variance
+
+LOGICAL :: perturb_ssh   = .true. ! which fields to perturb from covariance
+LOGICAL :: perturb_u     = .true.
+LOGICAL :: perturb_v     = .true.
+LOGICAL :: perturb_temp  = .true.
+LOGICAL :: perturb_salt  = .true.
+LOGICAL :: perturb_DIC   = .true.
+LOGICAL :: perturb_Alk   = .true.
+LOGICAL :: perturb_DIN   = .true.
+LOGICAL :: perturb_O2    = .true.
+
 ! Restart information - set in slurm-job-script:
-LOGICAL :: this_is_pdaf_restart = .false.            ! init_pdaf:        - at start of experiment, initialize PDAF-netCDF-output
-                                                     !                   - at restart, reset forget
+LOGICAL :: this_is_pdaf_restart = .false.            ! init_pdaf:        - at every start, initialize PDAF-netCDF-output
+                                                     !                   - at restart, set forget from restart info
                                                      ! init_ens_pdaf:    - at restart, skip perturbation of initial fields
                                                      ! distribute_state: - at restart, skip distribution of initial fields
                                                      ! prepoststep:      - at restart, skip writing of initial fields to netCDF
@@ -253,7 +265,7 @@ DATA startday_of_month_in_year(0,:) /1, 32, 60, 91, 121, 152, 182, 213, 244, 274
 DATA startday_of_month_in_year(1,:) /1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336/
 
 type(t_mesh), pointer, save      :: mesh_fesom
-INTEGER :: nlmax
+INTEGER :: nlmax = 46 ! CORE2 mesh: deepest wet cells at mesh_fesom%nl-2
 
 ! For weak coupling:
 integer :: n_sweeps                 !< Number of sweeps in local analysis loop
@@ -261,6 +273,32 @@ character(len=3) :: type_sweep(2)   !< Type of sweep in local analysis loop
 integer :: isweep                   !< Index of sweep during the local analysis loop
 character(len=6) :: cda_phy   ! Flag whether strongly-coupled DA is done
 character(len=6) :: cda_bio   ! Flag whether strongly-coupled DA is done
+
+! For carbon diagnostics:
+! Forecast state
+real, allocatable :: mF_alk               (:,:)
+real, allocatable :: mF_dic               (:,:)
+real, allocatable :: mF_livingmatter      (:,:)
+real, allocatable :: mF_deadmatter        (:,:)
+
+! Analysis state
+real, allocatable :: mA_alk               (:,:)
+real, allocatable :: mA_dic               (:,:)
+real, allocatable :: mA_livingmatter      (:,:)
+real, allocatable :: mA_deadmatter        (:,:)
+
+! Source of mass from assimilation step
+real, allocatable :: s_asml_alk           (:,:)
+real, allocatable :: s_asml_dic           (:,:)
+real, allocatable :: s_asml_livingmatter  (:,:)
+real, allocatable :: s_asml_deadmatter    (:,:)
+
+real, allocatable :: sM_asml_alk           (:,:)
+real, allocatable :: sM_asml_dic           (:,:)
+real, allocatable :: sM_asml_livingmatter  (:,:)
+real, allocatable :: sM_asml_deadmatter    (:,:)
+
+real, allocatable :: factor_massvol        (:,:)
 
 ! For debugging:
 INTEGER :: debug_id_depth, & ! Location for debugging output

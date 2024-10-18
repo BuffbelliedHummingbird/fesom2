@@ -20,16 +20,20 @@ SUBROUTINE read_config_pdaf()
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, step_null, &
        eff_dim_obs, loc_radius, loctype, loc_ratio, &
-       path_init, file_init, file_inistate, read_inistate, varscale, &
+       path_init, file_init, file_inistate, read_inistate, &
        twin_experiment, dim_obs_max, use_global_obs, DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        path_atm_cov, days_since_DAstart, assimilateBGC, assimilatePHY, &
        start_from_ENS_spinup, &
+       ! initial ensemble perturbation
+       varscale, perturb_ssh, perturb_u, &
+       perturb_v, perturb_temp, perturb_salt, &
+       perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
        proffiles_o, start_year_o, end_year_o
   USE mod_nc_out_variables, &
-       ONLY: write_ens
+       ONLY: w_memb
        
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
@@ -96,7 +100,7 @@ SUBROUTINE read_config_pdaf()
        local_range, locweight, srange, DA_couple_type, &
        n_modeltasks, use_global_obs, &
        path_init, file_init, step_null, printconfig, &
-       file_inistate, read_inistate, write_ens, varscale, &
+       file_inistate, read_inistate, w_memb, &
        type_trans, type_sqrt, dim_lag, &
        loctype, loc_ratio, delt_obs_ocn, &     
        dim_obs_max, &
@@ -106,6 +110,10 @@ SUBROUTINE read_config_pdaf()
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        days_since_DAstart, start_from_ENS_spinup, &
        assimilatePHY, &
+       ! initial ensemble perturbation:
+       varscale, perturb_ssh, perturb_u, &
+       perturb_v, perturb_temp, perturb_salt, &
+       perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2, &
        ! Salt SMOS:
        ASSIM_o_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        rms_obs_sss, sss_fixed_rmse, &
@@ -208,7 +216,7 @@ ELSE
     atmos_stochasticity_ON = .FALSE.
 ENDIF
 
-IF (write_ens) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE. Hint: Activate model ouput in fvom_main.F90 instead.'
+IF (w_memb) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE. Hint: Activate model ouput in fvom_main.F90 instead.'
 
 ! Observation file prefixes:
 WRITE(year_string,'(i4.4)') yearnew
@@ -235,7 +243,6 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'incremental ',         incremental
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'type_forget ',         type_forget
      WRITE (*,'(a,5x,a,f10.4)') 'FESOM-PDAF',   'forget      ',         forget
-     WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'varscale    ',         varscale
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'dim_bias    ',         dim_bias
      WRITE (*,'(a,5x,a,i10)')   'FESOM-PDAF',   'type_trans  ',         type_trans
      WRITE (*,'(a,5x,a,es10.2)')'FESOM-PDAF',   'local_range ',         local_range
@@ -327,12 +334,22 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_obs_o2_comf',     path_obs_o2_comf
      WRITE (*,'(a,5x,a,f11.3)') 'FESOM-PDAF',   'rms_obs_o2_comf',      rms_obs_o2_comf
      
-     ! Physics initial ensemble covariance
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
-     WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'file_init   ',         TRIM(file_init)
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'this_is_pdaf_restart', this_is_pdaf_restart
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'start_from_ENS_spinup',start_from_ENS_spinup
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE 
+     ! initial ensemble covariance
+     WRITE (*,'(a,5x,a,1x,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
+     WRITE (*,'(a,5x,a,1x,a)')     'FESOM-PDAF',   'file_init   ',         TRIM(file_init)
+     WRITE (*,'(a,5x,a,1x,l)')     'FESOM-PDAF',   'this_is_pdaf_restart', this_is_pdaf_restart
+     WRITE (*,'(a,5x,a,1x,l)')     'FESOM-PDAF',   'start_from_ENS_spinup',start_from_ENS_spinup
+     WRITE (*,'(a,5x,a,1x,l)')     'FESOM-PDAF',   'ASIM_START_USE_CLIM_STATE', ASIM_START_USE_CLIM_STATE
+     WRITE (*,'(a,5x,a14,1x,es10.2)')'FESOM-PDAF',   'varscale    ', varscale
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_ssh',  perturb_ssh
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_u',    perturb_u
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_v',    perturb_v
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_temp', perturb_temp
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_salt', perturb_salt
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_DIC',  perturb_DIC
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_Alk',  perturb_Alk
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_DIN',  perturb_DIN
+     WRITE (*,'(a,5x,a14,1x,l)')     'FESOM-PDAF',   'perturb_O2',   perturb_O2
      
      ! Twin experiment
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'twin_experiment', twin_experiment
@@ -344,7 +361,7 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      ENDIF
      
      ! Output
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_ens            ',write_ens
+     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'w_memb            ',w_memb
      WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_monthly_mean',   write_monthly_mean
 
      ! Atmospheric perturbation

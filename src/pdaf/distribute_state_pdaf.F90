@@ -31,7 +31,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
        ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, nlmax, &
        dim_fields, id, istep_asml, step_null, start_from_ENS_spinup
   USE mod_nc_out_variables, &
-       ONLY: sfields
+       ONLY: sfields, nfields_tr3D, ids_tr3D
   USE g_PARSUP, &
        ONLY: myDim_nod2D, myDim_elem2D, &
              eDim_nod2D, eDim_elem2D 
@@ -55,8 +55,8 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! Called by: PDAF_get_state   (as U_dist_state)
 
 ! Local variables
-  INTEGER :: i, k, b, s   ! Counter
-  INTEGER :: node         ! Node index
+  INTEGER :: i, k, b, s, istate, ifesom   ! Counter
+  INTEGER :: node                         ! Node index
   
   REAL, ALLOCATABLE :: U_node_upd(:,:,:) ! Velocity update on nodes
   REAL, ALLOCATABLE :: U_elem_upd(:,:,:) ! Velocity update on elements
@@ -176,18 +176,18 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   
   ! Temp (5) and salt (6)
   
-  DO i = 1, myDim_nod2D
-   DO k = 1, nlmax
-      ! T
-      s = (i-1) * (nlmax) + k + offset(id% temp)
-      tr_arr(k, i, 1) = state_p(s)
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%temp)%variable, s, tr_arr(k, i, 1), state_p(s)
-      ! S
-      s = (i-1) * (nlmax) + k + offset(id% salt)
-      tr_arr(k, i, 2) = state_p(s)
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%salt)%variable, s, tr_arr(k, i, 2), state_p(s)
-   END DO
-  END DO
+!~   DO i = 1, myDim_nod2D
+!~    DO k = 1, nlmax
+!~       ! T
+!~       s = (i-1) * (nlmax) + k + offset(id% temp)
+!~       tr_arr(k, i, 1) = state_p(s)
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%temp)%variable, s, tr_arr(k, i, 1), state_p(s)
+!~       ! S
+!~       s = (i-1) * (nlmax) + k + offset(id% salt)
+!~       tr_arr(k, i, 2) = state_p(s)
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%salt)%variable, s, tr_arr(k, i, 2), state_p(s)
+!~    END DO
+!~   END DO
   
   ! Sea-ice concentration is needed in PDAF to not assimilate SST at
   ! sea-ice locations.
@@ -201,94 +201,119 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   call exchange_nod(eta_n)            ! SSH
   call exchange_elem(UV(:,:,:))       ! u and v (element-wise)
   ! call exchange_nod(wvel)           ! No need as vertical velocities are not distributed.
-  call exchange_nod(tr_arr(:,:,1))    ! Temp
-  call exchange_nod(tr_arr(:,:,2))    ! Salt
+!~   call exchange_nod(tr_arr(:,:,1))    ! Temp
+!~   call exchange_nod(tr_arr(:,:,2))    ! Salt
+
+
+! *********************************
+! *** Model 3D tracers          ***
+! *********************************
+  ! tracer field loop
+  DO b = 1, nfields_tr3D
   
+     istate = ids_tr3D(b)                 ! index of field in state vector
+     ifesom = sfields(istate)%trnumfesom  ! index of field in model tracer array
+     
+     DO i = 1, myDim_nod2D
+        DO k = 1, nlmax
+        
+           ! indeces to flatten 3D arrays
+           s = (i-1) * (nlmax) + k
+           ! put state values into model tracer array
+           tr_arr(k, i,  ifesom) = state_p(s + offset(istate))
+           
+        ENDDO
+     ENDDO
+     ! initialize external nodes
+     call exchange_nod(tr_arr(:,:,ifesom))
+  ENDDO
+                            
+
 ! *********************************
 ! *** Biogeochemistry           ***
 ! *********************************
 
 ! 3D fields:
-  DO i = 1, myDim_nod2D
-   DO k = 1, nlmax
+!~   DO i = 1, myDim_nod2D
+!~    DO k = 1, nlmax
    
-      if (write_debug) then
-      ! small phytoplankton:
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyChl )%variable,   (i-1) * (nlmax) + k + offset(id% PhyChl ),   tr_arr(k, i,  8),   state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyN   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyN   ),   tr_arr(k, i,  6),   state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyC   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyC   ),   tr_arr(k, i,  7),   state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyCalc)%variable,   (i-1) * (nlmax) + k + offset(id% PhyCalc),   tr_arr(k, i, 22),   state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
-      ! diatoms:                                                                                                                                                      
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaChl )%variable,   (i-1) * (nlmax) + k + offset(id% DiaChl ),   tr_arr(k, i, 17),   state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaN   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaN   ),   tr_arr(k, i, 15),   state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaC   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaC   ),   tr_arr(k, i, 16),   state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DiaSi  ),   tr_arr(k, i, 18),   state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
-      ! small, fast-growing zooplankton                                                                                                                           
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1C)   ,   tr_arr(k, i, 12),   state_p((i-1) * (nlmax) + k + offset(id% Zo1C))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1N)   ,   tr_arr(k, i, 11),   state_p((i-1) * (nlmax) + k + offset(id% Zo1N))
-      ! macrozooplankton/antarctic krill:                                                                                                                                
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2C)   ,   tr_arr(k, i, 26),   state_p((i-1) * (nlmax) + k + offset(id% Zo2C))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2N)   ,   tr_arr(k, i, 25),   state_p((i-1) * (nlmax) + k + offset(id% Zo2N))
-      ! dissolved tracer pools:                                                                                                                                           
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIC    )%variable,   (i-1) * (nlmax) + k + offset(id% DIC    ),   tr_arr(k, i,  4),   state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DOC    )%variable,   (i-1) * (nlmax) + k + offset(id% DOC    ),   tr_arr(k, i, 14),   state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Alk    )%variable,   (i-1) * (nlmax) + k + offset(id% Alk    ),   tr_arr(k, i,  5),   state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIN    )%variable,   (i-1) * (nlmax) + k + offset(id% DIN    ),   tr_arr(k, i,  3),   state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DON    )%variable,   (i-1) * (nlmax) + k + offset(id% DON    ),   tr_arr(k, i, 13),   state_p((i-1) * (nlmax) + k + offset(id% DON    ))
-      write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% O2     )%variable,   (i-1) * (nlmax) + k + offset(id% O2     ),   tr_arr(k, i, 24),   state_p((i-1) * (nlmax) + k + offset(id% O2     ))
-      ! detritus:                                                                                                                                                        
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetC   )%variable,   (i-1) * (nlmax) + k + offset(id% DetC   ),   tr_arr(k, i, 10),   state_p((i-1) * (nlmax) + k + offset(id% DetC    ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetCalc)%variable,   (i-1) * (nlmax) + k + offset(id% DetCalc),   tr_arr(k, i, 23),   state_p((i-1) * (nlmax) + k + offset(id% DetCalc ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DetSi  ),   tr_arr(k, i, 19),   state_p((i-1) * (nlmax) + k + offset(id% DetSi   ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetN   )%variable,   (i-1) * (nlmax) + k + offset(id% DetN   ),   tr_arr(k, i,  9),   state_p((i-1) * (nlmax) + k + offset(id% DetN    ))
+!~       if (write_debug) then
+!~       ! small phytoplankton:
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyChl )%variable,   (i-1) * (nlmax) + k + offset(id% PhyChl ),   tr_arr(k, i,  8),   state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyN   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyN   ),   tr_arr(k, i,  6),   state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyC   )%variable,   (i-1) * (nlmax) + k + offset(id% PhyC   ),   tr_arr(k, i,  7),   state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% PhyCalc)%variable,   (i-1) * (nlmax) + k + offset(id% PhyCalc),   tr_arr(k, i, 22),   state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
+!~       ! diatoms:                                                                                                                                                      
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaChl )%variable,   (i-1) * (nlmax) + k + offset(id% DiaChl ),   tr_arr(k, i, 17),   state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaN   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaN   ),   tr_arr(k, i, 15),   state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaC   )%variable,   (i-1) * (nlmax) + k + offset(id% DiaC   ),   tr_arr(k, i, 16),   state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DiaSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DiaSi  ),   tr_arr(k, i, 18),   state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
+!~       ! small, fast-growing zooplankton                                                                                                                           
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1C)   ,   tr_arr(k, i, 12),   state_p((i-1) * (nlmax) + k + offset(id% Zo1C))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo1N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo1N)   ,   tr_arr(k, i, 11),   state_p((i-1) * (nlmax) + k + offset(id% Zo1N))
+!~       ! macrozooplankton/antarctic krill:                                                                                                                                
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2C)   ,   tr_arr(k, i, 26),   state_p((i-1) * (nlmax) + k + offset(id% Zo2C))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Zo2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Zo2N)   ,   tr_arr(k, i, 25),   state_p((i-1) * (nlmax) + k + offset(id% Zo2N))
+!~       ! dissolved tracer pools:                                                                                                                                           
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIC    )%variable,   (i-1) * (nlmax) + k + offset(id% DIC    ),   tr_arr(k, i,  4),   state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DOC    )%variable,   (i-1) * (nlmax) + k + offset(id% DOC    ),   tr_arr(k, i, 14),   state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Alk    )%variable,   (i-1) * (nlmax) + k + offset(id% Alk    ),   tr_arr(k, i,  5),   state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DIN    )%variable,   (i-1) * (nlmax) + k + offset(id% DIN    ),   tr_arr(k, i,  3),   state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DON    )%variable,   (i-1) * (nlmax) + k + offset(id% DON    ),   tr_arr(k, i, 13),   state_p((i-1) * (nlmax) + k + offset(id% DON    ))
+!~       write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% O2     )%variable,   (i-1) * (nlmax) + k + offset(id% O2     ),   tr_arr(k, i, 24),   state_p((i-1) * (nlmax) + k + offset(id% O2     ))
+!~       ! detritus:                                                                                                                                                        
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetC   )%variable,   (i-1) * (nlmax) + k + offset(id% DetC   ),   tr_arr(k, i, 10),   state_p((i-1) * (nlmax) + k + offset(id% DetC    ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetCalc)%variable,   (i-1) * (nlmax) + k + offset(id% DetCalc),   tr_arr(k, i, 23),   state_p((i-1) * (nlmax) + k + offset(id% DetCalc ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetSi  )%variable,   (i-1) * (nlmax) + k + offset(id% DetSi  ),   tr_arr(k, i, 19),   state_p((i-1) * (nlmax) + k + offset(id% DetSi   ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% DetN   )%variable,   (i-1) * (nlmax) + k + offset(id% DetN   ),   tr_arr(k, i,  9),   state_p((i-1) * (nlmax) + k + offset(id% DetN    ))
       
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2C   ),   tr_arr(k, i, 28),   state_p((i-1) * (nlmax) + k + offset(id% Det2C    ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Calc)%variable,   (i-1) * (nlmax) + k + offset(id% Det2Calc),   tr_arr(k, i, 30),   state_p((i-1) * (nlmax) + k + offset(id% Det2Calc ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Si  )%variable,   (i-1) * (nlmax) + k + offset(id% Det2Si  ),   tr_arr(k, i, 29),   state_p((i-1) * (nlmax) + k + offset(id% Det2Si   ))
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2N   ),   tr_arr(k, i, 27),   state_p((i-1) * (nlmax) + k + offset(id% Det2N    ))
-      endif ! write_debug
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2C   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2C   ),   tr_arr(k, i, 28),   state_p((i-1) * (nlmax) + k + offset(id% Det2C    ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Calc)%variable,   (i-1) * (nlmax) + k + offset(id% Det2Calc),   tr_arr(k, i, 30),   state_p((i-1) * (nlmax) + k + offset(id% Det2Calc ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2Si  )%variable,   (i-1) * (nlmax) + k + offset(id% Det2Si  ),   tr_arr(k, i, 29),   state_p((i-1) * (nlmax) + k + offset(id% Det2Si   ))
+!~       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id% Det2N   )%variable,   (i-1) * (nlmax) + k + offset(id% Det2N   ),   tr_arr(k, i, 27),   state_p((i-1) * (nlmax) + k + offset(id% Det2N    ))
+!~       endif ! write_debug
    
-      ! small phytoplankton:
-      tr_arr(k, i,  8) = state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
-      tr_arr(k, i,  6) = state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
-      tr_arr(k, i,  7) = state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
-      tr_arr(k, i, 22) = state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
-      ! diatoms:
-      tr_arr(k, i, 17) = state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
-      tr_arr(k, i, 15) = state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
-      tr_arr(k, i, 16) = state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
-      tr_arr(k, i, 18) = state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
-      ! small, fast-growing zooplankton
-      tr_arr(k, i, 12) = state_p((i-1) * (nlmax) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
-      tr_arr(k, i, 11) = state_p((i-1) * (nlmax) + k + offset(id% Zo1N)) ! intracellular conc of nitrogen in zooplankton 1
-      ! macrozooplankton/antarctic krill:
-      tr_arr(k, i, 26) = state_p((i-1) * (nlmax) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
-      tr_arr(k, i, 25) = state_p((i-1) * (nlmax) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
-      ! dissolved tracer pools:
-      tr_arr(k, i,  4) = state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
-      tr_arr(k, i, 14) = state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
-      tr_arr(k, i,  5) = state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
-      tr_arr(k, i,  3) = state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
-      tr_arr(k, i, 13) = state_p((i-1) * (nlmax) + k + offset(id% DON    ))
-      tr_arr(k, i, 24) = state_p((i-1) * (nlmax) + k + offset(id% O2     ))
-      ! detritus:
-      tr_arr(k, i, 10) = state_p((i-1) * (nlmax) + k + offset(id% DetC   ))
-      tr_arr(k, i, 23) = state_p((i-1) * (nlmax) + k + offset(id% DetCalc))
-      tr_arr(k, i, 19) = state_p((i-1) * (nlmax) + k + offset(id% DetSi  ))
-      tr_arr(k, i,  9) = state_p((i-1) * (nlmax) + k + offset(id% DetN   ))
+!~       ! small phytoplankton:
+!~       tr_arr(k, i,  8) = state_p((i-1) * (nlmax) + k + offset(id% PhyChl ))
+!~       tr_arr(k, i,  6) = state_p((i-1) * (nlmax) + k + offset(id% PhyN   ))
+!~       tr_arr(k, i,  7) = state_p((i-1) * (nlmax) + k + offset(id% PhyC   ))
+!~       tr_arr(k, i, 22) = state_p((i-1) * (nlmax) + k + offset(id% PhyCalc))
+!~       ! diatoms:
+!~       tr_arr(k, i, 17) = state_p((i-1) * (nlmax) + k + offset(id% DiaChl ))
+!~       tr_arr(k, i, 15) = state_p((i-1) * (nlmax) + k + offset(id% DiaN   ))
+!~       tr_arr(k, i, 16) = state_p((i-1) * (nlmax) + k + offset(id% DiaC   ))
+!~       tr_arr(k, i, 18) = state_p((i-1) * (nlmax) + k + offset(id% DiaSi  ))
+!~       ! small, fast-growing zooplankton
+!~       tr_arr(k, i, 12) = state_p((i-1) * (nlmax) + k + offset(id% Zo1C)) ! intracellular conc of carbon in zooplankton 1
+!~       tr_arr(k, i, 11) = state_p((i-1) * (nlmax) + k + offset(id% Zo1N)) ! intracellular conc of nitrogen in zooplankton 1
+!~       ! macrozooplankton/antarctic krill:
+!~       tr_arr(k, i, 26) = state_p((i-1) * (nlmax) + k + offset(id% Zo2C)) ! intracellular conc of carbon in zooplankton 2
+!~       tr_arr(k, i, 25) = state_p((i-1) * (nlmax) + k + offset(id% Zo2N)) ! intracellular conc of nitrogen in zooplankton 2
+!~       ! dissolved tracer pools:
+!~       tr_arr(k, i,  4) = state_p((i-1) * (nlmax) + k + offset(id% DIC    ))
+!~       tr_arr(k, i, 14) = state_p((i-1) * (nlmax) + k + offset(id% DOC    ))
+!~       tr_arr(k, i,  5) = state_p((i-1) * (nlmax) + k + offset(id% Alk    ))
+!~       tr_arr(k, i,  3) = state_p((i-1) * (nlmax) + k + offset(id% DIN    ))
+!~       tr_arr(k, i, 13) = state_p((i-1) * (nlmax) + k + offset(id% DON    ))
+!~       tr_arr(k, i, 24) = state_p((i-1) * (nlmax) + k + offset(id% O2     ))
+!~       ! detritus:
+!~       tr_arr(k, i, 10) = state_p((i-1) * (nlmax) + k + offset(id% DetC   ))
+!~       tr_arr(k, i, 23) = state_p((i-1) * (nlmax) + k + offset(id% DetCalc))
+!~       tr_arr(k, i, 19) = state_p((i-1) * (nlmax) + k + offset(id% DetSi  ))
+!~       tr_arr(k, i,  9) = state_p((i-1) * (nlmax) + k + offset(id% DetN   ))
       
-      tr_arr(k, i, 28) = state_p((i-1) * (nlmax) + k + offset(id% Det2C   ))
-      tr_arr(k, i, 30) = state_p((i-1) * (nlmax) + k + offset(id% Det2Calc))
-      tr_arr(k, i, 29) = state_p((i-1) * (nlmax) + k + offset(id% Det2Si  ))
-      tr_arr(k, i, 27) = state_p((i-1) * (nlmax) + k + offset(id% Det2N   ))
+!~       tr_arr(k, i, 28) = state_p((i-1) * (nlmax) + k + offset(id% Det2C   ))
+!~       tr_arr(k, i, 30) = state_p((i-1) * (nlmax) + k + offset(id% Det2Calc))
+!~       tr_arr(k, i, 29) = state_p((i-1) * (nlmax) + k + offset(id% Det2Si  ))
+!~       tr_arr(k, i, 27) = state_p((i-1) * (nlmax) + k + offset(id% Det2N   ))
       
       ! diagnostic fields:
 !     PAR3D (k, i)     = state_p((i-1) * (nlmax) + k + offset(id% PAR    )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
 !     diags3D(k, i, 1) = state_p((i-1) * (nlmax) + k + offset(id% NPPn   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)
 !     diags3D(k, i, 2) = state_p((i-1) * (nlmax) + k + offset(id% NPPd   )) ! diagnostic field (not distributed to the model. See int_recom/recom_sms.F90)      
       
-   END DO
-  END DO   
+!~    END DO
+!~   END DO   
            
 ! 2D fields:
 !  DO i = 1, myDim_nod2D
@@ -298,32 +323,32 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 !  END DO
  
 ! Initialize external nodes:
-  call exchange_nod( tr_arr(:,:, 8) ) ! small phytoplankton
-  call exchange_nod( tr_arr(:,:, 6) )
-  call exchange_nod( tr_arr(:,:, 7) )
-  call exchange_nod( tr_arr(:,:,22) )
-  call exchange_nod( tr_arr(:,:,17) ) ! diatoms
-  call exchange_nod( tr_arr(:,:,15) )
-  call exchange_nod( tr_arr(:,:,16) )
-  call exchange_nod( tr_arr(:,:,18) )
-  call exchange_nod( tr_arr(:,:,12) ) ! zooplankton 1
-  call exchange_nod( tr_arr(:,:,11) )
-  call exchange_nod( tr_arr(:,:,26) ) ! zooplankton 2
-  call exchange_nod( tr_arr(:,:,25) )
-  call exchange_nod( tr_arr(:,:, 4) ) ! dissolved tracers
-  call exchange_nod( tr_arr(:,:,14) )
-  call exchange_nod( tr_arr(:,:, 5) )
-  call exchange_nod( tr_arr(:,:, 3) )
-  call exchange_nod( tr_arr(:,:,13) )
-  call exchange_nod( tr_arr(:,:,24) )
-  call exchange_nod( tr_arr(:,:,10) ) ! detritus
-  call exchange_nod( tr_arr(:,:,23) )
-  call exchange_nod( tr_arr(:,:,19) )
-  call exchange_nod( tr_arr(:,:, 9) )
-  call exchange_nod( tr_arr(:,:,28) )
-  call exchange_nod( tr_arr(:,:,30) )
-  call exchange_nod( tr_arr(:,:,29) )
-  call exchange_nod( tr_arr(:,:,27) )
+!~   call exchange_nod( tr_arr(:,:, 8) ) ! small phytoplankton
+!~   call exchange_nod( tr_arr(:,:, 6) )
+!~   call exchange_nod( tr_arr(:,:, 7) )
+!~   call exchange_nod( tr_arr(:,:,22) )
+!~   call exchange_nod( tr_arr(:,:,17) ) ! diatoms
+!~   call exchange_nod( tr_arr(:,:,15) )
+!~   call exchange_nod( tr_arr(:,:,16) )
+!~   call exchange_nod( tr_arr(:,:,18) )
+!~   call exchange_nod( tr_arr(:,:,12) ) ! zooplankton 1
+!~   call exchange_nod( tr_arr(:,:,11) )
+!~   call exchange_nod( tr_arr(:,:,26) ) ! zooplankton 2
+!~   call exchange_nod( tr_arr(:,:,25) )
+!~   call exchange_nod( tr_arr(:,:, 4) ) ! dissolved tracers
+!~   call exchange_nod( tr_arr(:,:,14) )
+!~   call exchange_nod( tr_arr(:,:, 5) )
+!~   call exchange_nod( tr_arr(:,:, 3) )
+!~   call exchange_nod( tr_arr(:,:,13) )
+!~   call exchange_nod( tr_arr(:,:,24) )
+!~   call exchange_nod( tr_arr(:,:,10) ) ! detritus
+!~   call exchange_nod( tr_arr(:,:,23) )
+!~   call exchange_nod( tr_arr(:,:,19) )
+!~   call exchange_nod( tr_arr(:,:, 9) )
+!~   call exchange_nod( tr_arr(:,:,28) )
+!~   call exchange_nod( tr_arr(:,:,30) )
+!~   call exchange_nod( tr_arr(:,:,29) )
+!~   call exchange_nod( tr_arr(:,:,27) )
 !  call exchange_nod( PAR3D          )
 !  call exchange_nod( GloPCO2surf )
 !  call exchange_nod( GloCO2flux  )

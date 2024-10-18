@@ -20,11 +20,21 @@ twin_experiment=.false.
 step_null=0            ! 0 for restart at first day of the year. Is reset by runscript.
 days_since_DAstart=1   ! 1 at the beginning. Is reset by runscript.
 
+perturb_ssh   = .true.
+perturb_u     = .true.
+perturb_v     = .true.
+perturb_temp  = .true.
+perturb_salt  = .true.
+perturb_DIC   = .true.
+perturb_Alk   = .true.
+perturb_DIN   = .true.
+perturb_O2    = .true.
+
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/BGC9_covar/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_monthly_mean=.false. ! true: monthly output; false: daily output
-write_ens=.false.          ! whether to write output for individual ensemble members
+w_memb=.false.          ! whether to write output for individual ensemble members
 
 ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.false.
@@ -125,18 +135,18 @@ assimilatePHY=.false.
 dim_ens=4
 /
 
-! Which state variables to be updated:
+! Which state variables to be affected by the assimilation:
 &updated
 
 upd_ssh   =.true.
 upd_u     =.true.
 upd_v     =.true.
-upd_w     =.false.
+upd_w     =.false.      ! not updated to increase stability
 upd_temp  =.true.
 upd_salt  =.true.
-upd_ice   =.false.
-upd_MLD1  =.false.
-upd_MLD2  =.false.
+upd_ice   =.false.      ! required for observation exclusion criterion; not affected by assimilation
+upd_MLD1  =.false.      ! diagnostic
+upd_MLD2  =.false.      ! diagnostic
 
 upd_PhyChl    = .true.
 upd_DiaChl    = .true.
@@ -146,14 +156,14 @@ upd_Alk       = .true.
 upd_DIN       = .true.
 upd_DON       = .true.
 upd_O2        = .true.
-upd_pCO2s     = .false.
-upd_CO2f      = .false.
+upd_pCO2s     = .true.    ! assimilated model diagnostic
+upd_CO2f      = .true.    ! assimilated model diagnostic
 upd_DiaN      = .true.
 upd_DiaC      = .true.
 upd_DiaSi     = .true.
-upd_PAR       = .false.
-upd_NPPn      = .false.
-upd_NPPd      = .false.
+upd_PAR       = .false.   ! diagnostic
+upd_NPPn      = .false.   ! diagnostic
+upd_NPPd      = .false.   ! diagnostic
 upd_DetC      = .true.
 upd_DetCalc   = .true.
 upd_DetN      = .true.
@@ -165,9 +175,9 @@ upd_Det2Si    = .true.
 upd_PhyC      = .true.
 upd_PhyN      = .true.
 upd_PhyCalc   = .true.
-upd_export    = .false.
-upd_alphaCO2  = .false.
-upd_PistonVel = .false.
+upd_export    = .false.  ! diagnostic
+upd_alphaCO2  = .false.  ! diagnostic
+upd_PistonVel = .false.  ! diagnostic
 upd_Zo1C      = .true.
 upd_Zo1N      = .true.
 upd_Zo2C      = .true.

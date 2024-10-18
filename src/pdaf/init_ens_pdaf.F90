@@ -9,7 +9,10 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   USE mod_assim_pdaf, &
        ONLY: file_init, path_init, read_inistate, file_inistate, varscale, &
        offset, ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, mesh_fesom, &
-       id, dim_fields, offset, start_from_ENS_spinup, nlmax
+       id, dim_fields, offset, start_from_ENS_spinup, nlmax, &
+       perturb_ssh, perturb_u, &
+       perturb_v, perturb_temp, perturb_salt, &
+       perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2
   USE mod_nc_out_variables, &
        ONLY: sfields
   USE mod_parallel_pdaf, &
@@ -30,13 +33,13 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   INCLUDE 'mpif.h'
 
 ! !ARGUMENTS:
-  INTEGER, INTENT(in) :: filtertype              ! Type of filter to initialize
-  INTEGER, INTENT(in) :: dim_p                   ! PE-local state dimension
-  INTEGER, INTENT(in) :: dim_ens                 ! Size of ensemble
-  REAL, INTENT(inout) :: state_p(dim_p)          ! PE-local model state
+  INTEGER, INTENT(in) :: filtertype                ! Type of filter to initialize
+  INTEGER, INTENT(in) :: dim_p                     ! PE-local state dimension
+  INTEGER, INTENT(in) :: dim_ens                   ! Size of ensemble
+  REAL, INTENT(inout) :: state_p(dim_p)            ! PE-local model state
   REAL, INTENT(inout) :: Uinv(dim_ens-1,dim_ens-1) ! Array not referenced for SEIK
-  REAL, INTENT(out)   :: ens_p(dim_p, dim_ens)   ! PE-local state ensemble
-  INTEGER, INTENT(inout) :: flag                 ! PDAF status flag
+  REAL, INTENT(out)   :: ens_p(dim_p, dim_ens)     ! PE-local state ensemble
+  INTEGER, INTENT(inout) :: flag                   ! PDAF status flag
 
 ! !CALLING SEQUENCE:
 ! Called by: PDAF_init       (as U_init_ens)
@@ -83,6 +86,8 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   
   TYPE(field_ids) :: id_cov            ! Type variable holding field IDs in covariance matrix
   
+  LOGICAL, allocatable :: perturb_this(:)
+  
   INTEGER :: n_treshold_ssh_p,  &
              n_treshold_temp_p, &
              n_treshold_salt_p, &
@@ -123,10 +128,10 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! no need to initialize the ensemble in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF This is a restart, skipping init_ens_pdaf'
-      CALL collect_state_PDAF(dim_p, state_p)
+      ens_p=0
   ELSEIF (start_from_ENS_spinup) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF Starting from a perturbed ensemble, skipping init_ens_pdaf'
-      CALL collect_state_PDAF(dim_p, state_p)
+      ens_p=0
   ELSE
 
 ! **********************
@@ -173,12 +178,15 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   enddo
   
   ! Positions of to-be-perturbed state fields in the full model state vector:
-  nfields_per = 7
-!~   nfields_per = 9
+  ! note: you might take out some fields here, code will still work and not perturb these
+  !       else, you might just set perturb_field=.false. in namelist.fesom.pdaf
+  
+!~   nfields_per = 7
+  nfields_per = 9
   ALLOCATE(id_per_mod(nfields_per))
   id_per_mod = (/ id%ssh,  &
-!~                   id%u,    &
-!~                   id%v,    &
+                  id%u,    &
+                  id%v,    &
                   id%temp, &
                   id%salt, &
                   id%DIC,  &
@@ -189,27 +197,46 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   ! Positions of to-be-perturbed fields in covariance vector:
   ALLOCATE(id_per_cov(nfields_per))
   id_per_cov = (/ id_cov%ssh,  &
-!~                   id_cov%u,    &
-!~                   id_cov%v,    &
+                  id_cov%u,    &
+                  id_cov%v,    &
                   id_cov%temp, &
                   id_cov%salt, &
                   id_cov%DIC,  &
                   id_cov%Alk,  &
                   id_cov%DIN,  &
                   id_cov%O2      /)
+                  
+  ! Not-to-be perturbed fields according to namelist settings:
+  ALLOCATE(perturb_this(nfields_per))
+  perturb_this(:) = .false.
   
+  DO j = 1,nfields_per 
+      if ((id_per_mod(j)==id%ssh ) .and. perturb_ssh ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%u   ) .and. perturb_u   ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%v   ) .and. perturb_v   ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%temp) .and. perturb_temp) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%salt) .and. perturb_salt) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%DIC ) .and. perturb_DIC ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%Alk ) .and. perturb_Alk ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%DIN ) .and. perturb_DIN ) perturb_this(j) = .true.
+      if ((id_per_mod(j)==id%O2  ) .and. perturb_O2  ) perturb_this(j) = .true.
+ENDDO
+  
+  ! Print out message
   if (mype_filter==0) then
   do j=1,nfields_cov
-      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7)') 'PE0-dim and offset of covariance field ', &
+      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7,L2)') 'PE0-dim and offset of covariance field ', &
                                               trim(sfields(id_cov_mod(j))%variable), &
                                               dim_fields(id_cov_mod(j)), &
-                                              offsets_cov(j)
+                                              offsets_cov(j), &
+                                              perturb_this(j)
   enddo
   do j=1,nfields_per
-      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7)') 'PE0-dim and offset of to-be-perturbed fields ', &
+      WRITE (*,'(1X,A40,1X,A5,1X,I7,1X,I7,L2)') 'PE0-dim and offset of to-be-perturbed fields ', &
                                               trim(sfields(id_per_mod(j))%variable), &
                                               dim_fields(id_per_mod(j)), &
-                                              offset(id_per_mod(j))
+                                              offset(id_per_mod(j)), &
+                                              perturb_this(j)
   enddo
   endif
   
@@ -348,7 +375,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
    END DO
    
    ! Add perturbation to to-be-perturbed part of full state vector:
-   DO j = 1,nfields_per
+   DO j = 1,nfields_per   
       ! field offset in covariance matrix
       o1 = offsets_cov(id_per_cov(j)) + 1
       o2 = offsets_cov(id_per_cov(j)) + dim_fields(id_per_mod(j))
@@ -362,7 +389,11 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
         ENDDO
       ENDIF
       
-      ens_p(f1:f2,:) = ens_p(f1:f2,:) + ens_p_per(o1:o2,:)
+      ! add perturbation, if specified so in namelist
+      IF (perturb_this(j)) THEN
+         ! add perturbation
+         ens_p(f1:f2,:) = ens_p(f1:f2,:) + ens_p_per(o1:o2,:)
+      ENDIF
       
       IF (write_debug) THEN
         DO n=f1,f2

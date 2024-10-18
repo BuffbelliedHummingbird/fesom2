@@ -3,11 +3,11 @@
 #SBATCH --partition=mpp
 #SBATCH --ntasks=288 #1440
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:05:00 # 7 hours
+#SBATCH --time=00:10:00 # 7 hours
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
 
-#SBATCH --job-name=test
+#SBATCH --job-name=debug
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -161,6 +161,51 @@ do
                 error "Run directory not empty and \${force_run_from_scratch} not set."
             fi
         fi
+        
+        # Set namelists from jobscript settings
+        sed -i `grep -n dim_ens              ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                            ${start_dir}/namelist.fesom.pdaf
+        
+        sed -i `grep -n restart_length_unit  ${start_dir}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'"   ${start_dir}/namelist.config
+        
+        sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
+        
+        sed -i `grep -n run_length_unit      ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"       ${start_dir}/namelist.config
+	    
+	    # Set namelists based on DA start date
+        sed -i `grep -n this_is_pdaf_restart ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."             ${start_dir}/namelist.fesom.pdaf
+	    
+        sed -i `grep -n step_null            ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                   ${start_dir}/namelist.fesom.pdaf
+	    
+        sed -i `grep -n days_since_DAstart   ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c days_since_DAstart=${days_since_DAstart}" ${start_dir}/namelist.fesom.pdaf
+        
+        if $BGC_init_ens
+	    then
+		    sed -i `grep -n start_from_ENS_spinup ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.true."  ${start_dir}/namelist.fesom.pdaf
+            else
+		    sed -i `grep -n start_from_ENS_spinup ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false." ${start_dir}/namelist.fesom.pdaf
+	    fi
+        
+        # Path to JRA forcing
+        yearnew=$leg_start_date_yyyy
+        if (( yearnew >= 2020 && yearnew <= 2023 )); then
+          info "Setting to JRA 1.5 forcing"
+          jrapath='/albedo/work/projects/p_pool_recom/forcing/JRA55-do-v1.5.0.1/'
+        elif (( yearnew >= 1958 && yearnew <= 2019 )); then
+          info "Setting to JRA 1.4 forcing"
+          jrapath='/albedo/work/projects/p_pool_fesom1/forcing/JRA55-do-v1.4.0/'
+        else
+          info "No atmospheric forcing for this year!"
+        fi
+        
+        sed -i `grep -n  nm_xwind_file  ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_xwind_file ='${jrapath}/uas.'"  ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_ywind_file  ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_ywind_file ='${jrapath}/vas.'"  ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_humi_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_humi_file  ='${jrapath}/huss.'" ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_qsr_file    ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_qsr_file   ='${jrapath}/rsds.'" ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_qlw_file    ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_qlw_file   ='${jrapath}/rlds.'" ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_tair_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_tair_file  ='${jrapath}/tas.'"  ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_prec_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_prec_file  ='${jrapath}/prra.'" ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_snow_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_snow_file  ='${jrapath}/prsn.'" ${start_dir}/namelist.forcing
+        sed -i `grep -n  nm_mslp_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_mslp_file  ='${jrapath}/psl.'"  ${start_dir}/namelist.forcing
 
         # Prepare the run directory
 	    info "Preparing a new run directory."
@@ -187,29 +232,9 @@ do
             # *** Copy namelist files
             cp ${start_dir}/namelist.* .
             
-            sed -i `grep -n ResultPath           ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
-            
-            sed -i `grep -n dim_ens              ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                          ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
-            sed -i `grep -n DAoutput_path        ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
-            sed -i `grep -n restart_length_unit  ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'" ${run_dir}/${ENSstr}/namelist.config
-            
-            sed -i `grep -n run_length=          ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"        ${run_dir}/${ENSstr}/namelist.config
-            
-            sed -i `grep -n run_length_unit      ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"     ${run_dir}/${ENSstr}/namelist.config
-
-            sed -i `grep -n this_is_pdaf_restart ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."           ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
-            sed -i `grep -n step_null            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                 ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            
-	    if $BGC_init_ens
-	    then
-		    sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.true."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            else
-		    sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-	    fi
-
+            # adapt paths for ensemble members
+            sed -i `grep -n ResultPath     ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
+            sed -i `grep -n DAoutput_path  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
             # *** Restart files needed for FESOM-REcoM
             cp ../../restart_files/fesom.clock .
@@ -243,28 +268,43 @@ do
                 echo 'preparing namelists...'${ENS4str}
                 cd ${run_dir}/${ENSstr}
                 
-                sed -i `grep -n this_is_pdaf_restart  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."    ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                # update namelists for restart date
+                sed -i `grep -n this_is_pdaf_restart  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.true."              ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
-                sed -i `grep -n step_null             ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"         ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                sed -i `grep -n step_null             ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                   ${run_dir}/${ENSstr}/namelist.fesom.pdaf
 
-		sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false."  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+                sed -i `grep -n days_since_DAstart    ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c days_since_DAstart=${days_since_DAstart}" ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+
+                sed -i `grep -n start_from_ENS_spinup ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c start_from_ENS_spinup=.false."            ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            
+               # update path to JRA forcing for restart year
+               yearnew=$leg_start_date_yyyy
+               if (( yearnew >= 2020 && yearnew <= 2023 )); then
+                 info "Setting to JRA 1.5 forcing"
+                 jrapath='/albedo/work/projects/p_pool_recom/forcing/JRA55-do-v1.5.0.1/'
+               elif (( yearnew >= 1958 && yearnew <= 2019 )); then
+                 info "Setting to JRA 1.4 forcing"
+                 jrapath='/albedo/work/projects/p_pool_fesom1/forcing/JRA55-do-v1.4.0/'
+               else
+                 info "No atmospheric forcing for this year!"
+               fi
+               
+               sed -i `grep -n  nm_xwind_file  ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_xwind_file ='${jrapath}/uas.'"  ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_ywind_file  ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_ywind_file ='${jrapath}/vas.'"  ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_humi_file   ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_humi_file  ='${jrapath}/huss.'" ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_qsr_file    ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_qsr_file   ='${jrapath}/rsds.'" ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_qlw_file    ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_qlw_file   ='${jrapath}/rlds.'" ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_tair_file   ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_tair_file  ='${jrapath}/tas.'"  ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_prec_file   ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_prec_file  ='${jrapath}/prra.'" ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_snow_file   ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_snow_file  ='${jrapath}/prsn.'" ${run_dir}/${ENSstr}/namelist.forcing
+               sed -i `grep -n  nm_mslp_file   ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_mslp_file  ='${jrapath}/psl.'"  ${run_dir}/${ENSstr}/namelist.forcing
+            
             done
 
     fi # ! $leg_is_restart
     
     #-------------------------------------------------------------------
     # continue with what needs to be done whether it is a restart or not:
-    
-    for((i=1;i<=$NENS;i++))
-	    do
-		    ENSstr=`printf %02d $i`
-		    ENS4str=`printf %04d $i`
-
-		    cd ${run_dir}/${ENSstr}
-
-		    sed -i `grep -n days_since_DAstart            ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c days_since_DAstart=${days_since_DAstart}"       ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-
-	    done
 
     # -------------------------------------------------------------------------
     # *** Setting up MPI and OMP

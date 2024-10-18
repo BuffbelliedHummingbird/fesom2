@@ -17,6 +17,8 @@ subroutine Depth_calculations(n,Nn,wF,zF,thick,recipthick,mesh)
   use g_clock
   use g_rotate_grid
   use g_comm
+  use g_events
+
   implicit none
 ! Input
   type(t_mesh), intent(in) , target                :: mesh
@@ -91,6 +93,8 @@ subroutine Cobeta(mesh)
   use g_PARSUP
   use mod_MESH
   use g_comm_auto
+  use g_events
+
   Implicit none
   	
 ! Declarations
@@ -140,6 +144,8 @@ subroutine Atm_input(mesh)
   use o_PARAM, only : mstep, WP
   use mod_MESH
   use REcoM_ciso
+  use g_events
+  
   implicit none
   type(t_mesh), intent(in) , target :: mesh  
 #include "netcdf.inc"
@@ -300,6 +306,8 @@ end subroutine Atm_input
    use g_PARSUP
    use mod_MESH
    use g_comm_auto
+   use g_events
+  
    implicit none
    integer                          :: n
    type(t_mesh), intent(in), target :: mesh  
@@ -381,6 +389,8 @@ subroutine River_input(mesh)
   use o_PARAM, only : mstep, WP
   use mod_MESH
   use REcoM_ciso
+  use g_events
+
   implicit none
   type(t_mesh), intent(in) , target :: mesh  
 #include "netcdf.inc"
@@ -503,6 +513,8 @@ subroutine Erosion_input(mesh)
   use o_PARAM, only : mstep, WP
   use mod_MESH
   use REcoM_ciso
+  use g_events
+
   implicit none
   type(t_mesh), intent(in) , target :: mesh  
 #include "netcdf.inc"

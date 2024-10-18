@@ -3,19 +3,33 @@ MODULE mod_nc_out_variables
 ! USES:
 USE mod_assim_pdaf, &
    ONLY: id, nfields, assimilateBGC, assimilatePHY, &
-         phymin, phymax, bgcmin, bgcmax
+         phymin, phymax, bgcmin, bgcmax, &
+         cda_phy, cda_bio
 USE mod_parallel_pdaf, &
    ONLY: writepe, mype_world
+USE obs_chl_cci_pdafomi,    ONLY: assim_o_chl_cci
+USE obs_DIC_glodap_pdafomi, ONLY: assim_o_DIC_glodap
+USE obs_Alk_glodap_pdafomi, ONLY: assim_o_Alk_glodap
+USE obs_pCO2_SOCAT_pdafomi, ONLY: assim_o_pCO2_SOCAT
+USE obs_o2_comf_pdafomi,    ONLY: assim_o_o2_comf
+USE obs_n_comf_pdafomi,     ONLY: assim_o_n_comf
+USE obs_sss_smos_pdafomi,   ONLY: assim_o_sss
+USE obs_sss_cci_pdafomi,    ONLY: assim_o_sss_cci
+USE obs_ssh_cmems_pdafomi,  ONLY: assim_o_ssh 
+USE obs_sst_pdafomi,        ONLY: assim_o_sst 
+USE obs_TSprof_EN4_pdafomi, ONLY: assim_o_en4_s
+USE obs_TSprof_EN4_pdafomi, ONLY: assim_o_en4_t
 
 IMPLICIT NONE
 
-character(len=200) :: filename_phy = ''       ! Full name of output file
-character(len=200) :: filename_bgc = ''       ! Full name of output file
+!~ character(len=200) :: filename_phy = ''       ! Full name of output file
+!~ character(len=200) :: filename_bgc = ''       ! Full name of output file
 character(len=200) :: filename_std = ''       ! Full name of output file
 
-LOGICAL :: write_ens    = .true.          ! Whether to write ensemble states
-INTEGER :: write_pos_da = 1
-
+LOGICAL :: w_memb    = .false.          ! whether to write any ensemble member states
+LOGICAL :: w_ensm    = .false.          ! whether to write any ensemble mean states
+LOGICAL :: w_day     = .false.          ! whether to write any daily fields
+LOGICAL :: w_mon     = .false.          ! whether to write any monthly fields
 
 ! Field description:
 
@@ -29,14 +43,34 @@ type state_field
    character(len=20) :: units = ''        ! Unit of variable
    integer :: varid(9)                    ! To write to netCDF file
    logical :: updated = .true.            ! Whether variable is updated through assimilation
+   logical :: output(4,3) = .false.       ! How frequently output is written
    logical :: bgc = .false.               ! Whether variable is biogeochemistry (or physics)
+   integer :: id_state                    ! Field index in full state vector
+   integer :: id_dim                      ! Field index in list of 2D/3D-fields
+   integer :: id_type                     ! Field index in list of phy/bgc-fields
+   integer :: trnumfesom = -999           ! Tracer index in FESOM-REcoM
+   integer :: tridfesom = -999            ! Tracer ID in FESOM-REcoM
+   integer :: id_tr = -999                ! Field index in list of 3D model tracer fields
 end type state_field
 
 type(state_field), allocatable :: sfields(:) ! Type variable holding the
                                              ! definitions of model fields
                                              
 INTEGER :: nfields_3D                     ! Number of 3D fields in state vector
+INTEGER :: nfields_2D                     ! """       2D fields """
+INTEGER :: nfields_phy                    ! """       physics fields """
+INTEGER :: nfields_bgc                    ! """       biogeochem. fields """
+INTEGER :: nfields_tr3D                   ! """       3D model tracer """
+
 INTEGER, ALLOCATABLE :: ids_3D(:)         ! List of 3D-field IDs
+INTEGER, ALLOCATABLE :: ids_2D(:)         ! """       2D fields """
+INTEGER, ALLOCATABLE :: ids_phy(:)        ! """       physics fields """
+INTEGER, ALLOCATABLE :: ids_bgc(:)        ! """       biogeochem. fields """
+INTEGER, ALLOCATABLE :: ids_tr3D(:)       ! """       3D model tracer """
+
+
+INTEGER, PARAMETER :: ff=1, aa=2, mm=3, ii=4 ! Indeces of whether to write: forcast (ff), analysis (aa), mean (mm) and initial (ii)
+INTEGER, PARAMETER :: oo=1, ee=2, dd=3       ! Indeces of whether to write: any output (oo), ensemble members (ee) and daily values (dd)
                                              
 CONTAINS
 
@@ -44,6 +78,7 @@ SUBROUTINE init_sfields()
 
 ! Local variables:
 CHARACTER(len=100) :: nmlfile ='namelist.fesom.pdaf'    ! name of namelist file
+CHARACTER(len=10)  :: outputmessage(4,3)
 
 LOGICAL            :: upd_ssh , &           ! physics
                       upd_u   , &
@@ -89,7 +124,7 @@ LOGICAL            :: upd_ssh , &           ! physics
                       upd_NPPn     , &
                       upd_NPPd
                       
-INTEGER            :: b,p ! counters
+INTEGER            :: b,p,s,j ! counters
 
 ALLOCATE(sfields(nfields))
 
@@ -519,11 +554,81 @@ sfields(id% export) % bgc = .true.
 !~ sfields(id% TOC) % updated = .false.
 !~ sfields(id% TOC) % bgc = .true.
 
+! ************************************************
+! ***   Tracer index and ID from FESOM-REcoM   ***
+! ************************************************
 
+ sfields(id% temp    ) % trnumfesom = 1  ! temperature
+ sfields(id% salt    ) % trnumfesom = 2  ! salinity 
+ sfields(id% DIN     ) % trnumfesom = 3  ! DIN
+ sfields(id% DIC     ) % trnumfesom = 4  ! DIC
+ sfields(id% Alk     ) % trnumfesom = 5  ! Alk
+ sfields(id% PhyN    ) % trnumfesom = 6  ! PhyN 
+ sfields(id% PhyC    ) % trnumfesom = 7  ! PhyC   
+ sfields(id% PhyChl  ) % trnumfesom = 8  ! PhyChl
+ sfields(id% DetN    ) % trnumfesom = 9  ! DetN
+ sfields(id% DetC    ) % trnumfesom = 10 ! DetC
+ sfields(id% Zo1N    ) % trnumfesom = 11 ! HetN
+ sfields(id% Zo1C    ) % trnumfesom = 12 ! HetC
+ sfields(id% DON     ) % trnumfesom = 13 ! DON
+ sfields(id% DOC     ) % trnumfesom = 14 ! DOC
+ sfields(id% DiaN    ) % trnumfesom = 15 ! DiaN
+ sfields(id% DiaC    ) % trnumfesom = 16 ! DiaC
+ sfields(id% DiaChl  ) % trnumfesom = 17 ! DiaChl
+ sfields(id% DiaSi   ) % trnumfesom = 18 ! DiaSi
+ sfields(id% DetSi   ) % trnumfesom = 19 ! DetSi 
+!sfields(id%         ) % trnumfesom = 20 ! DSi     
+!sfields(id%         ) % trnumfesom = 21 ! Fe
+ sfields(id% PhyCalc ) % trnumfesom = 22 ! PhyCalc
+ sfields(id% DetCalc ) % trnumfesom = 23 ! DetCalc
+ sfields(id% O2      ) % trnumfesom = 24 ! Oxy
+ sfields(id% Zo2N    ) % trnumfesom = 25 ! Zoo2N
+ sfields(id% Zo2C    ) % trnumfesom = 26 ! Zoo2C
+ sfields(id% Det2N   ) % trnumfesom = 27 ! DetZ2N                              
+ sfields(id% Det2C   ) % trnumfesom = 28 ! DetZ2C                                    
+ sfields(id% Det2Si  ) % trnumfesom = 29 ! DetZ2Si                            
+ sfields(id% Det2Calc) % trnumfesom = 30 ! DetZ2Calc
+ 
+ sfields(id% temp    )% tridfesom =    0 ! temperature
+ sfields(id% salt    )% tridfesom =    1 ! salinity
+ sfields(id% DIN     )% tridfesom = 1001 ! DIN
+ sfields(id% DIC     )% tridfesom = 1002 ! DIC
+ sfields(id% Alk     )% tridfesom = 1003 ! Alk
+ sfields(id% PhyN    )% tridfesom = 1004 ! PhyN 
+ sfields(id% PhyC    )% tridfesom = 1005 ! PhyC   
+ sfields(id% PhyChl  )% tridfesom = 1006 ! PhyChl
+ sfields(id% DetN    )% tridfesom = 1007 ! DetN
+ sfields(id% DetC    )% tridfesom = 1008 ! DetC
+ sfields(id% Zo1N    )% tridfesom = 1009 ! HetN
+ sfields(id% Zo1C    )% tridfesom = 1010 ! HetC
+ sfields(id% DON     )% tridfesom = 1011 ! DON
+ sfields(id% DOC     )% tridfesom = 1012 ! DOC
+ sfields(id% DiaN    )% tridfesom = 1013 ! DiaN
+ sfields(id% DiaC    )% tridfesom = 1014 ! DiaC
+ sfields(id% DiaChl  )% tridfesom = 1015 ! DiaChl
+ sfields(id% DiaSi   )% tridfesom = 1016 ! DiaSi
+ sfields(id% DetSi   )% tridfesom = 1017 ! DetSi 
+!sfields(id%         )% tridfesom = 1018 ! DSi     
+!sfields(id%         )% tridfesom = 1019 ! Fe
+ sfields(id% PhyCalc )% tridfesom = 1020 ! PhyCalc
+ sfields(id% DetCalc )% tridfesom = 1021 ! DetCalc
+ sfields(id% O2      )% tridfesom = 1022 ! Oxy
+ sfields(id% Zo2N    )% tridfesom = 1023 ! Zoo2N
+ sfields(id% Zo2C    )% tridfesom = 1024 ! Zoo2C
+ sfields(id% Det2N   )% tridfesom = 1025 ! DetZ2N                              
+ sfields(id% Det2C   )% tridfesom = 1026 ! DetZ2C                                    
+ sfields(id% Det2Si  )% tridfesom = 1027 ! DetZ2Si                            
+ sfields(id% Det2Calc)% tridfesom = 1028 ! DetZ2Calc
 
 ! ************************************************
 ! ***   Read updated variables from namelist   ***
 ! ************************************************
+
+! The logical "updated" describes whether a variables is updated in at least one sweep
+! In case of diagnostic variables, "updated" is False. Those are set in namelist
+! In case of weak coupling and only physics or BGC assimilation, "updated" is False for the other type of fields. See below
+! "updated" is used in init_dim_l_pdaf: only updated fields are included in local state
+! "updated" is used in the output routine: option to write out only updated fields
 
 ! *** Read namelist file ***
   IF (mype_world==0) WRITE(*,*) 'Read namelist file for updated variables: ',nmlfile
@@ -631,31 +736,41 @@ sfields(id% export) % bgc = .true.
   sfields(id% NPPd     ) % updated = upd_NPPd
   sfields(id% export   ) % updated = upd_export
   
-  ! If BGC or physics are not assimilated,
-  ! do not update the respective part of state vector.  
-  IF (.not. assimilatePHY) THEN
+  
+  ! Physics not assimilated and coupling weak: No update to physics
+  IF ((.not. assimilatePHY) .and. (cda_phy=='weak')) THEN
      do p=phymin,phymax
        sfields(p) % updated = .false.
      enddo
   ENDIF
-  IF (.not. assimilateBGC) THEN
+  ! BGC not assimilated and coupling weak: No update to BGC
+  IF ((.not. assimilateBGC) .and. (cda_phy=='weak')) THEN
      do b=bgcmin,bgcmax
        sfields(b) % updated = .false.
      enddo
   ENDIF
-   
-  ! count number of 3D fields
+  
+  ! **************************************
+  ! ***  Indeces of by type of field   ***
+  ! **************************************
+  
+  ! ___________
+  ! ___2D/3D___
+  ! count number of 3D and 2D fields
   nfields_3D = 0
+  nfields_2D = 0
   DO b=1,nfields
    IF (sfields(b) % ndims == 2) nfields_3D = nfields_3D + 1
+   IF (sfields(b) % ndims == 1) nfields_2D = nfields_2D + 1
   ENDDO
   
-  ! indeces of 3D fields
+  ! indeces of 3D and 2D fields
   ALLOCATE(ids_3D(nfields_3D))
   p = 1
   DO b=1,nfields
     IF (sfields(b) % ndims == 2) THEN
       ids_3D(p) = b
+      sfields(b) % id_dim = p
       p = p+1
     ENDIF
   ENDDO
@@ -665,6 +780,270 @@ sfields(id% export) % bgc = .true.
           'FESOM-PDAF', '3D fields in state vector: ', sfields(ids_3D(p)) % variable
      ENDDO
   ENDIF
+  
+  ALLOCATE(ids_2D(nfields_2D))
+  p = 1
+  DO b=1,nfields
+    IF (sfields(b) % ndims == 1) THEN
+      ids_2D(p) = b
+      sfields(b) % id_dim = p
+      p = p+1
+    ENDIF
+  ENDDO
+  IF (mype_world==0) THEN
+     DO p=1,nfields_2D
+       WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', '2D fields in state vector: ', sfields(ids_2D(p)) % variable
+     ENDDO
+  ENDIF
+  
+  ! ________________________
+  ! ___ model 3D tracers ___
+  ! count number of 3D model tracer fields in state vector
+  nfields_tr3D = 0
+  DO b=1,nfields
+   IF (sfields(b)% trnumfesom > 0) nfields_tr3D = nfields_tr3D + 1
+  ENDDO
+  
+  ! indeces of 3D model tracer fields in state vector
+  ALLOCATE(ids_tr3D(nfields_tr3D))
+  p = 1
+  DO b=1,nfields
+    IF (sfields(b)% trnumfesom > 0) THEN
+      ids_tr3D(p)=b
+      sfields(b) % id_tr = p
+      p = p+1
+    ENDIF
+  ENDDO
+  IF (mype_world==0) THEN
+     DO p=1,nfields_tr3D
+       WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', '3D model tracer fields in state vector: ', sfields(ids_tr3D(p)) % variable
+     ENDDO
+  ENDIF
+  
+  ! ________________________
+  ! ___ phy/bgc tracers ____
+  ! count number of phy/bgc fields
+  nfields_phy = 0
+  nfields_bgc = 0
+  DO b=1,nfields
+   IF (      sfields(b) % bgc) nfields_bgc = nfields_bgc + 1
+   IF (.not. sfields(b) % bgc) nfields_phy = nfields_phy + 1
+  ENDDO
+  
+  ALLOCATE(ids_bgc(nfields_bgc))
+  p = 1
+  DO b=1,nfields
+    IF (sfields(b) % bgc) THEN
+      ids_bgc(p) = b
+      sfields(b) % id_type = p
+      p = p+1
+    ENDIF
+  ENDDO
+  IF (mype_world==0) THEN
+     DO p=1,nfields_bgc
+       WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', 'bgc fields in state vector: ', sfields(ids_bgc(p)) % variable
+     ENDDO
+  ENDIF
+  
+  ALLOCATE(ids_phy(nfields_phy))
+  p = 1
+  DO b=1,nfields
+    IF (.not. sfields(b) % bgc) THEN
+      ids_phy(p) = b
+      sfields(b) % id_type = p
+      p = p+1
+    ENDIF
+  ENDDO
+  IF (mype_world==0) THEN
+     DO p=1,nfields_phy
+       WRITE (*,'(a, 10x,3a,1x,7a)') &
+          'FESOM-PDAF', 'phy fields in state vector: ', sfields(ids_phy(p)) % variable
+     ENDDO
+  ENDIF  
+  
+  
+! *********************************************************
+! ***   Set field-specific output type and frequency    ***
+! *********************************************************
+
+! [oo] True   - write output
+!      False  - no output
+! [ee] True   - write ensemble members
+!      False  - write ensemble mean
+! [dd] True   - daily
+!      False  - monthly
+
+! Default: False
+
+! activate one (or multiple if not contradictory) of the following:
+
+! ___________________________________________________________
+! ___ write daily forecast and analysis ensemble members  ___
+IF (.true.) THEN
+  DO s=1, nfields
+    ! forecast
+    sfields(s)% output(ff,oo) = .True.
+    sfields(s)% output(ff,ee) = .True.
+    sfields(s)% output(ff,dd) = .True.
+    ! analysis
+    sfields(s)% output(aa,oo) = .True.
+    sfields(s)% output(aa,ee) = .True.
+    sfields(s)% output(aa,dd) = .True.
+  ENDDO
+ENDIF
+
+! ________________________________________________________
+! ___ write daily forecast and analysis ensemble mean  ___
+IF (.false.) THEN
+  DO s=1, nfields
+    ! forecast
+    sfields(s)% output(ff,oo) = .True.
+    sfields(s)% output(ff,dd) = .True.
+    ! analysis
+    sfields(s)% output(aa,oo) = .True.
+    sfields(s)% output(aa,dd) = .True.
+  ENDDO
+ENDIF
+
+! ___________________________________________
+! ___ write initial fields ensemble mean  ___
+IF (.true.) THEN
+  DO s=1, nfields
+    sfields(s)% output(ii,oo) = .True.
+  ENDDO
+ENDIF
+
+! ______________________________________________
+! ___ write initial fields ensemble members  ___
+IF (.false.) THEN
+  DO s=1, nfields
+    sfields(s)% output(ii,oo) = .True.
+    sfields(s)% output(ii,ee) = .True.
+  ENDDO
+ENDIF
+
+! ____________________________________________
+! ___ write monthly m-fields ensemble mean ___
+IF (.false.) THEN
+  DO s=1, nfields
+    sfields(s)% output(mm,oo) = .True.
+  ENDDO
+ENDIF
+
+! ___________________________________________________________________
+! ___ write daily m-fields of assimilated variables ensemble mean ___
+IF (.false.) THEN
+  ! activate m-field output
+  IF (assim_o_sst)          sfields(id% temp)   % output(mm,oo) = .True.
+  IF (assim_o_sss)          sfields(id% salt)   % output(mm,oo) = .True.
+  IF (assim_o_sss_cci)      sfields(id% salt)   % output(mm,oo) = .True.
+  IF (assim_o_en4_t)        sfields(id% temp)   % output(mm,oo) = .True.
+  IF (assim_o_en4_s)        sfields(id% salt)   % output(mm,oo) = .True.
+  IF (assim_o_ssh)          sfields(id% SSH)    % output(mm,oo) = .True.
+  IF (assim_o_chl_cci)      sfields(id% PhyChl) % output(mm,oo) = .True.
+  IF (assim_o_chl_cci)      sfields(id% DiaChl) % output(mm,oo) = .True.
+  IF (assim_o_DIC_glodap)   sfields(id% DIC)    % output(mm,oo) = .True.
+  IF (assim_o_Alk_glodap)   sfields(id% Alk)    % output(mm,oo) = .True.
+  IF (assim_o_pCO2_SOCAT)   sfields(id% pCO2s)  % output(mm,oo) = .True.
+  IF (assim_o_o2_comf)      sfields(id% O2)     % output(mm,oo) = .True.
+  IF (assim_o_n_comf)       sfields(id% DIN)    % output(mm,oo) = .True.
+  ! set to daily
+  IF (assim_o_sst)          sfields(id% temp)   % output(mm,dd) = .True.
+  IF (assim_o_sss)          sfields(id% salt)   % output(mm,dd) = .True.
+  IF (assim_o_sss_cci)      sfields(id% salt)   % output(mm,dd) = .True.
+  IF (assim_o_en4_t)        sfields(id% temp)   % output(mm,dd) = .True.
+  IF (assim_o_en4_s)        sfields(id% salt)   % output(mm,dd) = .True.
+  IF (assim_o_ssh)          sfields(id% SSH)    % output(mm,dd) = .True.
+  IF (assim_o_chl_cci)      sfields(id% PhyChl) % output(mm,dd) = .True.
+  IF (assim_o_chl_cci)      sfields(id% DiaChl) % output(mm,dd) = .True.
+  IF (assim_o_DIC_glodap)   sfields(id% DIC)    % output(mm,dd) = .True.
+  IF (assim_o_Alk_glodap)   sfields(id% Alk)    % output(mm,dd) = .True.
+  IF (assim_o_pCO2_SOCAT)   sfields(id% pCO2s)  % output(mm,dd) = .True.
+  IF (assim_o_o2_comf)      sfields(id% O2)     % output(mm,dd) = .True.
+  IF (assim_o_n_comf)       sfields(id% DIN)    % output(mm,dd) = .True.
+ENDIF
+  
+! _______________________________________________________________
+! ___ write daily m-fields of CO2 flux and pCO2 ensemble mean ___
+IF (.false.) THEN
+  sfields(id% CO2f)  % output(mm,oo) = .True.
+  sfields(id% pCO2s) % output(mm,oo) = .True.
+  sfields(id% CO2f)  % output(mm,dd) = .True.
+  sfields(id% pCO2s) % output(mm,dd) = .True.
+ENDIF
+
+! ________________________
+! ___ FINALIZE        ____
+
+! no monthly initial fields. monthly fields are written at last day of month, but initial fields at first day.
+! because monthly initial fields make no sense, we set "daily" (dd=True) for all initial fields.
+DO s=1, nfields
+  sfields(s)% output(ii,dd) = .True.
+ENDDO
+
+! do not compute full ensemble state for m-fields! this takes memory and time. simply use fesom-output instead.
+! whatever settings made be before, we reset m-fields ens-member output to False, in the end.
+DO s=1, nfields
+  sfields(s)% output(mm,ee) = .False.
+ENDDO
+
+! ___________________________
+! ___ finalize           ____
+
+w_memb = .false.          
+w_ensm = .false.          
+w_day  = .false.          
+w_mon  = .false.          
+
+DO s=1, nfields
+  ! have any ensemble member states to write?
+  w_memb = w_memb .or. any( sfields(s)%output(:,oo) .and. sfields(s)%output(:,ee))
+  ! have any ensemble mean states to write?
+  w_ensm = w_ensm .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,ee)))
+  ! have any daily fields to write?
+  w_day  = w_day  .or. any( sfields(s)%output(:,oo) .and. sfields(s)%output(:,dd))
+  ! have any monthly states to write?
+  w_mon  = w_mon  .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,dd)))
+ENDDO
+
+! output message
+IF (mype_world==0) THEN
+  DO s=1, nfields
+  
+    outputmessage(aa,1) = 'Analysis'
+    outputmessage(ff,1) = 'Forecast'
+    outputmessage(mm,1) = 'M-Field'
+    outputmessage(ii,1) = 'Initial'
+    
+    DO j=1,4
+      IF (sfields(s)%output(j,ee)) then
+        outputmessage(j,ee) = 'Ens-Memb'
+      ELSE
+        outputmessage(j,ee) = 'Ens-Mean'
+      ENDIF
+      IF (sfields(s)%output(j,dd)) then
+        outputmessage(j,dd) = 'Daily'
+      ELSE
+        outputmessage(j,dd) = 'Monthly'
+      ENDIF
+    ENDDO ! j=1,4
+  
+    if (.not. any(sfields(s)%output(:,oo))) then ! this field any output?
+      write (*, '(a,4x,a,1x,a10,1x,a9)') 'FESOM-PDAF', 'Field', sfields(s)%variable, 'No Output'
+    else
+      DO j=1,4
+        if (sfields(s)%output(j,oo)) write (*, '(a,4x,a,1x,a10,1x,a9,1x,a10,1x,a10,1x,a10)') 'FESOM-PDAF', 'Field', &
+                                                                                               sfields(s)%variable, &
+                                                                                               outputmessage(j, 1), &
+                                                                                               outputmessage(j,ee), &
+                                                                                               outputmessage(j,dd)
+      ENDDO ! j=1,4
+    endif ! this field any output?
+  ENDDO ! s=1, nfields
+ENDIF ! writepe
 
 END SUBROUTINE init_sfields
   

@@ -24,7 +24,7 @@ path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/physics_covar/di
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
 write_monthly_mean=.true.
-write_ens=.true.
+w_memb=.true.
 
 ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.true.
