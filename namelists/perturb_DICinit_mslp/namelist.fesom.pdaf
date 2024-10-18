@@ -17,8 +17,18 @@ type_forget=0          ! Set type of forgetting factor
 screen=2               ! set verbosity of PDAF
 printconfig=.true.
 twin_experiment=.false.
-step_null=0            ! 0 for restart at first day of the year. Is reset by runscript.
-days_since_DAstart=1   ! 1 at the beginning. Is reset by runscript.
+step_null=0
+days_since_DAstart=1
+
+perturb_ssh   = .true.
+perturb_u     = .true.
+perturb_v     = .true.
+perturb_temp  = .true.
+perturb_salt  = .true.
+perturb_DIC   = .true.
+perturb_Alk   = .true.
+perturb_DIN   = .true.
+perturb_O2    = .true.
 
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/BGC9_covar/dist72/'
 file_init='cov_'
@@ -99,31 +109,44 @@ assim_o_Alk_glodap = .false.
 path_obs_Alk_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/Alk/'
 rms_obs_Alk_glodap = 4
 
+assim_o_pCO2_SOCAT = .false.
+path_obs_pCO2_SOCAT = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/SOCAT/pCO2/'
+rms_obs_pCO2_SOCAT = 5
+
+assim_o_O2_comf = .false.
+path_obs_O2_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/O2/'
+rms_obs_O2_comf = 2
+
+assim_o_N_comf = .false.
+path_obs_N_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/DIN/'
+rms_obs_N_comf = 0.3
+
 ! Wether to perturb BGC parameters:
 perturb_parameters=.true.
 perturb_scale=0.25
 
-assimilateBGC=.false.  ! false to de-activate BGC assimilation
-assimilatePHY=.false. ! false to de-activate physics assimilation
+assimilateBGC=.true.
+assimilatePHY=.false.
 /
 
 ! Settings for Parallelization:
 &pdaf_parallel
 
-dim_ens=4
+dim_ens=40
 /
 
-! Which state variables to be updated:
+! Which state variables to be affected by the assimilation:
 &updated
 
 upd_ssh   =.true.
 upd_u     =.true.
 upd_v     =.true.
-upd_w     =.false.
+upd_w     =.false.      ! not updated to increase stability
 upd_temp  =.true.
 upd_salt  =.true.
-upd_ice   =.false.
-upd_MLD1  =.false.
+upd_ice   =.false.      ! required for observation exclusion criterion; not affected by assimilation
+upd_MLD1  =.false.      ! diagnostic
+upd_MLD2  =.false.      ! diagnostic
 
 upd_PhyChl    = .true.
 upd_DiaChl    = .true.
@@ -133,18 +156,28 @@ upd_Alk       = .true.
 upd_DIN       = .true.
 upd_DON       = .true.
 upd_O2        = .true.
-upd_pCO2s     = .false.
-upd_CO2f      = .false.
+upd_pCO2s     = .true.    ! assimilated model diagnostic
+upd_CO2f      = .true.    ! assimilated model diagnostic
 upd_DiaN      = .true.
 upd_DiaC      = .true.
-upd_PAR       = .false.
-upd_NPPn      = .false.
-upd_NPPd      = .false.
+upd_DiaSi     = .true.
+upd_PAR       = .false.   ! diagnostic
+upd_NPPn      = .false.   ! diagnostic
+upd_NPPd      = .false.   ! diagnostic
 upd_DetC      = .true.
+upd_DetCalc   = .true.
+upd_DetN      = .true.
+upd_DetSi     = .true.
+upd_Det2C     = .true.
+upd_Det2Calc  = .true.
+upd_Det2N     = .true.
+upd_Det2Si    = .true.
+upd_PhyC      = .true.
+upd_PhyN      = .true.
 upd_PhyCalc   = .true.
-upd_export    = .false.
-upd_alphaCO2  = .false.
-upd_PistonVel = .false.
+upd_export    = .false.  ! diagnostic
+upd_alphaCO2  = .false.  ! diagnostic
+upd_PistonVel = .false.  ! diagnostic
 upd_Zo1C      = .true.
 upd_Zo1N      = .true.
 upd_Zo2C      = .true.

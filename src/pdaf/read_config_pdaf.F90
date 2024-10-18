@@ -15,7 +15,7 @@ SUBROUTINE read_config_pdaf()
        ONLY: dim_state, dim_state_p, dim_ens, dim_lag, &
        offset, screen, filtertype, subtype, &
        delt_obs_ocn, &
-       dim_bias, DA_couple_type,write_monthly_mean, &
+       dim_bias, DA_couple_type, &
        incremental, type_forget, &
        forget, locweight, local_range, srange, &
        type_trans, type_sqrt, step_null, &
@@ -31,10 +31,7 @@ SUBROUTINE read_config_pdaf()
        perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
-       proffiles_o, start_year_o, end_year_o
-  USE mod_nc_out_variables, &
-       ONLY: w_memb
-       
+       proffiles_o, start_year_o, end_year_o       
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
@@ -100,12 +97,11 @@ SUBROUTINE read_config_pdaf()
        local_range, locweight, srange, DA_couple_type, &
        n_modeltasks, use_global_obs, &
        path_init, file_init, step_null, printconfig, &
-       file_inistate, read_inistate, w_memb, &
+       file_inistate, read_inistate, &
        type_trans, type_sqrt, dim_lag, &
        loctype, loc_ratio, delt_obs_ocn, &     
        dim_obs_max, &
        twin_experiment, &
-       write_monthly_mean, &
        DAoutput_path, &
        ASIM_START_USE_CLIM_STATE, this_is_pdaf_restart, &
        days_since_DAstart, start_from_ENS_spinup, &
@@ -215,8 +211,6 @@ IF (disturb_humi   .OR. &
 ELSE
     atmos_stochasticity_ON = .FALSE.
 ENDIF
-
-IF (w_memb) WRITE (*,*) 'FESOM-PDAF ', '*** WARNING *** ', 'Ensemble output for day-average (m) NOT AVAILABLE. Hint: Activate model ouput in fvom_main.F90 instead.'
 
 ! Observation file prefixes:
 WRITE(year_string,'(i4.4)') yearnew
@@ -359,10 +353,6 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      IF (read_inistate) THEN
         WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF','file_inistate ', TRIM(file_inistate)
      ENDIF
-     
-     ! Output
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'w_memb            ',w_memb
-     WRITE (*,'(a,5x,a,l)')     'FESOM-PDAF',   'write_monthly_mean',   write_monthly_mean
 
      ! Atmospheric perturbation
      WRITE (*,'(a,5x,a,a)')     'FESOM-PDAF',   'path_atm_cov  ',       TRIM(path_atm_cov)

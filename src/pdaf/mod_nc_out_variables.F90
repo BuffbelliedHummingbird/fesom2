@@ -26,10 +26,11 @@ IMPLICIT NONE
 !~ character(len=200) :: filename_bgc = ''       ! Full name of output file
 character(len=200) :: filename_std = ''       ! Full name of output file
 
-LOGICAL :: w_memb    = .false.          ! whether to write any ensemble member states
-LOGICAL :: w_ensm    = .false.          ! whether to write any ensemble mean states
-LOGICAL :: w_day     = .false.          ! whether to write any daily fields
-LOGICAL :: w_mon     = .false.          ! whether to write any monthly fields
+LOGICAL :: w_daymemb    = .false.       ! whether to write any daily ensemble member states
+LOGICAL :: w_dayensm    = .false.       ! whether to write any daily ensemble mean states
+LOGICAL :: w_monmemb    = .false.       ! whether to write any monthly ensemble member states
+LOGICAL :: w_monensm    = .false.       ! whether to write any monthly ensemble mean states
+LOGICAL :: w_mm         = .false.       ! whether to write any states of type day-mean
 
 ! Field description:
 
@@ -625,8 +626,9 @@ sfields(id% export) % bgc = .true.
 ! ************************************************
 
 ! The logical "updated" describes whether a variables is updated in at least one sweep
-! In case of diagnostic variables, "updated" is False. Those are set in namelist
-! In case of weak coupling and only physics or BGC assimilation, "updated" is False for the other type of fields. See below
+
+! In case of diagnostic variables, "updated" is False. Setting diagnostics variables to False and the others to True, is set in namelist.
+! In case of weak coupling and only physics or BGC assimilation, "updated" is False for the other type of fields. This is done below.
 ! "updated" is used in init_dim_l_pdaf: only updated fields are included in local state
 ! "updated" is used in the output routine: option to write out only updated fields
 
@@ -882,7 +884,7 @@ sfields(id% export) % bgc = .true.
 
 ! ___________________________________________________________
 ! ___ write daily forecast and analysis ensemble members  ___
-IF (.true.) THEN
+IF (.false.) THEN
   DO s=1, nfields
     ! forecast
     sfields(s)% output(ff,oo) = .True.
@@ -993,21 +995,20 @@ ENDDO
 ! ___________________________
 ! ___ finalize           ____
 
-w_memb = .false.          
-w_ensm = .false.          
-w_day  = .false.          
-w_mon  = .false.          
+w_daymemb = .false.          
+w_dayensm = .false.          
+w_monmemb = .false.          
+w_monensm = .false.          
 
 DO s=1, nfields
-  ! have any ensemble member states to write?
-  w_memb = w_memb .or. any( sfields(s)%output(:,oo) .and. sfields(s)%output(:,ee))
-  ! have any ensemble mean states to write?
-  w_ensm = w_ensm .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,ee)))
-  ! have any daily fields to write?
-  w_day  = w_day  .or. any( sfields(s)%output(:,oo) .and. sfields(s)%output(:,dd))
-  ! have any monthly states to write?
-  w_mon  = w_mon  .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,dd)))
+  !                               -- output? -----------        -- ensemble members? ----------       -- daily? ----------------------
+  w_daymemb = w_daymemb .or. any( sfields(s)%output(:,oo) .and. (      sfields(s)%output(:,ee)) .and. (      sfields(s)%output(:,dd)))  ! have any daily member states to write?
+  w_dayensm = w_dayensm .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,ee)) .and. (      sfields(s)%output(:,dd)))  ! have any daily ensemble mean states to write?
+  w_monmemb = w_monmemb .or. any( sfields(s)%output(:,oo) .and. (      sfields(s)%output(:,ee)) .and. (.not. sfields(s)%output(:,dd)))  ! have any monthly member states to write?
+  w_monensm = w_monensm .or. any( sfields(s)%output(:,oo) .and. (.not. sfields(s)%output(:,ee)) .and. (.not. sfields(s)%output(:,dd)))  ! have any monthly ensemble mean states to write?
 ENDDO
+
+w_mm = any(sfields(s)%output(mm,oo)) ! any states of type day-mean to be written?
 
 ! output message
 IF (mype_world==0) THEN

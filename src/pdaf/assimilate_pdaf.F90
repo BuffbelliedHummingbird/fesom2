@@ -21,6 +21,8 @@ SUBROUTINE assimilate_pdaf(istep)
   USE mod_assim_pdaf, &           ! Variables for assimilation
        ONLY: filtertype, istep_asml, step_null, timemean, &
        dim_state_p, delt_obs_ocn, dim_ens
+  USE mod_nc_out_variables, &
+       ONLY: w_mm
   USE g_clock, &
        ONLY: timenew
 
@@ -99,6 +101,7 @@ SUBROUTINE assimilate_pdaf(istep)
   ! *********************************
   ! *** Compute daily mean        ***
   ! *********************************
+  IF (w_mm) THEN
   
   IF ( .not. ALLOCATED(state_p)) ALLOCATE(state_p(dim_state_p))
   
@@ -125,5 +128,6 @@ SUBROUTINE assimilate_pdaf(istep)
     timemean = 0.0
   ENDIF
   
+  ENDIF ! w_mm
 
 END SUBROUTINE assimilate_pdaf

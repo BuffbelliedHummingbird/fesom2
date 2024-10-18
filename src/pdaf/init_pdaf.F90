@@ -94,7 +94,7 @@ SUBROUTINE init_pdaf()
   USE mod_nc_out_routines, &
        ONLY: netCDF_init, netCDF_STD_init
   USE mod_nc_out_variables, &
-       ONLY: w_memb, w_ensm, init_sfields, sfields
+       ONLY: init_sfields, sfields
   USE mod_carbon_fluxes_diags, &
        ONLY: init_carbonfluxes_diags_out
 
@@ -205,8 +205,6 @@ SUBROUTINE init_pdaf()
   assim_o_sss     = .false.
   assim_o_sss_cci = .false.
   assim_o_ssh     = .false.
-
-  w_memb = .false.
   
   step_null = 0 ! read from namelist: 0 at beginning of each year
 
@@ -955,14 +953,8 @@ ENDIF
   !    - at beginning of each new year
   !    - at start of assimililation experiment
   IF ((.not. this_is_pdaf_restart) .or. (daynew==1)) THEN
-    ! ensemble mean output
-!~     IF (w_ensm) CALL netCDF_init(int0)
+!~     CALL netCDF_init()
 !~     CALL netCDF_STD_init()
-    ! ensemble member snapshots
-    IF (w_memb) THEN
-      DO memb=1,dim_ens
-!~         CALL netCDF_init(memb)
-      ENDDO
     ENDIF
   ENDIF
 

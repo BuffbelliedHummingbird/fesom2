@@ -35,8 +35,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        s_asml_alk, s_asml_dic, s_asml_deadmatter, s_asml_livingmatter, &
        sM_asml_alk, sM_asml_dic, sM_asml_deadmatter, sM_asml_livingmatter, &
        factor_massvol, DAoutput_path
-  USE mod_nc_out_variables, &
-      ONLY: sfields
   USE mod_atmos_ens_stochasticity, &
       ONLY: stable_rmse
   USE g_PARSUP, &
@@ -51,7 +49,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE mod_nc_out_routines, &
        ONLY: netCDF_out, netCDF_STD_out
   USE mod_nc_out_variables, &
-       ONLY: nfields_3D, ids_3D, w_ensm, w_memb
+       ONLY: sfields, nfields_3D, ids_3D, w_dayensm, w_daymemb, w_monensm, w_monmemb, w_mm
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
@@ -909,41 +907,44 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Compute daily means ***
 ! ***************************
 ! finalize computation of daily means during analysis step
-
+  IF (w_mm) THEN
   IF (step > 0) THEN
      timemean = timemean + state_p / delt_obs_ocn
-  ENDIF
+  ENDIF ! step > 0
+  ENDIF ! w_mm
 
 ! *****************************
 ! *** Compute monthly means ***
 ! *****************************
 
   debugging_monthlymean = .false.
-
-  ! include state into monthly mean
-  IF (step > 0) THEN
-  ! *** analyzed state fields ***
-    IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
-    monthly_state_a = monthly_state_a + state_p
-    monthly_state_m = monthly_state_m + timemean
-  ELSE IF (step < 0) THEN
-  ! *** forecasted state fields ***
-    IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
-    monthly_state_f = monthly_state_f + state_p
-  END IF
   
-  IF (now_to_write_monthly) THEN
-  ! computing monthly mean at last day of month
-  weights =  1.0/REAL(num_day_in_month(fleapyear,month))
-  IF (step > 0) THEN
-  ! *** analyzed state fields ***
-    monthly_state_a = monthly_state_a * weights
-    monthly_state_m = monthly_state_m * weights
-  ELSE IF (step < 0) THEN
-  ! *** forecasted state fields ***
-    monthly_state_f = monthly_state_f * weights
-  END IF
-  ENDIF ! now_to_write_monthly
+  IF (w_monensm) THEN ! whether to compute monthly means
+     ! include state into monthly mean
+     IF (step > 0) THEN
+     ! *** analyzed state fields ***
+       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
+       monthly_state_a = monthly_state_a + state_p
+       monthly_state_m = monthly_state_m + timemean
+     ELSE IF (step < 0) THEN
+     ! *** forecasted state fields ***
+       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
+       monthly_state_f = monthly_state_f + state_p
+     END IF
+     
+     IF (now_to_write_monthly) THEN
+     ! computing monthly mean at last day of month
+     weights =  1.0/REAL(num_day_in_month(fleapyear,month))
+     IF (step > 0) THEN
+     ! *** analyzed state fields ***
+       monthly_state_a = monthly_state_a * weights
+       monthly_state_m = monthly_state_m * weights
+     ELSE IF (step < 0) THEN
+     ! *** forecasted state fields ***
+       monthly_state_f = monthly_state_f * weights
+     END IF
+     ENDIF ! now_to_write_monthly
+  ENDIF ! w_monensm
 
 ! **************************
 ! *** Write output files ***
@@ -953,9 +954,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! *** write initial state fields ***
   IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
       ! ensemble mean
-!~       IF (w_ensm) CALL netCDF_out('i',state_p, int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget)
+!~       IF (w_dayensm) CALL netCDF_out('i',state_p, int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget)
       ! ensemble members
-      IF (w_memb) THEN
+      IF (w_daymemb) THEN
         DO member = 1, dim_ens
 !~            CALL netCDF_out('i',ens_p(:,member), member, now_to_write_monthly)
         ENDDO
@@ -978,9 +979,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (step < 0) THEN
         ! *** write forecast state fields ***
         ! ensemble mean
-!~         IF (w_ensm) CALL netCDF_out('f',state_p,int0, now_to_write_monthly, rms=rmse_surf_g)
+!~         IF (w_dayensm) CALL netCDF_out('f',state_p,int0, now_to_write_monthly, rms=rmse_surf_g)
         ! ensemble members
-        IF (w_memb) THEN
+        IF (w_daymemb) THEN
           DO member = 1, dim_ens
 !~             CALL netCDF_out('f',ens_p(:,member), member, now_to_write_monthly)
           ENDDO
@@ -988,10 +989,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ELSE IF (step > 0) THEN
         ! *** write analysis and "m" state fields ***
         ! ensemble mean
-!~         IF (w_ensm) CALL netCDF_out('a',state_p , int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget)
-!~         IF (w_ensm) CALL netCDF_out('m',timemean, int0, now_to_write_monthly)
+!~         IF (w_dayensm) CALL netCDF_out('a',state_p , int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget)
+!~         IF (w_dayensm) CALL netCDF_out('m',timemean, int0, now_to_write_monthly)
         ! ensemble members
-        IF (w_memb) THEN
+        IF (w_daymemb) THEN
           DO member = 1, dim_ens
 !~             CALL netCDF_out('a',ens_p(:,member), member, now_to_write_monthly)
             ! ensemble member data for 'm' not available
@@ -1006,9 +1007,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (step < 0) THEN
         ! *** write forecast state fields ***
         ! ensemble mean, adding monthly mean of forecast states
-!~         IF (w_ensm) CALL netCDF_out('f',state_p, int0, now_to_write_monthly, rms=rmse_surf_g, m_state_p=monthly_state_f)
+!~         IF (w_monensm) CALL netCDF_out('f',state_p, int0, now_to_write_monthly, rms=rmse_surf_g, m_state_p=monthly_state_f)
         ! ensemble members, adding snapshot
-        IF (w_memb) THEN
+        IF (w_monmemb) THEN
           DO member = 1, dim_ens
 !~             CALL netCDF_out('f',ens_p(:,member), member, now_to_write_monthly, m_state_p=ens_p(:,member))
           ENDDO
@@ -1016,10 +1017,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ELSE IF (step > 0) THEN
         ! *** write analysis and "m"-state fields ***
         ! ensemble mean, adding monthly mean of analysis and "m"-states
-!~         IF (w_ensm) CALL netCDF_out('a',state_p , int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget, m_state_p=monthly_state_a)
-!~         IF (w_ensm) CALL netCDF_out('m',timemean, int0, now_to_write_monthly, m_state_p=monthly_state_m)
+!~         IF (w_monensm) CALL netCDF_out('a',state_p , int0, now_to_write_monthly, rms=rmse_surf_g, forget=forget, m_state_p=monthly_state_a)
+!~         IF (w_monensm) CALL netCDF_out('m',timemean, int0, now_to_write_monthly, m_state_p=monthly_state_m)
         ! ensemble members, adding snapshot
-        IF (w_memb) THEN
+        IF (w_monmemb) THEN
           DO member = 1, dim_ens
 !~             CALL netCDF_out('a',ens_p(:,member), member, now_to_write_monthly, m_state_p=ens_p(:,member))
             ! ensemble member data for 'm' not available
@@ -1029,7 +1030,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   END IF
 
 ! at last day of month, reset monthly_state to zero (has been written)
-IF (now_to_write_monthly) THEN
+IF (now_to_write_monthly .and. w_monensm) THEN
    IF (step > 0) THEN
    ! *** assimilated state fields ***
      monthly_state_a= 0.0D0

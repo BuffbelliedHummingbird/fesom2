@@ -58,9 +58,11 @@ INTEGER :: nlay
 REAL, allocatable :: lon(:)
 REAL, allocatable :: lat(:)
 
+INTEGER, parameter :: int0=0
+
 LOGICAL :: debug = .true.
 
-! SHOULD BE DELEDTED AT THE END:
+! SHOULD BE DELETED AT THE END:
 LOGICAL :: DEBUGOUTPUT = .false.
 
 CONTAINS
@@ -94,9 +96,10 @@ END SUBROUTINE check
 ! It is called from init_PDAF on all PEs.
 ! It is optionally called for the ensemble mean and/or for each ensemble member.
 
-SUBROUTINE netCDF_init(memb)
+SUBROUTINE netCDF_init()
 
-! *** Arguments ***
+USE mod_assim_pdaf, only: dim_ens
+
 INTEGER :: memb ! Zero:    Mean state
                 ! Number:  Ensemble member
                 
@@ -117,16 +120,35 @@ call gather_nod(mesh_fesom%geo_coord_nod2D(2, 1:myDim_nod2D), lat)
 
 ! initialize file (on main PE)
 IF (writepe) THEN
-     ! _______________________________________
-     ! create and open file, define dimensions and coordinates
-     IF (w_day) CALL netCDF_deffile('phy','day',memb,fidphyday)
-     IF (w_day) CALL netCDF_deffile('bgc','day',memb,fidbgcday)
-     IF (w_mon) CALL netCDF_deffile('phy','mon',memb,fidphymon)
-     IF (w_mon) CALL netCDF_deffile('bgc','mon',memb,fidphymon)
      
-     ! _______________________________________
-     ! define variables and close file
-     CALL netCDF_defvar(memb)
+     DO memb=0,dim_ens
+        ! _______________________________________
+        ! (1) netCDF_deffile: create and open file, define dimensions and coordinates
+        ! (2) netCDF_defvar:  define variables and close file
+        IF ((memb==0) .and. w_dayensm) THEN
+           CALL netCDF_deffile('phy','day',int0,fidphyday)
+           CALL netCDF_deffile('bgc','day',int0,fidbgcday)
+           CALL netCDF_defvar(int0)
+        ENDIF
+        
+        IF ((memb >0) .and. w_daymemb) THEN
+           CALL netCDF_deffile('phy','day',memb,fidphyday)
+           CALL netCDF_deffile('bgc','day',memb,fidbgcday)
+           CALL netCDF_defvar(memb)
+        ENDIF
+        
+        IF ((memb==0) .and. w_monensm) THEN
+           CALL netCDF_deffile('phy','mon',int0,fidphymon)
+           CALL netCDF_deffile('bgc','mon',int0,fidbgcmon)
+           CALL netCDF_defvar(int0)
+        ENDIF
+        
+        IF ((memb >0) .and. w_monmemb) THEN
+           CALL netCDF_deffile('phy','mon',memb,fidphymon)
+           CALL netCDF_deffile('bgc','mon',memb,fidbgcmon)
+           CALL netCDF_defvar(memb)
+        ENDIF
+     ENDDO ! memb=0,dim_ens
      
 ENDIF ! writepe
 deallocate(lon,lat)
@@ -233,10 +255,26 @@ LOGICAL :: writedaily    ! True:  Field is written at any day
 if (debug) write (*,'(a, 10x,a)') 'FESOM-PDAF', 'define output variables'
 
 ! switch to netCDF variable definition mode
-IF (w_day) call check (nf90_redef(fidbgcday))
-IF (w_mon) call check (nf90_redef(fidbgcmon))
-IF (w_day) call check (nf90_redef(fidphyday))
-IF (w_mon) call check (nf90_redef(fidphymon))
+
+IF ((memb==0) .and. w_dayensm) THEN
+   call check (nf90_redef(fidphyday))
+   call check (nf90_redef(fidbgcday))
+ENDIF
+
+IF ((memb >0) .and. w_daymemb) THEN
+   call check (nf90_redef(memb,fidphyday))
+   call check (nf90_redef(memb,fidbgcday))
+ENDIF
+
+IF ((memb==0) .and. w_monensm) THEN
+   call check (nf90_redef(fidphymon))
+   call check (nf90_redef(fidbgcmon))
+ENDIF
+
+IF ((memb >0) .and. w_monmemb) THEN
+   call check (nf90_redef(fidphymon))
+   call check (nf90_redef(fidbgcmon))
+ENDIF
 
 ! LOOP: define state fields
 DO j = 1, 4 ! ini / forc / ana / mean
@@ -290,15 +328,34 @@ DO j = 1, 4 ! ini / forc / ana / mean
   ENDDO ! state fields
 ENDDO ! ini / forc / ana
 
-IF (w_day) call check (nf90_enddef(fidbgcday))
-IF (w_mon) call check (nf90_enddef(fidbgcmon))
-IF (w_day) call check (nf90_enddef(fidphyday))
-IF (w_mon) call check (nf90_enddef(fidphymon))
+! close file
+IF ((memb==0) .and. w_dayensm) THEN
+   call check (nf90_enddef(fidphyday))
+   call check (nf90_enddef(fidbgcday))
+   call check (nf90_close (fidphyday))
+   call check (nf90_close (fidbgcday))
+ENDIF
 
-IF (w_day) call check (nf90_close(fidbgcday))
-IF (w_mon) call check (nf90_close(fidbgcmon))
-IF (w_day) call check (nf90_close(fidphyday))
-IF (w_mon) call check (nf90_close(fidphymon))
+IF ((memb >0) .and. w_daymemb) THEN
+   call check (nf90_enddef(fidphyday))
+   call check (nf90_enddef(fidbgcday))
+   call check (nf90_close (fidphyday))
+   call check (nf90_close (fidbgcday))
+ENDIF
+
+IF ((memb==0) .and. w_monensm) THEN
+   call check (nf90_enddef(fidphymon))
+   call check (nf90_enddef(fidbgcmon))
+   call check (nf90_close (fidphymon))
+   call check (nf90_close (fidbgcmon))
+ENDIF
+
+IF ((memb >0) .and. w_monmemb) THEN
+   call check (nf90_enddef(fidphymon))
+   call check (nf90_enddef(fidbgcmon))
+   call check (nf90_close (fidphymon))
+   call check (nf90_close (fidbgcmon))
+ENDIF
 
 END SUBROUTINE netCDF_defvar
 
@@ -357,17 +414,25 @@ IF (writetype == 'f') j=ff
 IF (writetype == 'm') j=mm
 
 IF (writepe) THEN
-! Open netCDF files
-    IF (w_day) THEN
-    ! daily file
+   ! Open netCDF files
+   ! daily file
+   IF ((memb==0) .and. w_dayensm) THEN
+      CALL netCDF_openfile('phy','day',int0,fidphyday)
+      CALL netCDF_openfile('bgc','day',int0,fidbgcday)
+   ENDIF
+   IF ((memb >0) .and. w_daymemb) THEN
       CALL netCDF_openfile('phy','day',memb,fidphyday)
       CALL netCDF_openfile('bgc','day',memb,fidbgcday)
-    ENDIF
-    IF (w_mon .and. now_to_write_monthly) THEN
-    ! monthly file
+   ENDIF
+   ! monthly file
+   IF ((memb==0) .and. w_monensm .and. now_to_write_monthly) THEN
+      CALL netCDF_openfile('phy','mon',int0,fidphymon)
+      CALL netCDF_openfile('bgc','mon',int0,fidbgcmon)
+   ENDIF
+   IF ((memb >0) .and. w_monmemb .and. now_to_write_monthly) THEN
       CALL netCDF_openfile('phy','mon',memb,fidphymon)
       CALL netCDF_openfile('bgc','mon',memb,fidbgcmon)
-    ENDIF ! w_mon
+   ENDIF
 END IF ! writepe
 
 IF (writepe) THEN
@@ -519,10 +584,24 @@ IF (writepe) THEN
   
   ! Close file:
   IF (writepe) THEN
-    IF (w_day) call check (nf90_close(fidbgcday))
-    IF (w_day) call check (nf90_close(fidphyday))
-    IF (w_mon .and. now_to_write_monthly) call check (nf90_close(fidbgcmon))
-    IF (w_mon .and. now_to_write_monthly) call check (nf90_close(fidphymon))
+    ! daily file
+    IF ((memb==0) .and. w_dayensm) THEN
+       call check (nf90_close(fidphyday)
+       call check (nf90_close(fidbgcday)
+    ENDIF
+    IF ((memb >0) .and. w_daymemb) THEN
+       call check (nf90_close(fidphyday)
+       call check (nf90_close(fidbgcday)
+    ENDIF
+    ! monthly file
+    IF ((memb==0) .and. w_monensm .and. now_to_write_monthly) THEN
+       call check (nf90_close(fidphymon)
+       call check (nf90_close(fidbgcmon)
+    ENDIF
+    IF ((memb >0) .and. w_monmemb .and. now_to_write_monthly) THEN
+       call check (nf90_close(fidphymon)
+       call check (nf90_close(fidbgcmon)
+    ENDIF
   ENDIF ! writepe
   
 
