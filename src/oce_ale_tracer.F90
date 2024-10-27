@@ -1311,6 +1311,7 @@ use ver_sinking_recom_benthos_interface
     use recom_config !, recom_debug
     use g_support
 #endif
+
     IMPLICIT NONE
     type(t_mesh), intent(in) , target  :: mesh
     integer                   :: elem,k, tr_num
@@ -1378,22 +1379,25 @@ use ver_sinking_recom_benthos_interface
 ! *******************************************************
 
         k=nod_in_elem2D_num(n)
-        ! Screening minimum depth in neigbouring nodes around node n
+        ! screening minimum depth in neigbouring elements around node n
         nlevels_nod2D_minimum=minval(nlevels(nod_in_elem2D(1:k, n))-1)
 
         do nz=nlevels_nod2D_minimum, nl1
+           ! from minumum-depth-of-neighbours to depth-at-n,
+           ! sinking through fraction of nodarea that is associated with each element around n
            tv = tr_arr(nz,n,tr_num)*Vben(nz)
            aux(nz)= - tv*(area(nz,n)-area(nz+1,n))
            aux1(nz)= area(nz,n)-area(nz+1,n)
         end do
-        if (nlevels_nod2D_minimum .lt. nl1) then
+        if (nlevels_nod2D_minimum .gt. nl1) then
         nz=nl1
         tv = tr_arr(nz,n,tr_num)*Vben(nz)
-        aux(nz)= - tv*(area(nz+1,n))
-        aux1(nz)= area(nz+1,n)
+        aux(nz)= - tv*(area(nz,n))
+        aux1(nz)= area(nz,n)
         end if
         do nz=ul1,nl1
            str_bf(nz,n) = str_bf(nz,n) + (aux(nz))*dt/area(nz,n)/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
+           
            
            add_benthos_2d(n) = add_benthos_2d(n) - (aux(nz))*dt
            
@@ -1573,13 +1577,13 @@ id = tracer_id(tr_num)
             vd_flux(nz)=(area(nz,n)-area(nz+1,n))* bottom_flux(n)/(area(1,n))           
         end do
         nz=nl1
-        vd_flux(nz+1)= (area(nz+1,n))* bottom_flux(n)/(area(1,n))
+        vd_flux(nz)= (area(nz,n))* bottom_flux(n)/(area(1,n))
         !_______________________________________________________________________
         ! writing flux into rhs
         do nz=ul1,nl1
             ! flux contribute only the cell through its bottom !!!
 !            dtr_bf(nz,n) = dtr_bf(nz,n) + vd_flux(nz+1)*dt/area(nz,n)/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
-            dtr_bf(nz,n) = dtr_bf(nz,n) + vd_flux(nz+1)*dt/areasvol(nz,n)/hnode_new(nz,n)
+            dtr_bf(nz,n) = dtr_bf(nz,n) + vd_flux(nz)*dt/areasvol(nz,n)/hnode_new(nz,n)
         end do
     end do
 end subroutine diff_ver_recom_expl
