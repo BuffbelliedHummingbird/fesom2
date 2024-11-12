@@ -1,9 +1,10 @@
 module oce_adv_tra_driver_interfaces
   interface
-   subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v, opth, optv, mesh)
+   subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v, opth, optv, mesh, tr_num)
       use MOD_MESH
       use g_PARSUP
       type(t_mesh),  intent(in), target :: mesh
+      integer, intent(in)               :: tr_num
       real(kind=WP), intent(in)         :: vel(2, mesh%nl-1, myDim_elem2D+eDim_elem2D)
       real(kind=WP), intent(in), target :: W(mesh%nl,   myDim_nod2D+eDim_nod2D)
       real(kind=WP), intent(in), target :: WI(mesh%nl,   myDim_nod2D+eDim_nod2D)
@@ -20,11 +21,12 @@ end module
 
 module oce_tra_adv_flux2dtracer_interface
   interface
-    subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, use_lo, ttf, lo)
+    subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num, use_lo, ttf, lo)
     !update the solution for vertical and horizontal flux contributions
       use MOD_MESH
       use g_PARSUP
       type(t_mesh),  intent(in), target :: mesh
+      integer, intent(in)               :: tr_num
       real(kind=WP), intent(inout)      :: dttf_h(mesh%nl-1, myDim_nod2D+eDim_nod2D)
       real(kind=WP), intent(inout)      :: dttf_v(mesh%nl-1, myDim_nod2D+eDim_nod2D)
       real(kind=WP), intent(inout)      :: flux_h(mesh%nl-1, myDim_edge2D)
@@ -38,7 +40,7 @@ end module
 !
 !
 !===============================================================================
-subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v, opth, optv, mesh)
+subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v, opth, optv, mesh, tr_num)
     use MOD_MESH
     use O_MESH
     use o_ARRAYS
@@ -50,22 +52,32 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
     use oce_adv_tra_ver_interfaces
     use oce_adv_tra_fct_interfaces
     use oce_tra_adv_flux2dtracer_interface
+#ifdef use_PDAF
+    use mod_carbon_fluxes_diags
+    use mod_assim_pdaf, only: nlmax
+    use mod_parallel_pdaf, only: writepe
+#endif
     implicit none
+#ifdef use_PDAF
+    integer :: idcf
+    logical :: thistracer
+#endif
     type(t_mesh),  intent(in), target :: mesh
-    real(kind=WP), intent(in)         :: vel(2, mesh%nl-1, myDim_elem2D+eDim_elem2D)
-    real(kind=WP), intent(in), target :: W(mesh%nl,   myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(in), target :: WI(mesh%nl,   myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(in), target :: WE(mesh%nl,   myDim_nod2D+eDim_nod2D)
-    integer,       intent(in)         :: do_Xmoment !--> = [1,2] compute 1st & 2nd moment of tracer transport
-    real(kind=WP), intent(in)         :: ttf  (mesh%nl-1, myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(in)         :: ttfAB(mesh%nl-1, myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(inout)      :: dttf_h(mesh%nl-1, myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(inout)      :: dttf_v(mesh%nl-1, myDim_nod2D+eDim_nod2D)
-    real(kind=WP), intent(in)         :: opth, optv
+    real(kind=WP), intent(in)         :: vel(2, mesh%nl-1, myDim_elem2D+eDim_elem2D) ! UV         - horizontal velocities
+    real(kind=WP), intent(in), target :: W(mesh%nl,   myDim_nod2D+eDim_nod2D)        ! wvel       - vertical velocities
+    real(kind=WP), intent(in), target :: WI(mesh%nl,   myDim_nod2D+eDim_nod2D)       ! wvel_i     - implicit
+    real(kind=WP), intent(in), target :: WE(mesh%nl,   myDim_nod2D+eDim_nod2D)       ! wvel_e     - explicit
+    integer,       intent(in)         :: do_Xmoment                                  ! 1 or 2     -  compute 1st & 2nd moment of tracer transport
+    real(kind=WP), intent(in)         :: ttf  (mesh%nl-1, myDim_nod2D+eDim_nod2D)    ! tr_arr     - tracer array
+    real(kind=WP), intent(in)         :: ttfAB(mesh%nl-1, myDim_nod2D+eDim_nod2D)    ! tr_arr_old - tracer array old
+    real(kind=WP), intent(inout)      :: dttf_h(mesh%nl-1, myDim_nod2D+eDim_nod2D)   ! del_ttf_advhoriz
+    real(kind=WP), intent(inout)      :: dttf_v(mesh%nl-1, myDim_nod2D+eDim_nod2D)   ! del_ttf_advvert
+    real(kind=WP), intent(in)         :: opth, optv                                  ! tra_adv_ph, tra_adv_pv
     real(kind=WP), pointer, dimension (:,:) :: pwvel
+    integer, intent(in)               :: tr_num
  
     integer       :: el(2), enodes(2), nz, n, e
-    integer       :: nl12, nu12, nl1, nl2, nu1, nu2, tr_num
+    integer       :: nl12, nu12, nl1, nl2, nu1, nu2
     real(kind=WP) :: cLO, cHO, deltaX1, deltaY1, deltaX2, deltaY2
     real(kind=WP) :: qc, qu, qd
     real(kind=WP) :: tvert(mesh%nl), tvert_e(mesh%nl), a, b, c, d, da, db, dg, vflux, Tupw1
@@ -73,6 +85,13 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
     logical       :: do_zero_flux
 
 #include "associate_mesh.h"
+
+!  Namelist settings Frauke:
+!~ i_vert_diff =.true.
+!~ tra_adv_hor ='MFCT'
+!~ tra_adv_ver ='QR4C'
+!~ tra_adv_lim ='FCT' 
+
     !___________________________________________________________________________
     ! compute FCT horzontal and vertical low order solution as well as lw order 
     ! part of antidiffusive flux
@@ -104,6 +123,40 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
             do nz=nu12, nl12
                 fct_LO(nz, enodes(1))=fct_LO(nz, enodes(1))+adv_flux_hor(nz, e)
                 fct_LO(nz, enodes(2))=fct_LO(nz, enodes(2))-adv_flux_hor(nz, e)
+#ifdef use_PDAF        
+                ! select tracer ID for SMS diagnostics
+                thistracer = .true.
+                IF      (tr_num== 5) THEN
+                        idcf = id_s_hor_alk
+                ELSEIF  (tr_num== 4) THEN
+                        idcf = id_s_hor_dic
+                ELSEIF ((tr_num== 7) .or. &           ! PhyC
+                        (tr_num==12) .or. &           ! HetC
+                        (tr_num==22) .or. &           ! PhyCalc
+                        (tr_num==16) .or. &           ! DiaC
+                        (tr_num==26)        ) THEN    ! Zoo2C
+                        idcf = id_s_hor_livingmatter
+                ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
+                        (tr_num==30) .or. &           ! Det Zoo2Calc
+                        (tr_num==10) .or. &           ! Det C
+                        (tr_num==23) .or. &           ! Det Calc
+                        (tr_num==14)        ) THEN    ! DOC
+                        idcf = id_s_hor_deadmatter
+                ELSE
+                   thistracer = .false.
+                   idcf       = cfnfields+1
+                ENDIF
+                
+                ! add LO part to horizontal advection for SMS diagnostics
+                IF (thistracer) THEN
+                   ! concentration
+                   cffields(idcf)%instantconc(nz, enodes(1)) = cffields(idcf)%instantconc(nz, enodes(1)) + adv_flux_hor(nz, e) / (areasvol(nz, enodes(1))*hnode_new(nz, enodes(1)))
+                   cffields(idcf)%instantconc(nz, enodes(2)) = cffields(idcf)%instantconc(nz, enodes(2)) - adv_flux_hor(nz, e) / (areasvol(nz, enodes(2))*hnode_new(nz, enodes(2)))
+                   ! mass
+                   cffields(idcf)%instantmass(nz, enodes(1)) = cffields(idcf)%instantmass(nz, enodes(1)) + adv_flux_hor(nz, e)
+                   cffields(idcf)%instantmass(nz, enodes(2)) = cffields(idcf)%instantmass(nz, enodes(2)) - adv_flux_hor(nz, e)
+                ENDIF
+#endif
             end do
         end do
         
@@ -118,6 +171,38 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
             !!PS do  nz=1, nlevels_nod2D(n)-1
             do  nz= nu1, nl1-1
                 fct_LO(nz,n)=(ttf(nz,n)*hnode(nz,n)+(fct_LO(nz,n)+(adv_flux_ver(nz, n)-adv_flux_ver(nz+1, n)))*dt/areasvol(nz,n))/hnode_new(nz,n)
+#ifdef use_PDAF        
+                ! select tracer ID for SMS diagnostics
+                thistracer = .true.
+                IF      (tr_num== 5) THEN
+                        idcf = id_s_ver_alk
+                ELSEIF  (tr_num== 4) THEN
+                        idcf = id_s_ver_dic
+                ELSEIF ((tr_num== 7) .or. &           ! PhyC
+                        (tr_num==12) .or. &           ! HetC
+                        (tr_num==22) .or. &           ! PhyCalc
+                        (tr_num==16) .or. &           ! DiaC
+                        (tr_num==26)        ) THEN    ! Zoo2C
+                        idcf = id_s_ver_livingmatter
+                ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
+                        (tr_num==30) .or. &           ! Det Zoo2Calc
+                        (tr_num==10) .or. &           ! Det C
+                        (tr_num==23) .or. &           ! Det Calc
+                        (tr_num==14)        ) THEN    ! DOC
+                        idcf = id_s_ver_deadmatter
+                ELSE
+                   thistracer = .false.
+                   idcf       = cfnfields+1
+                ENDIF
+                
+                ! add LO part to vertical advection for SMS diagnostics
+                IF (thistracer) THEN
+                   ! concentration
+                   cffields(idcf)%instantconc(nz,n) = cffields(idcf)%instantconc(nz,n) + (adv_flux_ver(nz,n)-adv_flux_ver(nz+1,n)) / (areasvol(nz,n)*hnode_new(nz,n))
+                   ! mass
+                   cffields(idcf)%instantmass(nz,n) = cffields(idcf)%instantmass(nz,n) + (adv_flux_ver(nz,n)-adv_flux_ver(nz+1,n))
+                ENDIF
+#endif
             end do
         end do
         
@@ -190,15 +275,15 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
 !if (mype==0) write(*,*) 'before:', sum(abs(adv_flux_ver)), sum(abs(adv_flux_hor))
        call oce_tra_adv_fct(dttf_h, dttf_v, ttf, fct_LO, adv_flux_hor, adv_flux_ver, mesh)
 !if (mype==0) write(*,*) 'after:', sum(abs(adv_flux_ver)), sum(abs(adv_flux_hor))
-       call oce_tra_adv_flux2dtracer(dttf_h, dttf_v, adv_flux_hor, adv_flux_ver, mesh, use_lo=.TRUE., ttf=ttf, lo=fct_LO)
+       call oce_tra_adv_flux2dtracer(dttf_h, dttf_v, adv_flux_hor, adv_flux_ver, mesh, tr_num, use_lo=.TRUE., ttf=ttf, lo=fct_LO)
     else
-       call oce_tra_adv_flux2dtracer(dttf_h, dttf_v, adv_flux_hor, adv_flux_ver, mesh)
+       call oce_tra_adv_flux2dtracer(dttf_h, dttf_v, adv_flux_hor, adv_flux_ver, mesh, tr_num)
     end if
 end subroutine do_oce_adv_tra
 !
 !
 !===============================================================================
-subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, use_lo, ttf, lo)
+subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num, use_lo, ttf, lo)
     use MOD_MESH
     use O_MESH
     use o_ARRAYS
@@ -206,12 +291,22 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, use_lo
     use g_PARSUP
     use g_CONFIG
     use g_comm_auto
+#ifdef use_PDAF
+    use mod_carbon_fluxes_diags
+    use mod_assim_pdaf, only: nlmax
+    use mod_parallel_pdaf, only: writepe
+#endif
     implicit none
+#ifdef use_PDAF
+    integer :: idcf
+    logical :: thistracer
+#endif
     type(t_mesh),  intent(in), target :: mesh
+    integer, intent(in)               :: tr_num
     real(kind=WP), intent(inout)      :: dttf_h(mesh%nl-1, myDim_nod2D+eDim_nod2D)
     real(kind=WP), intent(inout)      :: dttf_v(mesh%nl-1, myDim_nod2D+eDim_nod2D)
     real(kind=WP), intent(inout)      :: flux_h(mesh%nl-1, myDim_edge2D)
-    real(kind=WP), intent(inout)      :: flux_v(mesh%nl,  myDim_nod2D)
+    real(kind=WP), intent(inout)      :: flux_v(mesh%nl,   myDim_nod2D)
     logical,       optional           :: use_lo
     real(kind=WP), optional           :: lo (mesh%nl-1, myDim_nod2D+eDim_nod2D)
     real(kind=WP), optional           :: ttf(mesh%nl-1, myDim_nod2D+eDim_nod2D)
@@ -238,6 +333,38 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, use_lo
         nl1 = nlevels_nod2D(n)
         do nz=nu1,nl1-1  
             dttf_v(nz,n)=dttf_v(nz,n) + (flux_v(nz,n)-flux_v(nz+1,n))*dt/areasvol(nz,n)
+#ifdef use_PDAF        
+                ! select tracer ID for SMS diagnostics
+                thistracer = .true.
+                IF      (tr_num== 5) THEN
+                        idcf = id_s_ver_alk
+                ELSEIF  (tr_num== 4) THEN
+                        idcf = id_s_ver_dic
+                ELSEIF ((tr_num== 7) .or. &           ! PhyC
+                        (tr_num==12) .or. &           ! HetC
+                        (tr_num==22) .or. &           ! PhyCalc
+                        (tr_num==16) .or. &           ! DiaC
+                        (tr_num==26)        ) THEN    ! Zoo2C
+                        idcf = id_s_ver_livingmatter
+                ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
+                        (tr_num==30) .or. &           ! Det Zoo2Calc
+                        (tr_num==10) .or. &           ! Det C
+                        (tr_num==23) .or. &           ! Det Calc
+                        (tr_num==14)        ) THEN    ! DOC
+                        idcf = id_s_ver_deadmatter
+                ELSE
+                   thistracer = .false.
+                   idcf       = cfnfields+1
+                ENDIF
+                
+                ! add antidiffusive part to vertical advection for SMS diagnostics
+                IF (thistracer) THEN
+                   ! concentration
+                   cffields(idcf)%instantconc(nz,n) = cffields(idcf)%instantconc(nz,n) + (flux_v(nz,n)-flux_v(nz+1,n)) / (areasvol(nz,n)*hnode_new(nz,n))
+                   ! mass
+                   cffields(idcf)%instantmass(nz,n) = cffields(idcf)%instantmass(nz,n) + (flux_v(nz,n)-flux_v(nz+1,n))
+                ENDIF
+#endif
         end do
     end do
 
@@ -264,6 +391,41 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, use_lo
         do nz=nu12, nl12
             dttf_h(nz,enodes(1))=dttf_h(nz,enodes(1))+flux_h(nz,edge)*dt/areasvol(nz,enodes(1))
             dttf_h(nz,enodes(2))=dttf_h(nz,enodes(2))-flux_h(nz,edge)*dt/areasvol(nz,enodes(2))
+#ifdef use_PDAF        
+                ! select tracer ID for SMS diagnostics
+                thistracer = .true.
+                IF      (tr_num== 5) THEN
+                        idcf = id_s_hor_alk
+                ELSEIF  (tr_num== 4) THEN
+                        idcf = id_s_hor_dic
+                ELSEIF ((tr_num== 7) .or. &           ! PhyC
+                        (tr_num==12) .or. &           ! HetC
+                        (tr_num==22) .or. &           ! PhyCalc
+                        (tr_num==16) .or. &           ! DiaC
+                        (tr_num==26)        ) THEN    ! Zoo2C
+                        idcf = id_s_hor_livingmatter
+                ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
+                        (tr_num==30) .or. &           ! Det Zoo2Calc
+                        (tr_num==10) .or. &           ! Det C
+                        (tr_num==23) .or. &           ! Det Calc
+                        (tr_num==14)        ) THEN    ! DOC
+                        idcf = id_s_hor_deadmatter
+                ELSE
+                   thistracer = .false.
+                   idcf       = cfnfields+1
+                ENDIF
+                
+                ! add antidiffusive part to horizontal advection for SMS diagnostics
+                IF (thistracer) THEN
+                   ! concentration
+                   cffields(idcf)%instantconc(nz, enodes(1)) = cffields(idcf)%instantconc(nz, enodes(1)) + flux_h(nz, edge) / (areasvol(nz, enodes(1)) * hnode_new(nz, enodes(1)))
+                   cffields(idcf)%instantconc(nz, enodes(2)) = cffields(idcf)%instantconc(nz, enodes(2)) - flux_h(nz, edge) / (areasvol(nz, enodes(2)) * hnode_new(nz, enodes(2)))
+                   ! mass
+                   cffields(idcf)%instantmass(nz, enodes(1)) = cffields(idcf)%instantmass(nz, enodes(1)) + flux_h(nz, edge)
+                   cffields(idcf)%instantmass(nz, enodes(2)) = cffields(idcf)%instantmass(nz, enodes(2)) - flux_h(nz, edge)
+                ENDIF
+#endif
         end do
     end do
+    call exchange_nod(dttf_h)
 end subroutine oce_tra_adv_flux2dtracer
