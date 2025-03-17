@@ -6,9 +6,11 @@ MODULE mod_atmos_ens_stochasticity
 ! Routines in this module:
 ! --- init_atmos_ens_stochasticity()
 ! --- add_atmos_ens_stochasticity(istep)
-! --- init_atmos_stochasticity_output
+! --- init_atmos_stochasticity_output()
 ! --- write_atmos_stochasticity_output(istep)
-! --- 
+! --- write_atmos_stochasticity_restart
+! --- read_atmos_stochasticity_restart()
+! --- compute_ipsr()
 
 ! Covariance file contains statistical information on all 9 atmospheric
 ! forcing fields. Which of these fields shall be perturbed is set
@@ -86,7 +88,8 @@ MODULE mod_atmos_ens_stochasticity
   INTEGER,ALLOCATABLE, save :: atm_offset(:)        ! offset of perturbed fields in atmospheric state vector
   INTEGER,ALLOCATABLE, save :: atm_offset_cvrf(:)   ! offset of fields hold in covariance fields
   
-  CHARACTER(len=200) :: fname_atm  ! filename to write out atmospheric stochasticity
+  CHARACTER(len=200) :: fname_atm      ! filename to write atmospheric stochasticity at time step
+  CHARACTER(len=200) :: fname_restart  ! filename to write restart information
 
 LOGICAL :: disturb_xwind           ! which atmospheric fields to be perturbed
 LOGICAL :: disturb_ywind           ! (set in namelist)
@@ -110,7 +113,7 @@ REAL :: varscale_snow = 1.0
 REAL :: varscale_mslp = 0.2
 
 LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospheric fields,
-                                    ! i.e. writing output at every time step
+                                    ! i.e. writing at every time step
 
 REAL :: stable_rmse = 0 ! (ocean temperature) ensemble spread after 16 months of assimilation 
 
@@ -139,6 +142,9 @@ INTEGER :: dim_p_file                    ! state dimension read from cov.-file
 ! *** INITIALIZATION ***
 ! **********************
 
+IF (dim_ens<=1) THEN
+  IF ((mype_world==0)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation initialized.'
+ELSEIF (dim_ens>1) THEN
 IF (mype_world==0) THEN
 WRITE(*,*) 'FESOM-PDAF: Init atmospheric perturbation.'
 END IF
@@ -306,6 +312,7 @@ IF(disturb_mslp ) eof_p (atm_offset(id_atm% mslp ) : atm_offset(id_atm% mslp )+m
 !~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'mslp ', eof_p (atm_offset(id_atm% mslp ) : atm_offset(id_atm% mslp )+2, :)
 
 deallocate(eof_p_cvrfile)
+endif ! (dim_ens<=1)
 
 END SUBROUTINE
 
@@ -334,9 +341,12 @@ REAL :: fac                              ! Square-root of dim_ens or dim_ens-1
 REAL :: arc, varscale                    ! autoregression coefficient and scaling factor
 CHARACTER(len=3) :: istep_string
 
-ALLOCATE(omega(dim_ens, dim_ens-1))
-ALLOCATE(omega_v(dim_ens-1))
+IF (dim_ens<=1) THEN
+IF ((mype_model==0) .and. (istep==2)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation at any step.'
+ELSEIF (dim_ens>1) THEN
+
 ALLOCATE(perturbation(nfields * myDim_nod2D))
+perturbation = 0.0
 
 ! set parameters:
 varscale = 25.0       ! 10
@@ -346,9 +356,13 @@ arc      = 1./7./32.  ! 1/REAL(step_per_day)
 ! *** Generate ensemble of atm. states ***
 ! ****************************************
 
+
+ALLOCATE(omega(dim_ens, dim_ens-1))
+ALLOCATE(omega_v(dim_ens-1))
+
 IF (mype_model==0) THEN
 
-   IF (istep==2) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step'
+   IF (istep==2) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step.'
 
    ! *** Generate uniform orthogonal matrix OMEGA ***
    CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 1)
@@ -376,7 +390,7 @@ CALL MPI_Bcast(Omega_v, dim_ens-1, MPI_DOUBLE_PRECISION, 0, &
 
 IF (istep==2 .AND. mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate atmospheric perturbation from covariance; to be repeated at each step'
 fac = varscale * SQRT(REAL(dim_ens-1)) ! varscale: scaling factor for ensemble variance
-perturbation = 0.0
+
 
 !    ____           =====   _______    ____
 !    pert = fac * ( eof_p * omega_v) + null
@@ -520,9 +534,10 @@ ENDIF
 !~ IF ((mype_world==0) .and. (disturb_snow  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_mslp  ,:2)', atmdata(i_mslp  ,:2)
 !~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qsr   ,:2)', atmdata(i_qsr   ,:2)
 
+DEALLOCATE(perturbation)
+DEALLOCATE(omega_v)
 
-DEALLOCATE(perturbation,omega_v)
-
+ENDIF ! (dim_ens>1)
 END SUBROUTINE
 
 
@@ -533,7 +548,7 @@ END SUBROUTINE
 ! ***************************************
 ! ***************************************
 
-SUBROUTINE init_atmos_stochasticity_output
+SUBROUTINE init_atmos_stochasticity_output()
 
     USE g_config, &
          ONLY: runid, ResultPath
@@ -577,6 +592,15 @@ SUBROUTINE init_atmos_stochasticity_output
     INTEGER :: dimarray(2)
     
     
+IF (dim_ens<=1) THEN
+  IF ((mype_world==0)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation output initialized.'
+ELSEIF (dim_ens>1) THEN
+
+! ****************************************
+! *** File to write at every time step ***
+! ****************************************
+IF (write_atmos_st) THEN
+
 ! --- open file:
 fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
@@ -593,8 +617,6 @@ s = s+1
 stat(s) = NF_DEF_DIM(fileid,'myDim_nod2D', myDim_nod2D, dimID_n2D)
 s = s+1
 stat(s) = NF_DEF_DIM(fileid,'step', NF_UNLIMITED, dimId_step)
-s = s+1
-stat(s) = NF_DEF_DIM(fileid,'dimensionless', 1, dimID_dummy)
 s = s+1
 
 DO i = 1,  s - 1
@@ -629,32 +651,6 @@ IF (disturb_mslp ) s = s+1
 IF (disturb_qsr  ) stat(s) = NF_DEF_VAR(fileid, 'ipsr' , NF_FLOAT, 2, dimarray(1:2), varID_ipsr )
 IF (disturb_qsr  ) s = s+1
 
-! perturbation for restart:
-IF (disturb_xwind) stat(s) = NF_DEF_VAR(fileid, 'restart_xwind', NF_FLOAT, 1, dimID_n2D, varID_restart_xwind)
-IF (disturb_xwind) s = s+1
-IF (disturb_ywind) stat(s) = NF_DEF_VAR(fileid, 'restart_ywind', NF_FLOAT, 1, dimID_n2D, varID_restart_ywind)
-IF (disturb_ywind) s = s+1
-IF (disturb_humi ) stat(s) = NF_DEF_VAR(fileid, 'restart_humi' , NF_FLOAT, 1, dimID_n2D, varID_restart_humi )
-IF (disturb_humi ) s = s+1
-IF (disturb_qlw  ) stat(s) = NF_DEF_VAR(fileid, 'restart_qlw'  , NF_FLOAT, 1, dimID_n2D, varID_restart_qlw  )
-IF (disturb_qlw  ) s = s+1
-IF (disturb_qsr  ) stat(s) = NF_DEF_VAR(fileid, 'restart_qsr'  , NF_FLOAT, 1, dimID_n2D, varID_restart_qsr  )
-IF (disturb_qsr  ) s = s+1
-IF (disturb_tair ) stat(s) = NF_DEF_VAR(fileid, 'restart_tair' , NF_FLOAT, 1, dimID_n2D, varID_restart_tair )
-IF (disturb_tair ) s = s+1
-IF (disturb_prec ) stat(s) = NF_DEF_VAR(fileid, 'restart_prec' , NF_FLOAT, 1, dimID_n2D, varID_restart_prec )
-IF (disturb_prec ) s = s+1
-IF (disturb_snow ) stat(s) = NF_DEF_VAR(fileid, 'restart_snow' , NF_FLOAT, 1, dimID_n2D, varID_restart_snow )
-IF (disturb_snow ) s = s+1
-IF (disturb_mslp ) stat(s) = NF_DEF_VAR(fileid, 'restart_mslp' , NF_FLOAT, 1, dimID_n2D, varID_restart_mslp )
-IF (disturb_mslp ) s = s+1
-
-! save target ensemble spread (computed during month 16) and forgetting factor for restart:
-stat(s) = NF_DEF_VAR(fileid, 'restart_rmse'   , NF_FLOAT, 1, dimID_dummy, varID_restart_rmse)
-s = s+1
-stat(s) = NF_DEF_VAR(fileid, 'restart_forget' , NF_FLOAT, 1, dimID_dummy, varID_restart_forget)
-s = s+1
-
 DO i = 1,  s - 1
      IF (stat(i) /= NF_NOERR) THEN
      WRITE(*,*) 'NetCDF error in defining variables in atmos. netCDF file, no.', i
@@ -675,6 +671,87 @@ IF (mype_world==0) THEN
 WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'netCDF file to protocol atmospheric stochasticity has been initialized'
 END IF
 
+ENDIF ! write_atmos_st
+
+
+! ****************************************
+! *** File for PDAF restarts           ***
+! ****************************************
+
+! --- open file:
+fname_restart = TRIM(DAoutput_path)//'pdafrestart/pdafrestart_'//mype_string//'_'//cyearnew//'.nc'
+
+IF (mype_world==0) THEN
+WRITE(*,*) 'FESOM-PDAF: cyearold, cyearnew', cyearold, cyearnew
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Initialize PDAF Restart netCDF file to protocol atmospheric stochasticity:', fname_restart
+END IF
+
+s = 1
+stat(s) = NF_CREATE(TRIM(fname_restart),0,fileid)
+s = s+1
+
+! --- define dimensions:
+stat(s) = NF_DEF_DIM(fileid,'myDim_nod2D', myDim_nod2D, dimID_n2D)
+s = s+1
+stat(s) = NF_DEF_DIM(fileid,'dimensionless', 1, dimID_dummy)
+s = s+1
+
+DO i = 1,  s - 1
+     IF (stat(i) /= NF_NOERR) &
+     WRITE(*, *) 'NetCDF error in defining dimensions in PDAF Restart netCDF file, no.', i
+END DO
+
+! --- define variables:
+s = 1
+
+! perturbation for restart:
+IF (disturb_xwind) stat(s) = NF_DEF_VAR(fileid, 'restart_xwind', NF_FLOAT, 1, dimID_n2D, varID_restart_xwind)
+IF (disturb_xwind) s = s+1
+IF (disturb_ywind) stat(s) = NF_DEF_VAR(fileid, 'restart_ywind', NF_FLOAT, 1, dimID_n2D, varID_restart_ywind)
+IF (disturb_ywind) s = s+1
+IF (disturb_humi ) stat(s) = NF_DEF_VAR(fileid, 'restart_humi' , NF_FLOAT, 1, dimID_n2D, varID_restart_humi )
+IF (disturb_humi ) s = s+1
+IF (disturb_qlw  ) stat(s) = NF_DEF_VAR(fileid, 'restart_qlw'  , NF_FLOAT, 1, dimID_n2D, varID_restart_qlw  )
+IF (disturb_qlw  ) s = s+1
+IF (disturb_qsr  ) stat(s) = NF_DEF_VAR(fileid, 'restart_qsr'  , NF_FLOAT, 1, dimID_n2D, varID_restart_qsr  )
+IF (disturb_qsr  ) s = s+1
+IF (disturb_tair ) stat(s) = NF_DEF_VAR(fileid, 'restart_tair' , NF_FLOAT, 1, dimID_n2D, varID_restart_tair )
+IF (disturb_tair ) s = s+1
+IF (disturb_prec ) stat(s) = NF_DEF_VAR(fileid, 'restart_prec' , NF_FLOAT, 1, dimID_n2D, varID_restart_prec )
+IF (disturb_prec ) s = s+1
+IF (disturb_snow ) stat(s) = NF_DEF_VAR(fileid, 'restart_snow' , NF_FLOAT, 1, dimID_n2D, varID_restart_snow )
+IF (disturb_snow ) s = s+1
+IF (disturb_mslp ) stat(s) = NF_DEF_VAR(fileid, 'restart_mslp' , NF_FLOAT, 1, dimID_n2D, varID_restart_mslp )
+IF (disturb_mslp ) s = s+1
+
+! target ensemble standard deviation of temperature field
+stat(s) = NF_DEF_VAR(fileid, 'restart_rmse'   , NF_FLOAT, 1, dimID_dummy, varID_restart_rmse)
+s = s+1
+! forgetting factor
+stat(s) = NF_DEF_VAR(fileid, 'restart_forget' , NF_FLOAT, 1, dimID_dummy, varID_restart_forget)
+s = s+1
+
+DO i = 1,  s - 1
+     IF (stat(i) /= NF_NOERR) THEN
+     WRITE(*,*) 'NetCDF error in defining variables in PDAF Restart netCDF file, no.', i
+     WRITE(*,*)  NF_STRERROR(stat(i))
+     STOP
+     END IF
+END DO
+
+stat(s) = NF_ENDDEF(fileid) 
+s = s + 1
+stat(1) = NF_CLOSE(fileid)
+
+IF (stat(1) /= NF_NOERR) THEN
+   WRITE(*, *) 'NetCDF error in closing PDAF Restart netCDF file'
+END IF
+
+IF (mype_world==0) THEN
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'PDAF Restart netCDF file has been initialized'
+END IF
+
+ENDIF ! (dim_ens<=1)
 END SUBROUTINE
 
 
@@ -722,7 +799,10 @@ SUBROUTINE write_atmos_stochasticity_output(istep)
     INTEGER :: posvec(2) ! write position in netCDF file
     INTEGER :: nmbvec(2) ! write dimension in netCDF file
     
-    
+IF (dim_ens<=1) THEN
+  IF ((mype_world==0)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation written to netCDF.'
+ELSEIF (dim_ens>1) THEN
+
 IF (mype_world==0) THEN
 WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity to netCDF.'
 END IF
@@ -802,6 +882,7 @@ stat(1) = NF_CLOSE(fileid)
      WRITE(*, *) 'NetCDF error in closing NetCDF file'
   END IF
 
+ENDIF ! (dim_ens<=1)
 END SUBROUTINE
 
 
@@ -842,17 +923,21 @@ SUBROUTINE write_atmos_stochasticity_restart()
     INTEGER :: varID_restart_snow 
     INTEGER :: varID_restart_mslp
     INTEGER :: varID_restart_rmse, varID_restart_forget
-    
+
+IF (dim_ens<=1) THEN
+  IF ((mype_world==0)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation written to restart.'
+ELSEIF (dim_ens>1) THEN
+
 IF (mype_world==0) THEN
 WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart to netCDF at the end.'
 END IF
     
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
+fname_restart = TRIM(DAoutput_path)//'/pdafrestart/pdafrestart_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
-stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
-IF (stat(s) /= NF_NOERR) STOP 'error opening atmospheric stochasticity netCDF at the end'
+stat(s) = NF_OPEN(TRIM(fname_restart), NF_WRITE, fileid)
+IF (stat(s) /= NF_NOERR) STOP 'error opening PDAF restart netCDF at the end'
 
 ! ----- inquire variable IDs:
 
@@ -883,7 +968,7 @@ s=1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) &
-  WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity restart variable IDs at the end, no.', i
+  WRITE(*, *) 'NetCDF error inquiring PDAF restart variable IDs at the end, no.', i
 END DO
 
 s=1
@@ -913,7 +998,7 @@ s=1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
-  WRITE(*, *) 'NetCDF error writing atmospheric stochasticity restart variable IDs at the end, no.', i
+  WRITE(*, *) 'NetCDF error writing PDAF restart fields at the end, no.', i
   STOP
   END IF
 END DO
@@ -921,9 +1006,10 @@ END DO
 stat(1) = NF_CLOSE(fileid)
 
   IF (stat(1) /= NF_NOERR) THEN
-     WRITE(*, *) 'NetCDF error in closing atmospheric stochasticity NetCDF file at the end'
+     WRITE(*, *) 'NetCDF error in closing PDAF Restart NetCDF file at the end'
   END IF
 
+ENDIF ! (dim_ens<=1)
 END SUBROUTINE
 
 ! ****************************************
@@ -964,17 +1050,21 @@ SUBROUTINE read_atmos_stochasticity_restart()
     INTEGER :: varID_restart_mslp
     INTEGER :: varID_restart_rmse
     INTEGER :: varID_restart_forget
-    
+
+IF (dim_ens<=1) THEN
+  IF ((mype_world==0)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation read at restart.'
+ELSEIF (dim_ens>1) THEN
+
 ! --- open file:
-fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearold//'.nc'
+fname_restart = TRIM(DAoutput_path)//'/pdafrestart/pdafrestart_'//mype_string//'_'//cyearold//'.nc'
 
 IF (mype_world==0) THEN
-WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric perturbation from netCDF:', fname_atm
+WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Read atmospheric perturbation from netCDF at restart:', fname_restart
 END IF
 
 s=1
-stat(s) = NF_OPEN(TRIM(fname_atm), NF_WRITE, fileid)
-IF (stat(s) /= NF_NOERR) STOP 'error opening atmospheric stochasticity netCDF at restart'
+stat(s) = NF_OPEN(TRIM(fname_restart), NF_WRITE, fileid)
+IF (stat(s) /= NF_NOERR) STOP 'error opening PDAF Restart netCDF file during restart'
 
 ! ----- inquire variable IDs:
 
@@ -1005,7 +1095,7 @@ s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) &
-  WRITE(*, *) 'NetCDF error inquiring atmospheric stochasticity restart variable IDs at restart, no.', i
+  WRITE(*, *) 'NetCDF error inquiring PDAF restart variable IDs at restart, no.', i
 END DO
 
 s=1
@@ -1035,7 +1125,7 @@ s=s+1
 
 DO i = 1, s - 1
   IF (stat(i) /= NF_NOERR) THEN
-  WRITE(*, *) 'NetCDF error reading atmospheric stochasticity restart variables at restart, no.', i
+  WRITE(*, *) 'NetCDF error reading PDAF restart variables at restart, no.', i
   STOP
   END IF
 END DO
@@ -1043,9 +1133,10 @@ END DO
 stat(1) = NF_CLOSE(fileid)
 
   IF (stat(1) /= NF_NOERR) THEN
-     WRITE(*, *) 'NetCDF error in closing atmospheric stochasticity NetCDF file at restart'
+     WRITE(*, *) 'NetCDF error in closing PDAF Restart NetCDF file at restart'
   END IF
 
+ENDIF ! (dim_ens<=1)
 END SUBROUTINE
 
 ! ***********************************************

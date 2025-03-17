@@ -187,7 +187,7 @@ CONTAINS
     USE g_rotate_grid, &
          ONLY: r2g
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew, daynew
     USE obs_sst_pdafomi, &
          ONLY: mean_ice_p
 
@@ -264,13 +264,13 @@ CONTAINS
     ALLOCATE(all_std_p(myDim_nod2D))
 
     ! Position to read from file
-    iter_file = step / delt_obs_ocn
+    iter_file = daynew
     
     ! Debugging message:
     IF (mype_filter==0) THEN
        WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
             'FESOM-PDAF', 'Assimilate SSS observations - OBS_SSS_SMOS at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0,&
             ' h; read at ', iter_file
     END IF
 
@@ -523,6 +523,7 @@ CONTAINS
     ! Clean up arrays
     DEALLOCATE(all_obs_p, all_std_p, obs_error_p)
     DEALLOCATE(obs_p, ocoord_n2d_p, ivariance_obs_p)
+    if (allocated(obs_include_index)) deallocate(obs_include_index)
 
   END SUBROUTINE init_dim_obs_sss
 
@@ -586,6 +587,7 @@ CONTAINS
 
     ! Include PDAFomi function
     USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l
+    USE g_parsup, ONLY: myDim_nod2D
 
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
@@ -608,7 +610,7 @@ CONTAINS
           ! *** Variable localization radius for fixed effective observation dimension ***
           CALL get_adaptive_lradius_pdaf(domain_p, lradius_sss, loc_radius_sss)
        END IF
-       lradius_sss = loc_radius_sss(domain_p)
+       lradius_sss = loc_radius_sss(modulo(domain_p,myDim_nod2D))
 
 !~        if (mype_filter==44) CALL PDAFomi_set_debug_flag(1)
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l

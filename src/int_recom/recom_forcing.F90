@@ -144,6 +144,7 @@ subroutine REcoM_Forcing(zNodes, n, Nn, state, SurfSW, Loc_slp, Temp, Sali, PAR,
       print*, 'Latd: ', Latd   
       print*, 'ULoc: ', ULoc
       print*, 'Loc_ice_conc: ', Loc_ice_conc
+      print*, 'thick: ',thick
 #ifdef use_PDAF
       call abort_parallel()
 #endif
@@ -177,13 +178,18 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_sms'/
 
   ! update tracers
   state(1:nn,:)      = max(tiny,state(1:nn,:) + sms(1:nn,:))
+  ! small phytoplankton
   state(1:nn,ipchl)  = max(tiny_chl,state(1:nn,ipchl))
   state(1:nn,iphyn)  = max(tiny_N,  state(1:nn,iphyn))
   state(1:nn,iphyc)  = max(tiny_C,  state(1:nn,iphyc))
+  ! diatoms
   state(1:nn,idchl)  = max(tiny_chl,state(1:nn,idchl))
   state(1:nn,idian)  = max(tiny_N_d,state(1:nn,idian))
   state(1:nn,idiac)  = max(tiny_C_d,state(1:nn,idiac))
   state(1:nn,idiasi) = max(tiny_Si, state(1:nn,idiasi))
+  ! heterotrophs and zooplankton
+  state(1:nn,ihetc)  = max(tiny*Redfield, state(1:nn,ihetc))
+  state(1:nn,izoo2c) = max(tiny*Redfield, state(1:nn,izoo2c))
 
 if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> ciso after REcoM_Forcing'//achar(27)//'[0m'
   if (ciso) then

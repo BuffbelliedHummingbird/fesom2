@@ -49,6 +49,38 @@ end subroutine monthly_event
 !
 !--------------------------------------------------------------------------------------------
 !
+#ifdef use_PDAF
+subroutine monthly_event_assimstep(do_output, N_opt)
+  ! decides whether it's time to do output during analysis and forecast phase
+  use g_clock
+  use mod_assim_pdaf, only: assim_time
+  implicit none
+
+  ! arguments
+  logical :: do_output
+  integer, intent(in), optional :: N_opt ! length of time-period N, optional
+  ! local variable
+  integer :: N_nec                       ! length of time-period N, necessary
+    
+  if (present(N_opt)) then
+     N_nec = N_opt
+  else
+     N_nec = 1
+  endif
+
+  if (day_in_month==num_day_in_month(fleapyear,month) .and. &
+      timenew==assim_time                             .and. &
+      (mod(month, N_nec)==0)) then
+     do_output=.true.
+  else
+     do_output=.false.
+  end if
+
+end subroutine monthly_event_assimstep
+#endif
+!
+!--------------------------------------------------------------------------------------------
+!
 subroutine daily_event(do_output, N)
   !decides whether it's time to do output
   use g_clock

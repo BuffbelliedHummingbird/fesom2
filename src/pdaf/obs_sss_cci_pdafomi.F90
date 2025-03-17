@@ -191,7 +191,7 @@ CONTAINS
     USE g_rotate_grid, &
          ONLY: r2g
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew, daynew
     USE obs_sst_pdafomi, &
          ONLY: mean_ice_p
 
@@ -268,13 +268,13 @@ CONTAINS
     ! ALLOCATE(all_std_p(myDim_nod2D))
 
     ! Position to read from file
-    iter_file = step / delt_obs_ocn
+    iter_file = daynew
     
     ! Debugging message:
     IF (mype_filter==0) THEN
        WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
             'FESOM-PDAF', 'Assimilate SSS CCI observations - OBS_SSS_CCI at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0,&
             ' h; read at ', iter_file
     END IF
 
@@ -535,6 +535,7 @@ CONTAINS
     ! Clean up arrays
     DEALLOCATE(all_obs_p, obs_error_p) ! all_std_p
     DEALLOCATE(obs_p, ocoord_n2d_p, ivariance_obs_p)
+    if (allocated(obs_include_index)) deallocate(obs_include_index)
 
   END SUBROUTINE init_dim_obs_sss_cci
 

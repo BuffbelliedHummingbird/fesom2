@@ -36,6 +36,7 @@ INTEGER :: delt_obs_ocn           ! time step interval between assimilation step
 INTEGER :: istep_asml             ! assimilation time step at end of an forecast phase (FESOM's "mstep" + step_null);
                                   ! FESOM's "mstep" starts counting from zero even at each restart (even mid-of year);
                                   ! istep_asml starts counting from zero on 1st-Jan
+INTEGER :: assim_time             ! assimlation step time of day (UTC) in seconds
 
 ! Settings for observations:
 INTEGER :: dim_obs          ! Number of observations
@@ -45,7 +46,6 @@ INTEGER :: proffiles_o      ! (0) don't generate profile observation files;
                             ! (2) generate global profile file
 INTEGER :: start_year_o, &  ! Which years to generate profile files
            end_year_o
-! LOGICAL :: use_global_obs   ! Whether to use global full obs, of full obs limited to process domains
 INTEGER :: use_global_obs
 LOGICAL :: twin_experiment = .false.   ! Whether to perform a twin experiment with synthetic observations
 INTEGER :: dim_obs_max      ! Expect max. number of observations for synthetic obs.
@@ -87,6 +87,7 @@ INTEGER :: DA_couple_type ! (0) for weakly-coupled, (1) for strongly-coupled ass
 ! General
 INTEGER :: type_forget  ! Type of forgetting factor
 REAL    :: forget       ! Forgetting factor for filter analysis
+LOGICAL :: resetforget  ! Whether to reset forgetting factor after initial phase
 INTEGER :: dim_bias     ! dimension of bias vector
 ! SEIK/ETKF/LSEIK/ETKFS
 INTEGER :: type_trans    ! Type of ensemble transformation
@@ -169,15 +170,16 @@ END TYPE field_ids
 
 ! Type variable holding field IDs in state vector
 TYPE(field_ids) :: id
-
 INTEGER :: nfields          ! Number of fields in state vector
 INTEGER :: phymin, phymax   ! First and last physics field in state vector
 INTEGER :: bgcmin, bgcmax   ! First and last biogeochemistry field in state vector
+
 ! Specific for local filters
 INTEGER, ALLOCATABLE :: id_lobs_in_fobs(:)     ! Indices of local observations in full obs. vector
 INTEGER, ALLOCATABLE :: id_lstate_in_pstate(:) ! Indices of local state vector in PE-local global state vector
 REAL, ALLOCATABLE    :: ivariance_obs_l(:)     ! Local inverse variance of observations
 REAL, ALLOCATABLE :: distance(:)               ! Distances of local observations
+
 ! Variables for adaptive localization radius
 REAL, ALLOCATABLE :: eff_dim_obs(:)            ! Effective observation dimension
 REAL, ALLOCATABLE :: loc_radius(:)             ! Effective observation dimension
@@ -187,25 +189,26 @@ INTEGER :: loctype       ! Type of localization
 REAL :: loc_ratio        ! Choose local_range so the effective observation dim. is loc_ratio times dim_ens
 INTEGER, ALLOCATABLE :: id_nod2D_ice(:)        ! IDs of nodes with ice
 INTEGER :: depth_excl_no
-INTEGER, ALLOCATABLE :: depth_excl(:)        ! nodes excluded in each pe 
+INTEGER, ALLOCATABLE :: depth_excl(:)          ! nodes excluded in each pe
+
 ! File output and input - available as as namelist read-in
 LOGICAL :: read_inistate = .false.            ! Whether to read initial state from separate file
-CHARACTER(len=120) :: DAoutput_path  = '.'      ! Path of DAoutput
+CHARACTER(len=120) :: DAoutput_path  = '.'    ! Path of DAoutput
 CHARACTER(len=120) :: path_init = '.'         ! Path to initialization files
 CHARACTER(len=120) :: file_init = 'covar_'    ! netcdf file holding distributed initial
                                               ! state and covariance matrix (added is _XX.nc)
 CHARACTER(len=120) :: file_inistate = 'state_ini_' ! netcdf file holding distributed initial
-                                              ! state (added is _XX.nc)
-CHARACTER(len=120) :: file_syntobs = 'syntobs.nc' ! File name for synthetic observations
-CHARACTER(len=120) :: path_obs_rawprof  = ''      ! Path to profile observations
-CHARACTER(len=120) :: file_rawprof_prefix  = ''   ! file name prefix for profile observations 
-CHARACTER(len=120) :: file_rawprof_suffix  = '.nc'! file name suffix for profile observations 
+                                                   ! state (added is _XX.nc)
+CHARACTER(len=120) :: file_syntobs = 'syntobs.nc'  ! File name for synthetic observations
+CHARACTER(len=120) :: path_obs_rawprof  = ''       ! Path to profile observations
+CHARACTER(len=120) :: file_rawprof_prefix  = ''    ! file name prefix for profile observations 
+CHARACTER(len=120) :: file_rawprof_suffix  = '.nc' ! file name suffix for profile observations 
 LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
 
 ! Initial ensemble covariance
-REAL    :: varscale=1.0 ! Scaling factor for initial ensemble variance
-
-LOGICAL :: perturb_ssh   = .true. ! which fields to perturb from covariance
+REAL    :: varscale=1.0           ! scaling factor for initial ensemble variance
+! which fields to perturb
+LOGICAL :: perturb_ssh   = .true.
 LOGICAL :: perturb_u     = .true.
 LOGICAL :: perturb_v     = .true.
 LOGICAL :: perturb_temp  = .true.
@@ -215,57 +218,71 @@ LOGICAL :: perturb_Alk   = .true.
 LOGICAL :: perturb_DIN   = .true.
 LOGICAL :: perturb_O2    = .true.
 
+CHARACTER(len=120) :: path_atm_cov
+
 ! Restart information - set in slurm-job-script:
 LOGICAL :: this_is_pdaf_restart = .false.            ! init_pdaf:        - at every start, initialize PDAF-netCDF-output
                                                      !                   - at restart, set forget from restart info
                                                      ! init_ens_pdaf:    - at restart, skip perturbation of initial fields
                                                      ! distribute_state: - at restart, skip distribution of initial fields
-                                                     ! prepoststep:      - at restart, skip writing of initial fields to netCDF
                                                      ! add_atmos_ens_st: - at restart, read perturbed atmospheric state
                                                      !                   - at restart, read forget and target value for RMSE
 LOGICAL :: start_from_ENS_spinup = .false.           ! init_ens_pdaf:    - at start from perturbed ensemble, skip perturbation of initial fields
                                                      ! add_atmos_ens_st: - at start from perturbed ensemble, read perturbed atmospheric state
                                                      ! distribute_state: - at start from perturbed ensemble, skip distribution of initial fields
 
-CHARACTER(len=120) :: path_atm_cov
 
 LOGICAL :: assimilateBGC = .false. ! whether to do a BGC assimilation step
 LOGICAL :: assimilatePHY = .false. ! whether to do a physics assimilation step
 
 ! Other variables - NOT available as command line options / in the namelist:
-REAL    :: time      ! model time
+REAL                 :: time               ! model time
 INTEGER, ALLOCATABLE :: offset(:)          ! PE-local offsets of fields in state vector
 INTEGER, ALLOCATABLE :: dim_fields(:)      ! PE-local dimensions of fields in state vector
 INTEGER, ALLOCATABLE :: offset_glob(:)     ! Global offsets of fields in state vector
 INTEGER, ALLOCATABLE :: dim_fields_glob(:) ! Global dimensions of fields in state vector
-REAL :: coords_l(2)                        ! Coordinates of local analysis domain
+REAL                 :: coords_l(2)        ! Coordinates of local analysis domain
 INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (i.e. field of vertical water column at 1 node)
 INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
-!~ REAL, PARAMETER :: pi=3.14159265358979323846
-REAL, ALLOCATABLE :: state_fcst(:,:)    ! State prior to assimilation, saved to use for correction
+REAL, ALLOCATABLE :: state_fcst(:,:)    ! state prior to assimilation, saved to use for correction
 REAL, ALLOCATABLE :: stdev_SSH_f_p(:)   ! forecast ensemble standard deviation at grid points for SSH field, saved to use for correction
-INTEGER :: num_day_in_month(0:1,12), endday_of_month_in_year(0:1,12), startday_of_month_in_year(0:1,12)
 REAL, ALLOCATABLE :: monthly_state_f(:)       ! forecasted monthly state
 REAL, ALLOCATABLE :: monthly_state_a(:)       ! analyzed monthly state
-REAL, ALLOCATABLE :: monthly_state_m(:)       ! (analyzed) monthly time-mean state
+REAL, ALLOCATABLE :: monthly_state_m(:)       ! monthly time-mean state
 REAL, ALLOCATABLE :: monthly_state_ens_f(:,:)
 REAL, ALLOCATABLE :: monthly_state_ens_a(:,:)
-LOGICAL :: write_monthly_mean =.false.   ! set to true if writing 3D fields monthly;
-                                         ! otherwise, set to false to write daily 3D;
-                                         ! 2D fields are always written daily.
-INTEGER :: mon_snapshot_mem =0
-REAL, ALLOCATABLE :: timemean(:)     ! Daily mean local state vector (analysis)
+REAL, ALLOCATABLE :: timemean(:)     ! daily mean local state vector (mean of model forecast steps and analysis step)
 
-DATA num_day_in_month(0,:) /31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/
-DATA num_day_in_month(1,:) /31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31/
-DATA endday_of_month_in_year(0,:) /31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365/
-DATA endday_of_month_in_year(1,:) /31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366/
-DATA startday_of_month_in_year(0,:) /1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335/
-DATA startday_of_month_in_year(1,:) /1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336/
+REAL, ALLOCATABLE :: monthly_state_sf(:)       ! forecasted monthly standard deviation
+REAL, ALLOCATABLE :: monthly_state_sa(:)       ! analyzed monthly standard deviation
+REAL, ALLOCATABLE :: monthly_state_sm(:)       ! monthly time-mean standard deviation
+REAL, ALLOCATABLE :: timemean_s(:)
 
-type(t_mesh), pointer, save      :: mesh_fesom
-INTEGER :: nlmax = 46 ! CORE2 mesh: deepest wet cells at mesh_fesom%nl-2
+! whether to compute monthly means:
+LOGICAL :: compute_monthly_ff
+LOGICAL :: compute_monthly_aa
+LOGICAL :: compute_monthly_mm
+
+LOGICAL :: compute_monthly_sf
+LOGICAL :: compute_monthly_sa
+LOGICAL :: compute_monthly_sm
+
+
+! Julian-Gregorian date transformation of EN4 raw data 
+INTEGER :: num_day_in_month(0:1,12), endday_of_month_in_year(0:1,12), startday_of_month_in_year(0:1,12)
+
+! FESOM mesh:
+type(t_mesh), pointer, save :: mesh_fesom
+INTEGER, PARAMETER :: nlmax = 46            ! CORE2 mesh: deepest wet cells at mesh_fesom%nl-2
+REAL, ALLOCATABLE :: topography3D(:,:)      ! topography: 1 for wet nodes and 0 for dry nodes (array shape as in model)
+REAL, ALLOCATABLE :: topography_p(:)        ! """                                             (array shape as state_p)
+REAL, ALLOCATABLE :: topography3D_g(:,:)    ! """                                             (array shape as in model globally)
+REAL :: area_surf_glob(nlmax)               ! ocean area and standard volume to calculate area-/volume weighted means
+REAL :: inv_area_surf_glob(nlmax)
+REAL :: volo_full_glob, inv_volo_full_glob
+REAL, ALLOCATABLE :: cellvol(:,:)           ! standard volume of cells, NOT considering time-varying ALE layerwidth
+
 
 ! For weak coupling:
 integer :: n_sweeps                 !< Number of sweeps in local analysis loop
@@ -274,31 +291,30 @@ integer :: isweep                   !< Index of sweep during the local analysis 
 character(len=6) :: cda_phy   ! Flag whether strongly-coupled DA is done
 character(len=6) :: cda_bio   ! Flag whether strongly-coupled DA is done
 
+! Initial state in case of restarts:
+real, allocatable :: state_p_init(:)
+real, allocatable :: ens_p_init(:,:)
+
 ! For carbon diagnostics:
-! Forecast state
-real, allocatable :: mF_alk               (:,:)
-real, allocatable :: mF_dic               (:,:)
-real, allocatable :: mF_livingmatter      (:,:)
-real, allocatable :: mF_deadmatter        (:,:)
+real, allocatable :: factor_mass(:,:)
+real, allocatable :: factor_conc(:,:)
 
-! Analysis state
-real, allocatable :: mA_alk               (:,:)
-real, allocatable :: mA_dic               (:,:)
-real, allocatable :: mA_livingmatter      (:,:)
-real, allocatable :: mA_deadmatter        (:,:)
+! Type variable for postprocessing:
+type obs_PP
+   real, allocatable :: isExclObs (:)! whether to exclude observation due to model topography
+   real, allocatable :: isInnoOmit(:)! whether to exclude observation due to Inno Omit
+   real, allocatable :: nod1_g(:)    ! observation indeces on global FESOM grid (nodes)
+   real, allocatable :: nod2_g(:)    ! """
+   real, allocatable :: nod3_g(:)    ! """
+   real, allocatable :: elem_g(:)    ! observation indeces on global FESOM grid (elements)
+   real, allocatable :: lon(:)       ! observation coordinates
+   real, allocatable :: lat(:)       ! """
+   real, allocatable :: nz(:)        ! observation layer indeces
+   real, allocatable :: depth(:)     ! observation depth
+   real, allocatable :: numrep(:)    ! number of observations on one single element
+   real, allocatable :: volelem(:)   ! volume of FESOM element
+end type obs_PP
 
-! Source of mass from assimilation step
-real, allocatable :: s_asml_alk           (:,:)
-real, allocatable :: s_asml_dic           (:,:)
-real, allocatable :: s_asml_livingmatter  (:,:)
-real, allocatable :: s_asml_deadmatter    (:,:)
-
-real, allocatable :: sM_asml_alk           (:,:)
-real, allocatable :: sM_asml_dic           (:,:)
-real, allocatable :: sM_asml_livingmatter  (:,:)
-real, allocatable :: sM_asml_deadmatter    (:,:)
-
-real, allocatable :: factor_massvol        (:,:)
 
 ! For debugging:
 INTEGER :: debug_id_depth, & ! Location for debugging output

@@ -2,7 +2,6 @@
 !!
 !! This module handles operations for one data type (called 'module-type' below).
 !! 
-!! Module type here: Surface salinity observations from SMOS.
 !!
 !! The subroutines in this module are for the particular handling of
 !! a single observation type.
@@ -61,7 +60,7 @@ MODULE obs_chl_cci_pdafomi
   SAVE
 
   ! Variables which are inputs to the module (usually set in init_pdaf)
-  LOGICAL :: assim_o_chl_cci      ! Whether to assimilate SSS data
+  LOGICAL :: assim_o_chl_cci      ! Whether to assimilate data
 
   ! Further variables specific for the OC CCO chlorophyll observations
   CHARACTER(len=100) :: path_obs_chl_cci  = ''      ! Path to observations
@@ -81,6 +80,13 @@ MODULE obs_chl_cci_pdafomi
   REAL, ALLOCATABLE :: mean_chl_cci_p (:)    ! Mean value for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_chl_cci(:) ! Localization radius array
   REAL, ALLOCATABLE :: ivariance_obs_g(:)    ! Global-earth inverse observation variances
+  
+  LOGICAL :: chl_logarithmic = .true.        ! Whether to apply log-transformation
+  
+  CHARACTER(len=300) :: path_bias
+  CHARACTER(len=100) :: file_bias_prefix
+  
+  REAL, PARAMETER :: base10toE = 2.302585092994 ! = 1.0/(LOG10(EXP(1.0)))
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -188,7 +194,7 @@ CONTAINS
     USE g_rotate_grid, &
          ONLY: r2g
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew, daynew
     USE obs_sst_pdafomi, &
          ONLY: mean_ice_p
 
@@ -223,7 +229,11 @@ CONTAINS
     REAL, ALLOCATABLE :: ocoord_g(:,:)      ! Global full observation coordinates (used in case of limited obs.)
     INTEGER, ALLOCATABLE :: obs_include_index(:)   ! Index of observed (not excluded!) surface nodes on process domain
     INTEGER :: dim_obs_f                      ! Global full observation number
-
+    
+    CHARACTER(len=300) :: bias_file = ''     ! Complete name of observation file without path
+    INTEGER :: fileidbias                    ! ID for NetCDF file
+    INTEGER :: id_bias                       ! ID for state
+    REAL(4), ALLOCATABLE :: all_bias_p(:)    ! PE-local complete observation field read from file
 
 ! *********************************************
 ! *** Initialize full observation dimension ***
@@ -257,20 +267,22 @@ CONTAINS
     ! Initialize complete file name
     WRITE(mype_string,'(i5.5)') mype_filter
 
-    obs_file=TRIM(file_chl_cci_prefix)//TRIM(mype_string)//TRIM(file_chl_cci_suffix)
+    obs_file =TRIM(file_chl_cci_prefix)//TRIM(mype_string)//TRIM(file_chl_cci_suffix)
+    bias_file=TRIM(path_bias)//TRIM(file_bias_prefix)//TRIM(mype_string)//'.nc'
 
     ! Allocate array
-    ALLOCATE(all_obs_p(myDim_nod2D))
-    ALLOCATE(all_std_p(myDim_nod2D))
+    ALLOCATE(all_obs_p (myDim_nod2D))
+    ALLOCATE(all_std_p (myDim_nod2D))
+    ALLOCATE(all_bias_p(myDim_nod2D))
 
     ! Position to read from file
-    iter_file = step / delt_obs_ocn
+    iter_file = daynew
     
     ! Debugging message:
     IF (mype_filter==0) THEN
        WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
             'FESOM-PDAF', 'Assimilate OC-CCI observations - OBS_CHL_CCI_PDAFOMI at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0,&
             ' h; read at ', iter_file
     END IF
 
@@ -290,6 +302,7 @@ CONTAINS
     stat(3) = NF_GET_VARA_REAL (fileid, id_state, startv, countv, all_obs_p)
     
     ! *** Read standard deviation ***
+    ! Root-mean-square-difference of log10-transformed chlorophyll-a concentration in seawater.
    
     stat(4) = NF_INQ_VARID(fileid, 'std', id_std)
    
@@ -310,6 +323,50 @@ CONTAINS
             ' file ',obs_file
        stat(i)=0
     END DO
+    
+! ***********************************
+! *** Read PE-local bias FREE-OBS ***
+! ***********************************
+
+    ! Debugging message:
+    IF ((mype_filter==0) .and. (iter_file==1)) THEN
+       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
+            'FESOM-PDAF', 'De-Bias OC-CCI observations - OBS_CHL_CCI_PDAFOMI at ', &
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0,&
+            ' h; read at ', iter_file
+    END IF
+    
+    IF (bias_obs_chl_cci/=0.0) THEN
+       
+       ! Read bias
+         
+        stat(1) = NF_OPEN(TRIM(bias_file), NF_NOWRITE, fileidbias)        
+	    
+        ! *** Read state estimate ***
+	    
+        stat(2) = NF_INQ_VARID(fileidbias, 'bias', id_bias)
+	    
+        startv(2) = iter_file
+        countv(2) = 1
+        startv(1) = 1
+        countv(1) = myDim_nod2D 
+	    
+        stat(3) = NF_GET_VARA_REAL (fileidbias, id_bias, startv, countv, all_bias_p)
+	    
+        ! *** close file  ***
+        stat(4) = NF_CLOSE(fileidbias)
+	    
+        ! check status flag
+        DO i=1,4
+           IF (stat(i).NE.NF_NOERR) WRITE(*,*) &
+                'NetCDF error in reading OC_CCI Bias, no.',i, &
+                ' file ', TRIM(bias_file)
+           stat(i)=0
+        END DO
+       
+    ELSE
+       all_bias_p(:)=0
+    ENDIF
 
 
 ! ****************************
@@ -392,6 +449,7 @@ CONTAINS
 		! *** Initialize index vector of observed surface nodes ***
 		! This array has a many rows as required for the observation operator
 		! 1 if observations are at grid points; >1 if interpolation is required
+		! 1 if one model field is required; >1 if value is to be derived from multiple model fields
 		
 		ALLOCATE(thisobs%id_obs_p(2, dim_obs_p))
 		ALLOCATE(obs_include_index(dim_obs_p))
@@ -402,10 +460,11 @@ CONTAINS
 			  i_obs = i_obs + 1
 			  
 			  ! index for state vector
-			  
+			  ! row 1: DiaChl
 			  thisobs%id_obs_p(1, i_obs) = &
 			  (i-1) * (nlmax) + 1 + offset(id% DiaChl)
 			  
+			  ! row 2: PhyChl
 			  thisobs%id_obs_p(2, i_obs) = &
 			  (i-1) * (nlmax) + 1 + offset(id% PhyChl)
 			  
@@ -419,10 +478,19 @@ CONTAINS
 		ALLOCATE(obs_error_p(dim_obs_p))
 		
 		DO i = 1, dim_obs_p
-		   obs_p(i)       = REAL(all_obs_p(obs_include_index(i)), 8)
-		   obs_error_p(i) = REAL(all_std_p(obs_include_index(i)), 8) * REAL(all_obs_p(obs_include_index(i)), 8)
-		                    ! logarithmic error from file (all_std_p) serves as relative error here,
-		                    ! because logarithmic sum equals product of arguments rule
+		   IF (chl_logarithmic) THEN
+		                       !      ** log-transformation of chlorophyll **    ** de-bias observations **
+		      obs_p(i)       = REAL(  LOG(all_obs_p(obs_include_index(i)))       + all_bias_p(obs_include_index(i)), 8)
+		                       ! logarithmic error is provided
+		      obs_error_p(i) = base10toE * REAL(all_std_p(obs_include_index(i)), 8)
+		   ELSE
+		                       ! chlorophyll is provided
+		      obs_p(i)       = REAL(all_obs_p(obs_include_index(i)), 8)
+		                      ! logarithmic error from file (all_std_p) serves as relative error here,
+		                      ! which holds for relative errors << 1
+		      obs_error_p(i) = REAL(all_std_p(obs_include_index(i)), 8) * REAL(all_obs_p(obs_include_index(i)), 8)
+
+		   ENDIF
 		ENDDO
 
 		! *** Initialize coordinate arrays for PE-local observations
@@ -451,7 +519,7 @@ CONTAINS
           ! *** Use variable error from file
           IF (mype_filter == 0) &
           		WRITE (*,'(a,5x,a,i7)') 'FESOM-PDAF', &
-                '--- Use variable SSS CCI observation error from file'
+                '--- Use variable OC-CCI observation error from file'
 
 		END IF
 
@@ -461,16 +529,6 @@ CONTAINS
 		   ivariance_obs_p(i) = 1.0 / obs_error_p(i)**2
 		END DO
 
-
-	! ****************************
-	! *** De-bias observations ***
-	! ****************************
-
-		IF (bias_obs_chl_cci/=0.0 .AND. mype_filter == 0) &
-			 WRITE (*, '(a, 5x, a, f12.3)') &
-			 'FESOM-PDAF', '--- For OC-CCI chl-a, use global observation bias of ', bias_obs_chl_cci
-
-		obs_p = obs_p - bias_obs_chl_cci
 		
 	ELSE ! (i.e. dim_obs_p==0)
 	
@@ -531,8 +589,9 @@ CONTAINS
 ! ********************
 
     ! Clean up arrays
-    DEALLOCATE(all_obs_p, obs_error_p, all_std_p)
+    DEALLOCATE(all_obs_p, obs_error_p, all_std_p, all_bias_p)
     DEALLOCATE(obs_p, ocoord_n2d_p, ivariance_obs_p)
+    if (allocated(obs_include_index)) deallocate(obs_include_index)
 
   END SUBROUTINE init_dim_obs_chl_cci
 
@@ -582,7 +641,12 @@ CONTAINS
        
        ! Initialize observed pe-local state vector by sum of rows 1 and 2 (DiaChl and PhyChl)
        DO i = 1, thisobs%dim_obs_p
-         ostate_p(i) = state_p(thisobs%id_obs_p(1,i)) + state_p(thisobs%id_obs_p(2,i))
+          IF (chl_logarithmic) THEN
+             ! log-transform
+             ostate_p(i) = LOG(state_p(thisobs%id_obs_p(1,i)) + state_p(thisobs%id_obs_p(2,i)))
+          ELSE
+             ostate_p(i) = state_p(thisobs%id_obs_p(1,i)) + state_p(thisobs%id_obs_p(2,i))
+          ENDIF
        END DO
        
        ! *** Global: Gather full observed state vector
@@ -636,7 +700,7 @@ CONTAINS
           ! *** Variable localization radius for fixed effective observation dimension ***
           CALL get_adaptive_lradius_pdaf(domain_p, lradius_chl_cci, loc_radius_chl_cci)
        END IF
-       lradius_chl_cci = loc_radius_chl_cci(domain_p)
+       lradius_chl_cci = loc_radius_chl_cci(modulo(domain_p,myDim_nod2D))
 
 !~        IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
 !~          CALL PDAFomi_set_debug_flag(domain_p)

@@ -191,9 +191,9 @@ use diagnostics,     only: ldiag_dMOC, ldiag_DVD
 use REcoM_GloVar
 use recom_config
 #endif
-#ifdef use_PDAF
-    use mod_carbon_fluxes_diags
-#endif
+!~ #ifdef use_PDAF
+!~     use mod_carbon_fluxes_diags
+!~ #endif
 IMPLICIT NONE
 integer     :: elem_size, node_size
 integer     :: n
@@ -258,10 +258,10 @@ if (ldiag_DVD) then
     tr_dvd_vert  = 0.0_WP
 end if
 
-! *** Initialize carbon flux diagnostics:
-#ifdef use_PDAF
-   CALL init_carbonfluxes_diags_arrays()
-#endif
+!~ ! *** Initialize carbon flux diagnostics:
+!~ #ifdef use_PDAF
+!~    CALL init_carbonfluxes_diags_arrays()
+!~ #endif
 
 allocate(bvfreq(nl,node_size),mixlay_dep(node_size),bv_ref(node_size))
 ! ================

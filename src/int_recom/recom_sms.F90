@@ -1523,9 +1523,9 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 
    if (REcoM_Second_Zoo) then
     sms(k,ioxy)   = (               &
-      + Cphot              * phyC  &
+      + Cphot              * phyC   &
       - phyRespRate         * phyC  &
-      + Cphot_dia          * diaC  &
+      + Cphot_dia          * diaC   &
       - phyRespRate_dia     * diaC  &
       - rho_C1  * arrFunc   * EOC   &
       - hetRespFlux                 &
@@ -1769,7 +1769,7 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 ! positive: flux is source of DIC
 
 
-    s_bio_dicLoc(k) =  (0.0 &
+    cffields(id_s_bio_dic)% loc(k) =  (0.0 &
       + rho_C1 * arrFunc * EOC           & ! Remineralization [DOC --> DIC]
       + calc_diss  * DetCalc             & ! Calcite dissolution sinking [Det    Calc --> DIC]
       + calc_diss2 * DetZ2Calc           & !  """                        [DetZo2 Calc --> DIC]
@@ -1782,7 +1782,7 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 ! net flux from DIC to living carbon biomass [mmol m-3 s-1]
 ! positive: flux is net source of living carbon biomass
 
-    s_bio_livingmatterLoc(k) =  (0.0 &
+    cffields(id_s_bio_livingmatter)% loc(k) =  (0.0 &
       + calcification              & ! [DIC --> PhyCalc]
       + Cphot            * PhyC    & ! Photosynthesis [DIC --> PhyC]
       + Cphot_dia        * DiaC    & !  """           [DIC --> DiaC]
@@ -1800,7 +1800,7 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 ! net flux from living biomass to dead organic carbon [mmol m-3 s-1]
 ! positive: flux is net source of dead organic carbon
 
-    s_bio_deadmatterLoc(k) =  (0.0 &
+    cffields(id_s_bio_deadmatter)% loc(k) =  (0.0 &
       + aggregationRate * PhyC                           & ! Aggregation [PhyC --> DetC]
       + aggregationRate * DiaC                           & !  """        [DiaC --> DetC]
       + lossC   * limitFacN     * PhyC                   & ! Excretion of DOC [PhyC --> DOC]
@@ -1844,17 +1844,17 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
   ! **************************
   ! bug-check: output be zero.
   ! **************************
-  IF (cfdiags_debug .or. (daynew<=1)) THEN
+  IF (cfdiags_debug) THEN
      if (writepe .and. (n==1)) THEN
      
       ! source of DIC
       write(*,*) 's_DIC ', &
-         (s_bio_dicLoc(k) - s_bio_livingmatterLoc(k)) &
+         (cffields(id_s_bio_dic)% loc(k) - cffields(id_s_bio_livingmatter)% loc(k)) &
        - sms(k,idic)
       
       ! source of living organic carbon
       write(*,*) 's_liv ', &
-         (s_bio_livingmatterLoc(k) - s_bio_deadmatterLoc(k)) &
+         (cffields(id_s_bio_livingmatter)% loc(k) - cffields(id_s_bio_deadmatter)% loc(k)) &
        - (   sms(k,iphyc)   &
            + sms(k,ihetc)   &
            + sms(k,izoo2c)  &
@@ -1864,7 +1864,7 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
          
       ! source of dead organic carbon
       write(*,*) 's_dead ', &
-         (s_bio_deadmatterLoc(k) - s_bio_dicLoc(k)) &
+         (cffields(id_s_bio_deadmatter)% loc(k) - cffields(id_s_bio_dic)% loc(k)) &
        - (   sms(k,idetc)      &
            + sms(k,idetz2c)    &
            + sms(k,idetz2calc) &
@@ -1893,7 +1893,7 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 ! net source of alkalinity through biogeochemical processes [mmol m-3 s-1]
 ! (calcification, calcite dissolution of detritus in water column and in guts, assimilation and remineralization of nitrogen)
 
-    s_bio_alkLoc(k) =  sms(k,ialk)
+    cffields(id_s_bio_alk)% loc(k) =  sms(k,ialk)
 
   endif ! (k<=nlmax)
 #endif

@@ -51,20 +51,20 @@
 MODULE obs_DIC_glodap_pdafomi
 
   USE mod_parallel_pdaf, &
-       ONLY: mype_filter, writepe ! Rank of filter process
+       ONLY: mype_filter, writepe   ! Rank of filter process
   USE PDAFomi, &
-       ONLY: obs_f, obs_l         ! Declaration of observation data types
+       ONLY: obs_f, obs_l           ! Declaration of observation data types
   USE mod_assim_pdaf, &
-       ONLY: n_sweeps             ! Variables for coupled data assimilation
+       ONLY: n_sweeps, &            ! Number of sweeps defined for coupled data assimilation
+       obs_PP                       ! Type variable for postprocessing
 
- 
   IMPLICIT NONE
   SAVE
 
   ! Variables which are inputs to the module (usually set in init_pdaf)
   LOGICAL :: assim_o_DIC_glodap   !< Whether to assimilate temperature profiles
 
-  ! Further variables specific for the EN4 profile observations
+  ! Further variables specific for the profile observations
   CHARACTER(len=110) :: path_obs_DIC_glodap  = ''      !< Path to profile observations
   CHARACTER(len=110) :: file_DIC_glodap
 
@@ -136,6 +136,13 @@ MODULE obs_DIC_glodap_pdafomi
   TYPE(obs_f), TARGET, PUBLIC :: thisobs      ! full observation
   TYPE(obs_l), TARGET, PUBLIC :: thisobs_l    ! local observation
 
+! For postprocessing:
+  type(obs_PP) :: thisobs_PP
+  type(obs_PP) :: thisobs_PP_f
+  
+  LOGICAL :: isPP = .false.                 ! T: for postprocessing of simulation output
+                                            ! F: for assimilation
+
 !$OMP THREADPRIVATE(thisobs_l)
 
 
@@ -176,29 +183,27 @@ CONTAINS
          ONLY: PDAFomi_gather_obs, PDAFomi_set_debug_flag
     USE mod_assim_pdaf, &
          ONLY: offset, use_global_obs, id, &
-               mesh_fesom, nlmax, &
-               local_range, srange
+               mesh_fesom, nlmax
     USE mod_parallel_pdaf, &
          ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER
     USE g_parsup, &
          ONLY: myDim_nod2D
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew
     USE o_param, &
          ONLY: pi
          
     USE netcdf
 
     IMPLICIT NONE
-
-!~     INCLUDE 'netcdf.inc'
+    save
 
 ! *** Arguments ***
     INTEGER, INTENT(in)    :: step      !< Current time step
     INTEGER, INTENT(inout) :: dim_obs   !< Dimension of full observation vector
 
 ! *** Local variables ***
-    INTEGER :: i, s, k, j          ! Counters
+    INTEGER :: i, s, k, j                     ! Counters
     INTEGER :: dim_obs_p                      ! Number of process local observations
     CHARACTER(len=2) :: mype_string           ! String for process rank
     CHARACTER(len=4) :: year_string           ! String for yearly observation data path
@@ -218,31 +223,26 @@ CONTAINS
     INTEGER :: ncid, dimid                    ! NetCDF IDs
     INTEGER :: id_obs, id_nod1, id_nod2, &
                id_nod3, id_nl, id_lon, &
-               id_lat
+               id_lat, id_depth, id_elem
                
     INTEGER :: cnt_ex_dry_p, cnt_ex_dry       ! Number of excluded observations due to model topography ("dry nodes")
     INTEGER :: nzmin                          ! Number of vertical model layers at observation location considering model topography
-
+    
+    
 ! *********************************************
 ! *** Initialize full observation dimension ***
 ! *********************************************
-
-    ! Store whether to assimilate this observation type
-    IF (assim_o_DIC_glodap) thisobs%doassim = 1
 
     ! Specify type of distance computation
     thisobs%disttype = 2   ! 2=Geographic
 
     ! Number of coordinates used for distance computation
     ! The distance compution starts from the first row
-    thisobs%ncoord = 2
-
-    ! Initialize flag for type of full observations
-    thisobs%use_global_obs = use_global_obs
+    thisobs%ncoord = 2    
 
     ! set localization radius, everywhere the same
-    lradius_DIC_glodap = local_range
-    sradius_DIC_glodap = srange
+    lradius_DIC_glodap = 1.0e6 ! 1000 km
+    sradius_DIC_glodap = 1.0e6
 
 
 ! **********************************
@@ -251,18 +251,36 @@ CONTAINS
 
     ! Initialize complete file name
     WRITE(mype_string,'(i2.2)') mype_filter
-    WRITE(year_string,'(i4.4)') yearold
+    WRITE(year_string,'(i4.4)') yearnew
     WRITE(mon_string, '(i2.2)') month
     WRITE(day_string, '(i2.2)') day_in_month
     
     file_DIC_glodap = TRIM(year_string//'-'//mon_string//'-'//day_string//'.'//mype_string//'.nc')
     
-    ! Debugging message:
-    IF (mype_filter == 0) THEN
-       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,a)') &
-            'FESOM-PDAF', 'Assimilate GLODAP DIC observations - OBS_DIC_glodap at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
-            ' h; read from file: ', file_DIC_glodap
+    ! Message:
+    IF (step < 0) then
+        ! ---
+        ! Postprocessing
+        ! ---
+        isPP = .true.
+        if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Postprocessing of GLODAP DIC observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_DIC_glodap
+        thisobs%use_global_obs = 1
+        thisobs%doassim = 1
+    ELSE
+       ! ---
+       ! Assimilation
+       ! ---
+       if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Assimilate GLODAP DIC observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_DIC_glodap
+       ! Store whether to use global observations
+       thisobs%use_global_obs = use_global_obs
+       ! Store whether to assimilate this observation type
+       IF (assim_o_DIC_glodap) thisobs%doassim = 1
     END IF
     
     ! Open the pe-local NetCDF file for that day
@@ -299,7 +317,15 @@ CONTAINS
       
       allocate(nod1_p(0),nod2_p(0),nod3_p(0),nl_p(0),lon_p(0),lat_p(0))
       
-      print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - No obs'
+      if (isPP) then
+        allocate(thisobs_PP%nod1_g(0),thisobs_PP%nod2_g(0),thisobs_PP%nod3_g(0))
+        allocate(thisobs_PP%elem_g(0))
+        allocate(thisobs_PP%depth(0),thisobs_PP%nz(0))
+        allocate(thisobs_PP%isExclObs(0))
+        allocate(thisobs_PP%lon(0),thisobs_PP%lat(0))
+      endif
+      
+!~       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - No obs'
       
     ELSE ! (i.e. dim_obs_p > 0)
     
@@ -310,6 +336,13 @@ CONTAINS
       allocate(lon_p(dim_obs_p),lat_p(dim_obs_p))
       allocate(ivariance_obs_p(dim_obs_p))
       allocate(ocoord_p(2,dim_obs_p))
+      if (isPP) then
+        allocate(thisobs_PP%nod1_g(dim_obs_p),thisobs_PP%nod2_g(dim_obs_p),thisobs_PP%nod3_g(dim_obs_p))
+        allocate(thisobs_PP%elem_g(dim_obs_p))
+        allocate(thisobs_PP%depth(dim_obs_p),thisobs_PP%nz(dim_obs_p))
+        allocate(thisobs_PP%isExclObs(dim_obs_p))
+        allocate(thisobs_PP%lon(dim_obs_p),thisobs_PP%lat(dim_obs_p))
+      endif
       
       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Have obs: ', dim_obs_p
       
@@ -319,7 +352,7 @@ CONTAINS
       ncstat = nf90_get_var(ncid, id_obs, obs_p)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading obs from netCDF'
    
-      ! Reading nodes
+      ! Reading nodes on PE
       ncstat = nf90_inq_varid(ncid,'NOD1_P', id_nod1)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
       ncstat = nf90_get_var(ncid, id_nod1, nod1_p)
@@ -351,20 +384,55 @@ CONTAINS
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_lat from netCDF'
       ncstat = nf90_get_var(ncid, id_lat, lat_p)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading lat from netCDF'
+      
+      if (isPP) then
+      
+      thisobs_PP%nz  = REAL(nl_p)
+      thisobs_PP%lon = lon_p
+      thisobs_PP%lat = lat_p
+      
+      ! Reading nodes on globe
+      ncstat = nf90_inq_varid(ncid,'NOD1_G', id_nod1)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod1, thisobs_PP%nod1_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod1 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD2_G', id_nod2)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod2 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod2, thisobs_PP%nod2_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod2 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD3_G', id_nod3)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod3 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod3, thisobs_PP%nod3_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod3 from netCDF'
+      
+      ! Reading mesh element
+      ncstat = nf90_inq_varid(ncid,'ELEM_G', id_elem)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_elem from netCDF'
+      ncstat = nf90_get_var(ncid, id_elem, thisobs_PP%elem_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading elem from netCDF'
+      
+      ! Reading depth
+      ncstat = nf90_inq_varid(ncid,'DEPTH', id_depth)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_depth from netCDF'
+      ncstat = nf90_get_var(ncid, id_depth, thisobs_PP%depth)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading depth from netCDF'
+      endif ! isPP
    
       ocoord_p(1,:) = lon_p / 180.0 * PI
       ocoord_p(2,:) = lat_p / 180.0 * PI
-      
       
       ! *** Set constant observation error *** 
       IF (mype_filter == 18) &
           WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
           '--- Use global GLODAP DIC observation error of ', rms_obs_DIC_glodap, ' mmol/m3'
-      ! Set inverse observation error variance
+          
+      ! Set inverse observation error variance for included observations
       ivariance_obs_p = 1.0 / (rms_obs_DIC_glodap ** 2)
+      if (isPP) thisobs_PP%isExclObs = 0
       
-      
-      ! *** Initialize index vector of observed surface nodes ***
+      ! *** Initialize index vector of observed nodes ***
       ! This array has as many rows as required for the observation operator
       ! 1 if observations are at grid points; >1 if interpolation is required
       allocate(thisobs%id_obs_p(3,dim_obs_p))
@@ -379,12 +447,13 @@ CONTAINS
                       mesh_fesom% nlevels_nod2D( nod2_p(i) ), &
                       mesh_fesom% nlevels_nod2D( nod3_p(i) ))
         IF (nl_p(i) >= nzmin) THEN
+           if (isPP) thisobs_PP%isExclObs(i) = 1
            ivariance_obs_p(i) = 1e-12
            cnt_ex_dry_p = cnt_ex_dry_p + 1
         ENDIF
       END DO
       
-      WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
+!~       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
 
     ENDIF
     
@@ -415,7 +484,6 @@ CONTAINS
        ivariance_obs_g = thisobs%ivar_obs_f
     end if
 
-
     ! *** Clean-up ***
     ncstat = nf90_close(ncid)
     if (ncstat /= nf90_noerr) then
@@ -425,7 +493,7 @@ CONTAINS
     deallocate(obs_p,ivariance_obs_p,ocoord_p)
     deallocate(nod1_p,nod2_p,nod3_p,nl_p,lon_p,lat_p) 
     ! this_obs%id_obs_p is deallocated in PDAFomi_obs_l.F90
-
+    
   END SUBROUTINE init_dim_obs_DIC_glodap
 
 
@@ -460,7 +528,7 @@ CONTAINS
 ! *** Apply observation operator H on a state vector ***
 ! ******************************************************
 
-! For EN4 profile observations handled here, the observation
+! For profile observations handled here, the observation
 ! operator has to average the values of 3 grid points.
 ! For this the observation operator OBS_OP_F_GRIDAVG is used.
 
@@ -507,13 +575,6 @@ CONTAINS
     INTEGER, INTENT(in)  :: step         !< Current time step
     INTEGER, INTENT(in)  :: dim_obs      !< Full dimension of observation vector
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
-
-! *** OMI-Debug:
-!~   IF (mype_filter==0 .AND. domain_p==5) THEN
-!~     CALL PDAFomi_set_debug_flag(domain_p)
-!~   ELSE
-!~     CALL PDAFomi_set_debug_flag(0)
-!~   ENDIF
 
     IF (thisobs%doassim == 1) THEN
        

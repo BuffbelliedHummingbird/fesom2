@@ -140,7 +140,10 @@ if (Vsink .gt. 0.1) then ! No sinking if Vsink < 0.1 m/day
 
       end do
 
-if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old recom
+if (1) then ! 3rd Order DST Sceheme with flux limiting
+
+      ! tv:       transport at layerbounds per area, in mmol C / m2 / sec  [positive downwards]
+      ! vd_flux:  transport at layerbounds,          in mmol C / sec       [positive downwards]
 
       k=nod_in_elem2D_num(n)
       ! Screening minimum depth in neigbouring nodes around node n
@@ -181,7 +184,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old
          vd_flux(nz)= - tv*area(nz,n)
          
 #ifdef use_PDAF
-        IF (nz<=nlmax) THEN
+        IF ((nz>1) .and. (nz<=nlmax+1)) THEN
         ! mod_carbonfluxes_diags
         ! sum of tracers here; at begin of tracer loop in oce_ale_tracer.F90, sum is set to zero
         
@@ -191,7 +194,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old
             tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
             tracer_id(tr_num) == 1028 ) then         ! idetz2calc
             
-            t_export(nz,n) = t_export(nz,n) + (-tv)   ! we want positive upwards: inverse sign
+            cffields(id_t_sink_deadmatter)% instantconc(nz-1,n) = cffields(id_t_sink_deadmatter)% instantconc(nz-1,n) + (-tv)   ! we want positive upwards: inverse sign
         endif
         
         ! alive carbon biomass
@@ -199,7 +202,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting. This code comes from old
             tracer_id(tr_num) == 1020 .or.    &   ! iphycal
             tracer_id(tr_num) == 1014 ) then      ! idiac
             
-            t_sink_livingmatter(nz,n) = t_sink_livingmatter(nz,n) + (-tv)
+            cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) = cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) + (-tv)
         endif
        ENDIF ! (nz<=nlmax)
 #endif
@@ -223,13 +226,16 @@ if (0) then ! simple upwind
 !         tv = tr_arr(nz,n,tr_num)                                ! simple scheme        - test1
 !         tv = 0.5_WP*(tr_arr(nz-1,n,tr_num)+tr_arr(nz,n,tr_num)) ! consider both layers - test2  
 !         tv = tv*Wvel_flux(nz) ! Wvel_flux is negative
+
+
+
          tv = - 0.5* & ! - test3
             (tr_arr(nz-1,n,tr_num)*(Wvel_flux(nz)-abs(Wvel_flux(nz))) + &
              tr_arr(nz  ,n,tr_num)*(Wvel_flux(nz)+abs(Wvel_flux(nz))))
          vd_flux(nz)= tv*area(nz,n)
 
 #ifdef use_PDAF
-        IF (nz<=nlmax) THEN
+        IF ((nz>1) .and. (nz<=nlmax+1)) THEN
         ! mod_carbonfluxes_diags
         ! sum of tracers here; at begin of tracer loop in oce_ale_tracer.F90, sum is set to zero
         
@@ -239,7 +245,7 @@ if (0) then ! simple upwind
             tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
             tracer_id(tr_num) == 1028 ) then         ! idetz2calc
             
-            t_export(nz,n) = t_export(nz,n) + (-tv)  ! we want positive upwards: inverse sign
+            cffields(id_t_sink_deadmatter)% instantconc(nz-1,n) = cffields(id_t_sink_deadmatter)% instantconc(nz-1,n) + (-tv)  ! we want positive upwards: inverse sign
         endif
         
         ! alive carbon biomass
@@ -247,7 +253,7 @@ if (0) then ! simple upwind
             tracer_id(tr_num) == 1020 .or.    &   ! iphycal
             tracer_id(tr_num) == 1014 ) then      ! idiac
             
-            t_sink_livingmatter(nz,n) = t_sink_livingmatter(nz,n) + (-tv)
+            cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) = cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) + (-tv)
         endif
        ENDIF ! (nz<=nlmax)
 #endif
@@ -257,9 +263,12 @@ if (0) then ! simple upwind
 end if ! simple upwind
 
       do nz=nzmin,nzmax
+      
+         ! vert_sink:  incoming minus outgoing transport at gridvolume during one timestep,
+         !             in mmol C / m3   [positive: sinking constitutes a source]
 
-         ! vert_sink is set to zero before recom_sinking is called, so this is just adding to zero?!
-         vert_sink(nz,n) = vert_sink(nz,n) + (vd_flux(nz)-vd_flux(nz+1))*dt/areasvol(nz,n)/hnode_new(nz,n) !/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
+         ! vert_sink is set to zero before recom_sinking is called, adding to zero here
+         vert_sink(nz,n) = vert_sink(nz,n) + (vd_flux(nz)-vd_flux(nz+1))*dt/areasvol(nz,n)/hnode(nz,n) !/hnode_new(nz,n) !/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
          
 #ifdef use_PDAF
         IF (nz<=nlmax) THEN
@@ -271,14 +280,11 @@ end if ! simple upwind
             tracer_id(tr_num) == 1021 .or.    &      ! idetcal
             tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
             tracer_id(tr_num) == 1028 ) then         ! idetz2calc
-            
-            if (cfconc) then
+               
                ! concentration
-               s_export(nz,n) = s_export(nz,n) + vert_sink(nz,n)/dt
-            else
+               cffields(id_s_sink_deadmatter)% instantconc(nz,n) = cffields(id_s_sink_deadmatter)% instantconc(nz,n) + vert_sink(nz,n)/dt
                ! mass
-               s_export(nz,n) = s_export(nz,n) + vert_sink(nz,n)/dt*areasvol(nz,n)*hnode_new(nz,n)
-            endif
+               cffields(id_s_sink_deadmatter)% instantmass(nz,n) = cffields(id_s_sink_deadmatter)% instantmass(nz,n) + vert_sink(nz,n)/dt*areasvol(nz,n)*hnode(nz,n)
             
         endif
         
@@ -287,13 +293,10 @@ end if ! simple upwind
             tracer_id(tr_num) == 1020 .or.    &   ! iphycal
             tracer_id(tr_num) == 1014 ) then      ! idiac
             
-            if (cfconc) then
                ! concentration
-               s_sink_livingmatter(nz,n) = s_sink_livingmatter(nz,n) + vert_sink(nz,n)/dt
-            else
+               cffields(id_s_sink_livingmatter)% instantconc(nz,n) = cffields(id_s_sink_livingmatter)% instantconc(nz,n) + vert_sink(nz,n)/dt
                ! mass
-               s_sink_livingmatter(nz,n) = s_sink_livingmatter(nz,n) + vert_sink(nz,n)/dt*areasvol(nz,n)*hnode_new(nz,n)
-            endif
+               cffields(id_s_sink_livingmatter)% instantmass(nz,n) = cffields(id_s_sink_livingmatter)% instantmass(nz,n) + vert_sink(nz,n)/dt*areasvol(nz,n)*hnode(nz,n)
         endif
        ENDIF ! (nz<=nlmax)
 #endif
@@ -316,7 +319,7 @@ end if ! simple upwind
 #ifdef use_PDAF
    if (cfdiags_debug) then
       vname_cfdiags = 's_export'
-      call debug_vert(vname_cfdiags,s_export)
+      call debug_vert(vname_cfdiags,cffields(id_s_sink_deadmatter)% instantmass)
    endif
 #endif
 

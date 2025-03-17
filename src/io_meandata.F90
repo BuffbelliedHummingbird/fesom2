@@ -464,11 +464,27 @@ CASE('DIC        ')
       else
          write(*,*) 'Inconsistent REcoM tracer output definition!'
       endif
+CASE('DICsurf    ')
+    j = 4
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1002) then
+          call def_stream(nod2D, myDim_nod2D,  'DICsurf', 'Dissolved Inorganic C Surface', '[mmol/m3]', tr_arr(1,1:myDim_nod2D,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
 CASE('Alk        ')
     j = 5
     write (id_string, "(I4.4)") tracer_id(j)
       if (tracer_id(j)==1003) then
          call def_stream((/nl-1, nod2D/),  (/nl-1, myDim_nod2D/),  'Alk', 'Total Alkalinity', '[mmol/m3]', tr_arr(:,:,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
+      else
+         write(*,*) 'Inconsistent REcoM tracer output definition!'
+      endif
+CASE('Alksurf    ')
+    j = 5
+    write (id_string, "(I4.4)") tracer_id(j)
+      if (tracer_id(j)==1003) then
+         call def_stream(nod2D, myDim_nod2D,  'Alksurf', 'Total Alkalinity Surface', '[mmol/m3]', tr_arr(1,1:myDim_nod2D,j), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, mesh)
       else
          write(*,*) 'Inconsistent REcoM tracer output definition!'
       endif
@@ -859,13 +875,15 @@ END DO
     
   !___________________________________________________________________________________________________________________________________
   ! output Redi parameterisation
-  if (Redi) then
+  ! if (Redi) then
+  if (.false.) then
      call def_stream((/nl-1  , nod2D /), (/nl-1,   myDim_nod2D /), 'Redi_K',   'Redi diffusion coefficient', 'm2/s', Ki(:,:),    1, 'y', i_real4, mesh)
   end if
 
   !___________________________________________________________________________________________________________________________________
   ! output Monin-Obukov (TB04) mixing length
-  if (use_momix) then
+  ! if (use_momix) then
+  if (.false.) then
      call def_stream(nod2D, myDim_nod2D, 'momix_length',   'Monin-Obukov mixing length', 'm', mixlength(:),    1, 'm', i_real4, mesh)
   end if
   

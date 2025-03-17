@@ -196,16 +196,12 @@ subroutine compute_silicate_diag(mode,mesh)
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) write(*,*) 'total integral of DetSi at timestep :', mstep, valDetSi
         total_silicate=total_silicate+valDetSi
 
-!if (REcoM_Second_Zoo) then
         !Detz2Si
         call integrate_nod(tr_arr(:,:,29), valDetz2Si, mesh)
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) write(*,*) 'total integral of Detz2Si at timestep :', mstep, valDetSi
         total_silicate=total_silicate+valDetz2Si
-!end if 
         !BenSi
-!        call integrate_nod(Benthos(:,3), valBenSi, mesh)
-!        call integrate_bottom(Benthos(:,3), valBenSi, mesh)
-         call integrate_bottom(valBenSi,mesh)
+        call integrate_bottom(valBenSi,mesh)
         if (mype==0 .and. mod(mstep,recom_logfile_outfreq)==0) write(*,*) 'total integral of BenSi at timestep :', mstep, valBenSi
         total_silicate=total_silicate+valBenSi
 
@@ -229,6 +225,7 @@ subroutine write_recom_diag(mode, mesh)
   integer, intent(in)                :: mode
   logical, save                      :: firstcall=.true.
   type(t_mesh), intent(in)  , target :: mesh
+  logical                            :: file_exists
 
 
 ! only master (rank=0) writes the output out
@@ -266,6 +263,11 @@ subroutine write_recom_diag(mode, mesh)
   if (firstcall) then  !create the stuff at the first call
 
      filename=trim(ResultPath)//trim(runid)//'.'//cyearnew//'.recom.diag.nc'
+     
+     INQUIRE(file=filename, exist=file_exists)
+
+     IF (.not. file_exists) THEN
+     
      status = nf_create(filename, IOR(NF_CLOBBER,IOR(NF_NETCDF4,NF_CLASSIC_MODEL)), ncid)
 !! define dimensions (time unlimited in this case)
      status = nf_def_dim(ncid, 'time', NF_UNLIMITED, recID)
@@ -302,7 +304,8 @@ subroutine write_recom_diag(mode, mesh)
 
      firstcall=.false.
      if (mode==0) return
-  end if
+     end if ! file_exists
+  end if ! firstcall
   
 
 if (do_output) then
@@ -318,16 +321,18 @@ if (do_output) then
   status = nf_inq_varid(ncid, 'total_carbon', tcID)
 
   status = nf_inq_varid(ncid, 'total_DIC', valDICID)
+  
   status = nf_inq_varid(ncid, 'total_DOC', valDOCID)
-  status = nf_inq_varid(ncid, 'total_PhyC', valPhyCID)
   status = nf_inq_varid(ncid, 'total_DetC', valDetCID)
   status = nf_inq_varid(ncid, 'total_Det2C', valDet2CID)
+  status = nf_inq_varid(ncid, 'total_DetCalc', valDetCalcID)
+  status = nf_inq_varid(ncid, 'total_Det2Calc', valDet2CalcID)
+
+  status = nf_inq_varid(ncid, 'total_PhyC', valPhyCID)
   status = nf_inq_varid(ncid, 'total_HetC', valHetCID)
   status = nf_inq_varid(ncid, 'total_Zo2C', valZo2CID)
   status = nf_inq_varid(ncid, 'total_DiaC', valDiaCID)
   status = nf_inq_varid(ncid, 'total_PhyCalc', valPhyCalcID)
-  status = nf_inq_varid(ncid, 'total_DetCalc', valDetCalcID)
-  status = nf_inq_varid(ncid, 'total_Det2Calc', valDet2CalcID)
 
   status = nf_inq_varid(ncid, 'total_silicate', tsID)
 
@@ -354,19 +359,28 @@ if (do_output) then
   rec_count=max(rec_count, 1)
 
   status = nf_put_vara_double(ncid, tID, rec_count, 1, ctime, 1)
+  
+  ! total carbon
   status = nf_put_vara_double(ncid, tcID, rec_count, 1, total_carbon, 1)
+  
+  ! DIC
   status = nf_put_vara_double(ncid, valDICID, rec_count, 1, valDIC, 1)
+  
+  ! dead organic carbon
   status = nf_put_vara_double(ncid, valDOCID, rec_count, 1, valDOC, 1)
-  status = nf_put_vara_double(ncid, valPhyCID, rec_count, 1, valPhyC, 1)
   status = nf_put_vara_double(ncid, valDetCID, rec_count, 1, valDetC, 1)
   status = nf_put_vara_double(ncid, valDet2CID, rec_count, 1, valDet2C, 1)
+  status = nf_put_vara_double(ncid, valDetCalcID, rec_count, 1, valDetCalc, 1)
+  status = nf_put_vara_double(ncid, valDet2CalcID, rec_count, 1, valDet2Calc, 1)
+  
+  ! living organic carbon
+  status = nf_put_vara_double(ncid, valPhyCID, rec_count, 1, valPhyC, 1)
   status = nf_put_vara_double(ncid, valHetCID, rec_count, 1, valHetC, 1)
   status = nf_put_vara_double(ncid, valZo2CID, rec_count, 1, valZo2C, 1)
   status = nf_put_vara_double(ncid, valDiaCID, rec_count, 1, valDiaC, 1)
   status = nf_put_vara_double(ncid, valPhyCalcID, rec_count, 1, valPhyCalc, 1)
-  status = nf_put_vara_double(ncid, valDetCalcID, rec_count, 1, valDetCalc, 1)
-  status = nf_put_vara_double(ncid, valDet2CalcID, rec_count, 1, valDet2Calc, 1)
 
+  ! silicate
   status = nf_put_vara_double(ncid, tsID, rec_count, 1, total_silicate, 1)
 
   status = nf_put_vara_double(ncid, valDSiID, rec_count, 1, valDSi, 1)

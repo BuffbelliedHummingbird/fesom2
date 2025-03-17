@@ -17,18 +17,26 @@ type_forget=0          ! Set type of forgetting factor
 screen=2               ! set verbosity of PDAF
 printconfig=.true.
 twin_experiment=.false.
-step_null=0            ! 0 for restart at first day of the year. Is reset by runscript.
-days_since_DAstart=1   ! 1 at the beginning. Is reset by runscript.
+step_null=0
+days_since_DAstart=1
+
+perturb_ssh   = .true.
+perturb_u     = .true.
+perturb_v     = .true.
+perturb_temp  = .true.
+perturb_salt  = .true.
+perturb_DIC   = .true.
+perturb_Alk   = .true.
+perturb_DIN   = .true.
+perturb_O2    = .true.
 
 path_init='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/BGC9_covar/dist72/'
 file_init='cov_'
 DAoutput_path='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/FESOM_PDAF_TEST72/work/'
-write_monthly_mean=.false. ! true: monthly output; false: daily output
-w_memb=.false.          ! whether to write output for individual ensemble members
 
 ASIM_START_USE_CLIM_STATE=.false.
 this_is_pdaf_restart=.false.
-start_from_ENS_spinup=.false.
+start_from_ENS_spinup=.true.
 use_global_obs=0
 
 ASSIM_O_ssh = .false.
@@ -47,7 +55,7 @@ file_sst_suffix ='.nc'
 rms_obs_sst=0.8
 sst_fixed_rmse=.true.
 sst_exclude_ice=.true.
-sst_exclude_diff=2.4                                                    ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
+sst_exclude_diff=2.4 ! Rule of thumb: 3 times observation error (typically 0.8 degC --> 2.4 degC)
 
 ASSIM_O_sss = .false.
 path_obs_sss='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SSS/ESA_SMOS/CORE2/dist_72/'
@@ -74,10 +82,13 @@ file_prof_prefix='obs_profile_'
 file_prof_suffix='.nc'
 rms_obs_T=0.8
 rms_obs_S=0.5
+
+! if "proffiles_o" is activated, the programme does not enter the model time stepping loop. Instead, a routine is called that processes EN4 raw data and distributes the observations to the model grid. The programm ends afterwards, aborting the simulation.
+ 
 path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/'
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
-proffiles_o=0                                                           ! 0: No processing of EN4 raw profile data.
-                                                                        ! 1: Processing of EN4 raw profile data to distributed files.
+proffiles_o=0  ! 0: No processing of EN4 raw profile data.
+               ! 1: Processing of EN4 raw profile data to distributed files.
 start_year_o = 2016
 end_year_o   = 2016
 
@@ -103,31 +114,41 @@ assim_o_pCO2_SOCAT = .true.
 path_obs_pCO2_SOCAT = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/SOCAT/pCO2/'
 rms_obs_pCO2_SOCAT = 5
 
+assim_o_O2_comf = .false.
+path_obs_O2_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/O2/'
+rms_obs_O2_comf = 2
+o2_comf_exclude_diff = 120
+
+assim_o_N_comf = .false.
+path_obs_N_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/DIN/'
+rms_obs_N_comf = 0.3
+
 ! Wether to perturb BGC parameters:
 perturb_parameters=.true.
 perturb_scale=0.25
 
-assimilateBGC=.false.  ! false to de-activate BGC assimilation
-assimilatePHY=.false. ! false to de-activate physics assimilation
+assimilateBGC=.true.
+assimilatePHY=.false.
 /
 
 ! Settings for Parallelization:
 &pdaf_parallel
 
-dim_ens=4
+dim_ens=40
 /
 
-! Which state variables to be updated:
+! Which state variables to be affected by the assimilation:
 &updated
 
 upd_ssh   =.true.
 upd_u     =.true.
 upd_v     =.true.
-upd_w     =.false.
+upd_w     =.false.      ! not updated to increase stability
 upd_temp  =.true.
 upd_salt  =.true.
-upd_ice   =.false.
-upd_MLD1  =.false.
+upd_ice   =.false.      ! required for observation exclusion criterion; not affected by assimilation
+upd_MLD1  =.false.      ! diagnostic
+upd_MLD2  =.false.      ! diagnostic
 
 upd_PhyChl    = .true.
 upd_DiaChl    = .true.
@@ -137,18 +158,28 @@ upd_Alk       = .true.
 upd_DIN       = .true.
 upd_DON       = .true.
 upd_O2        = .true.
-upd_pCO2s     = .false.
-upd_CO2f      = .false.
+upd_pCO2s     = .true.    ! assimilated model diagnostic
+upd_CO2f      = .true.    ! assimilated model diagnostic
 upd_DiaN      = .true.
 upd_DiaC      = .true.
-upd_PAR       = .false.
-upd_NPPn      = .false.
-upd_NPPd      = .false.
+upd_DiaSi     = .true.
+upd_PAR       = .false.   ! diagnostic
+upd_NPPn      = .false.   ! diagnostic
+upd_NPPd      = .false.   ! diagnostic
 upd_DetC      = .true.
+upd_DetCalc   = .true.
+upd_DetN      = .true.
+upd_DetSi     = .true.
+upd_Det2C     = .true.
+upd_Det2Calc  = .true.
+upd_Det2N     = .true.
+upd_Det2Si    = .true.
+upd_PhyC      = .true.
+upd_PhyN      = .true.
 upd_PhyCalc   = .true.
-upd_export    = .false.
-upd_alphaCO2  = .false.
-upd_PistonVel = .false.
+upd_export    = .false.  ! diagnostic
+upd_alphaCO2  = .false.  ! diagnostic
+upd_PistonVel = .false.  ! diagnostic
 upd_Zo1C      = .true.
 upd_Zo1N      = .true.
 upd_Zo2C      = .true.
@@ -177,3 +208,32 @@ varscale_qlw  = 1.0
 
 write_atmos_st = .false. ! whether to protocol perturbed atmospheric fields (every member at every step)
 /
+
+! Namelist for postprocessing:
+&pp
+isPP = .false.
+yearPP = 2010
+pathsim(1)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/FREE/work/01/'
+pathsim(2)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/test_DIC/work/01/'
+/
+
+! Namelist for output frequency:
+&pdafoutput
+setoutput( 1)=.false. ! daily forecast and analysis ensemble members
+setoutput( 2)=.false. ! daily forecast and analysis ensemble mean
+setoutput( 3)=.true.  ! monthly forecast and analysis ensemble mean of updated variables
+setoutput( 4)=.false. ! daily m-fields ensemble mean
+setoutput( 5)=.false. ! initial fields ensemble mean
+setoutput( 6)=.false. ! initial fields ensemble members
+setoutput( 7)=.true.  ! monthly m-fields ensemble mean
+setoutput( 8)=.false. ! daily m-fields of assimilated variables ensemble mean
+setoutput( 9)=.true.  ! daily m-fields of assimilate-able BGC variables ensemble mean
+setoutput(10)=.true.  ! daily m-fields of CO2 flux and pCO2 ensemble mean
+setoutput(11)=.true.  ! daily m-fields of variables defining the CO2 flux
+setoutput(12)=.false. ! initial fields standard deviation
+setoutput(13)=.false. ! daily forecast of standard deviation
+setoutput(14)=.false. ! monthly forecast of standard deviation
+setoutput(15)=.true.  ! monthly forecast and analysis of standard deviation for updated fields
+setoutput(16)=.true.  ! monthly m-fields of standard deviation
+/
+

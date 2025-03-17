@@ -186,7 +186,7 @@ CONTAINS
     USE g_parsup, &
          ONLY: myDim_nod2D
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew, daynew
     USE g_rotate_grid, &
          ONLY: r2g
 
@@ -272,18 +272,18 @@ CONTAINS
 
     ! Initialize complete file name
     WRITE(mype_string,'(i4.4)') mype_filter
-    WRITE(year_string,'(i4.4)') yearold
+    WRITE(year_string,'(i4.4)') yearnew
 
     prof_file=TRIM(file_prof_prefix)//TRIM(mype_string)//TRIM(file_prof_suffix)
 
     ! Position to read from file (which day)
-    iter_file = step / delt_obs_ocn
+    iter_file = daynew
     
     ! Debugging message:
     IF (mype_filter == 0) THEN
        WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
             'FESOM-PDAF', 'Assimilate EN4 profile observations - OBS_TSPROF_EN4 at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0,&
             ' h; read at day: ', iter_file
     END IF
 
@@ -765,7 +765,7 @@ CONTAINS
 
     IF (thisobs%doassim == 1) THEN
     
-       lradius_prof = loc_radius_prof(domain_p)
+       lradius_prof = loc_radius_prof(modulo(domain_p,myDim_nod2D))
        
        ! ************************************************************
        ! *** Adapt observation error for coupled DA (double loop) ***

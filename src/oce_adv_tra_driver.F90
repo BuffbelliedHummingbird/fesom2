@@ -127,21 +127,21 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
-                        idcf = id_s_hor_alk
+                        idcf = id_s_horLO_alk
                 ELSEIF  (tr_num== 4) THEN
-                        idcf = id_s_hor_dic
+                        idcf = id_s_horLO_dic
                 ELSEIF ((tr_num== 7) .or. &           ! PhyC
                         (tr_num==12) .or. &           ! HetC
                         (tr_num==22) .or. &           ! PhyCalc
                         (tr_num==16) .or. &           ! DiaC
                         (tr_num==26)        ) THEN    ! Zoo2C
-                        idcf = id_s_hor_livingmatter
+                        idcf = id_s_horLO_livingmatter
                 ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
                         (tr_num==30) .or. &           ! Det Zoo2Calc
                         (tr_num==10) .or. &           ! Det C
                         (tr_num==23) .or. &           ! Det Calc
                         (tr_num==14)        ) THEN    ! DOC
-                        idcf = id_s_hor_deadmatter
+                        idcf = id_s_horLO_deadmatter
                 ELSE
                    thistracer = .false.
                    idcf       = cfnfields+1
@@ -175,21 +175,21 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
-                        idcf = id_s_ver_alk
+                        idcf = id_s_verLO_alk
                 ELSEIF  (tr_num== 4) THEN
-                        idcf = id_s_ver_dic
+                        idcf = id_s_verLO_dic
                 ELSEIF ((tr_num== 7) .or. &           ! PhyC
                         (tr_num==12) .or. &           ! HetC
                         (tr_num==22) .or. &           ! PhyCalc
                         (tr_num==16) .or. &           ! DiaC
                         (tr_num==26)        ) THEN    ! Zoo2C
-                        idcf = id_s_ver_livingmatter
+                        idcf = id_s_verLO_livingmatter
                 ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
                         (tr_num==30) .or. &           ! Det Zoo2Calc
                         (tr_num==10) .or. &           ! Det C
                         (tr_num==23) .or. &           ! Det Calc
                         (tr_num==14)        ) THEN    ! DOC
-                        idcf = id_s_ver_deadmatter
+                        idcf = id_s_verLO_deadmatter
                 ELSE
                    thistracer = .false.
                    idcf       = cfnfields+1
@@ -337,21 +337,21 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
-                        idcf = id_s_ver_alk
+                        idcf = id_s_verAD_alk
                 ELSEIF  (tr_num== 4) THEN
-                        idcf = id_s_ver_dic
+                        idcf = id_s_verAD_dic
                 ELSEIF ((tr_num== 7) .or. &           ! PhyC
                         (tr_num==12) .or. &           ! HetC
                         (tr_num==22) .or. &           ! PhyCalc
                         (tr_num==16) .or. &           ! DiaC
                         (tr_num==26)        ) THEN    ! Zoo2C
-                        idcf = id_s_ver_livingmatter
+                        idcf = id_s_verAD_livingmatter
                 ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
                         (tr_num==30) .or. &           ! Det Zoo2Calc
                         (tr_num==10) .or. &           ! Det C
                         (tr_num==23) .or. &           ! Det Calc
                         (tr_num==14)        ) THEN    ! DOC
-                        idcf = id_s_ver_deadmatter
+                        idcf = id_s_verAD_deadmatter
                 ELSE
                    thistracer = .false.
                    idcf       = cfnfields+1
@@ -395,21 +395,21 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
-                        idcf = id_s_hor_alk
+                        idcf = id_s_horAD_alk
                 ELSEIF  (tr_num== 4) THEN
-                        idcf = id_s_hor_dic
+                        idcf = id_s_horAD_dic
                 ELSEIF ((tr_num== 7) .or. &           ! PhyC
                         (tr_num==12) .or. &           ! HetC
                         (tr_num==22) .or. &           ! PhyCalc
                         (tr_num==16) .or. &           ! DiaC
                         (tr_num==26)        ) THEN    ! Zoo2C
-                        idcf = id_s_hor_livingmatter
+                        idcf = id_s_horAD_livingmatter
                 ELSEIF ((tr_num==28) .or. &           ! Det Zoo2C
                         (tr_num==30) .or. &           ! Det Zoo2Calc
                         (tr_num==10) .or. &           ! Det C
                         (tr_num==23) .or. &           ! Det Calc
                         (tr_num==14)        ) THEN    ! DOC
-                        idcf = id_s_hor_deadmatter
+                        idcf = id_s_horAD_deadmatter
                 ELSE
                    thistracer = .false.
                    idcf       = cfnfields+1

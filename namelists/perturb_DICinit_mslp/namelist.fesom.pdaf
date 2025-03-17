@@ -122,7 +122,7 @@ path_obs_N_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/D
 rms_obs_N_comf = 0.3
 
 ! Wether to perturb BGC parameters:
-perturb_parameters=.true.
+perturb_parameters=.false.
 perturb_scale=0.25
 
 assimilateBGC=.true.
@@ -132,7 +132,7 @@ assimilatePHY=.false.
 ! Settings for Parallelization:
 &pdaf_parallel
 
-dim_ens=40
+dim_ens=2
 /
 
 ! Which state variables to be affected by the assimilation:

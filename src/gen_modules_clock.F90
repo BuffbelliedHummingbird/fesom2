@@ -32,12 +32,10 @@ contains
 
     ! update time
     timenew=timenew+dt          
-     
-    ! update day
-    if (timenew>86400._WP) then  !assumed that time step is less than one day!
-       daynew=daynew+1
-       timenew=timenew-86400._WP
-    endif
+    
+    ! update day 
+    daynew  = daynew+int(timenew-dt)/int(86400) ! integer division
+    timenew = mod(timenew-dt,86400._WP)+dt   ! remainder
 
     ! update year
     if (daynew>ndpyr) then

@@ -23,9 +23,10 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
 !
 ! !USES:
   USE mod_parallel_pdaf, &
-       ONLY: mype_world
+       ONLY: mype_world, writepe
   USE mod_assim_pdaf, &
-       ONLY: offset, mesh_fesom, nlmax, id, dim_fields, dim_state_p
+       ONLY: offset, mesh_fesom, nlmax, id, dim_fields, dim_state_p, &
+       topography_p
   USE mod_nc_out_variables, &
        ONLY: sfields, ids_tr3D, nfields_tr3D
   USE g_PARSUP, &
@@ -33,7 +34,8 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
   USE o_arrays, &
        ONLY: eta_n, uv, wvel, tr_arr, unode, MLD1, MLD2
   USE REcoM_GloVar, &
-       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export, PistonVelocity, alphaCO2
+       ONLY: GloPCO2surf, GloCO2flux, Diags3D, PAR3D, export, &
+       PistonVelocity, alphaCO2
   USE i_arrays, &
        ONLY: a_ice
   USE mod_parallel_pdaf, &
@@ -305,5 +307,6 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
    
    ! Close debug-file
    IF (write_debug) close(fileID_debug)
+
   
 END SUBROUTINE collect_state_pdaf

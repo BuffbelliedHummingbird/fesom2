@@ -12,7 +12,9 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
        id, dim_fields, offset, start_from_ENS_spinup, nlmax, &
        perturb_ssh, perturb_u, &
        perturb_v, perturb_temp, perturb_salt, &
-       perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2
+       perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2, &
+       topography_p, &
+       ens_p_init
   USE mod_nc_out_variables, &
        ONLY: sfields
   USE mod_parallel_pdaf, &
@@ -128,10 +130,12 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
 ! no need to initialize the ensemble in case of restart, just skip this routine:
   IF (this_is_pdaf_restart) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF This is a restart, skipping init_ens_pdaf'
-      ens_p=0
+      ens_p   = ens_p_init
+      state_p = SUM(ens_p, dim=2) / REAL(dim_ens)
   ELSEIF (start_from_ENS_spinup) THEN
       IF (mype_filter == 0)  WRITE(*,*) 'FESOM-PDAF Starting from a perturbed ensemble, skipping init_ens_pdaf'
-      ens_p=0
+      ens_p   = ens_p_init
+      state_p = SUM(ens_p, dim=2) / REAL(dim_ens)
   ELSE
 
 ! **********************
@@ -179,7 +183,7 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   
   ! Positions of to-be-perturbed state fields in the full model state vector:
   ! note: you might take out some fields here, code will still work and not perturb these
-  !       else, you might just set perturb_field=.false. in namelist.fesom.pdaf
+  !       more simple: you might just set perturb_field=.false. in namelist.fesom.pdaf
   
 !~   nfields_per = 7
   nfields_per = 9
@@ -348,8 +352,11 @@ ENDDO
         END IF
         CALL MPI_Bcast(Omega, dim_ens*(dim_ens-1), MPI_DOUBLE_PRECISION, 0, &
              COMM_filter, MPIerr)
-     END IF
-
+     ELSE
+        IF (mype_filter==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','--- ensemble size 1: no state ensemble generated'
+     END IF ! if (dim_ens>1)
+     
+     
      ! *** state_ens = state + sqrt(dim_ens-1) eofV A^T ***
      
      allocate(ens_p_per(dim_p_cov,dim_ens))
@@ -366,9 +373,11 @@ ENDDO
         CALL DGEMM('n', 't', dim_p_cov, dim_ens, dim_ens-1, &
              fac, eof_p, dim_p_cov, Omega, dim_ens, 0.0, ens_p_per, dim_p_cov) ! matrix operation
 
+     ELSE
+        IF (mype_filter==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','--- ensemble size 1: state ensemble perturbation is zero'
      END IF
    
-   ! Ensemble mean state from all initial model fields (state_p)
+   ! Ensemble mean state, collected from filter PEs, all initial model fields (state_p)
    CALL collect_state_PDAF(dim_p, state_p)
    DO col = 1,dim_ens
       ens_p(1:dim_p,col) = state_p(1:dim_p)
@@ -415,6 +424,9 @@ ENDDO
 
    ! *** Treshold values ***
    treshold: DO col= 1,dim_ens
+   
+      ! consider model topography
+      ens_p(:,col) = ens_p(:,col) * topography_p
       
       ! surface fields
       n_treshold_ssh_p = 0

@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=288 #1440
+#SBATCH --ntasks=2880
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:10:00 # 7 hours
+#SBATCH --time=00:30:00
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
 
@@ -34,18 +34,18 @@ start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
 # Settings:
-NENS=4           # number of ensembles --> namelist.fesom.pdaf
+NENS=40          # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
 
 NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2010-01-02"
+run_end_date="2010-01-03"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
-rst_freq="1 day"
+rst_freq="2 days"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:
@@ -130,7 +130,7 @@ do
     leg_end_date_yyyy=$(date -u -d "${leg_end_date}" +%Y)
     
     leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
-    step_null=$((32*(${leg_start_dayofyear}-1))) # 32 is number of time steps per day
+    step_null=$((32*(10#${leg_start_dayofyear}-1))) # 32 is number of time steps per day
 
     # Compute days since beginning of first leg:
     days_since_DAstart=$(( ($(date -d "${leg_start_date}" +%s) - $(date -d "${run_start_date}" +%s))/86400+1))
@@ -170,8 +170,10 @@ do
         sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
         
         sed -i `grep -n run_length_unit      ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"       ${start_dir}/namelist.config
-	    
-	    # Set namelists based on DA start date
+	   
+        sed -i `grep -n restart_length=     ${start_dir}/namelist.config      | cut -d ':' -f 1`"c restart_length=${rst_freq_number}"        ${start_dir}/namelist.config
+
+	# Set namelists based on DA start date
         sed -i `grep -n this_is_pdaf_restart ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."             ${start_dir}/namelist.fesom.pdaf
 	    
         sed -i `grep -n step_null            ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c step_null=${step_null}"                   ${start_dir}/namelist.fesom.pdaf
@@ -220,7 +222,8 @@ do
 
             if [ ! -d ${run_dir}/${ENSstr} ]; then
                 mkdir -p ${run_dir}/${ENSstr}
-	        mkdir -p ${run_dir}/${ENSstr}/atmos/	
+	        mkdir -p ${run_dir}/${ENSstr}/atmos/
+	        mkdir -p ${run_dir}/${ENSstr}/pdafrestart/	
             fi
             
             cd ${run_dir}/${ENSstr}
@@ -246,13 +249,11 @@ do
 		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).oce.restart.nc .
 		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).ice.restart.nc .
                     
-		    cd atmos
 		    for((pe=0;pe<$fes_numproc;pe++))
 	            do
 			pe2str=`printf %02d $pe`
-		        ln -fs ../../../restart_files/ens${NENSstr}/${ENSstr}/atmos/atmos_00${pe2str}_$((${leg_start_date_yyyy}-1)).nc . 
-	            done
-		    cd ..
+	                ln -fs ../../../restart_files/ens${NENSstr}/${ENSstr}/pdafrestart/pdafrestart_00${pe2str}_$((${leg_start_date_yyyy}-1)).nc pdafrestart/
+		    done
 	    else
 		    echo 'Copy identical restart files for member '${ENS4str}
 		    ln -fs ../../restart_files/*.nc .

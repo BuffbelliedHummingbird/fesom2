@@ -89,7 +89,7 @@ SUBROUTINE PDAF_seik_omega(rank, omega, omegatype, screen)
   REAL, ALLOCATABLE :: house(:,:)  ! Householder matrix
   REAL, POINTER :: rndmat(:,:)         ! Pointer to temporary Omega field
 
-
+  IF (rank>0) THEN
   randomega: IF (omegatype == 0) THEN 
 ! *************************************************
 ! *** Generate deterministic Omega as           ***
@@ -235,5 +235,9 @@ SUBROUTINE PDAF_seik_omega(rank, omega, omegatype, screen)
      DEALLOCATE(house, rndmat)
 
   END IF randomega
+  ELSE
+    IF (mype == 0 .AND. screen > 0) &
+          WRITE (*,'(a, 5x, a)') 'PDAF','--- Rank is 0. Omega is not generated'
+  ENDIF
 
 END SUBROUTINE PDAF_seik_omega

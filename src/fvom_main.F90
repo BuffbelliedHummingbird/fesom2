@@ -43,7 +43,7 @@ use cpl_driver
 #ifdef use_PDAF
  use timer, only: timeit, time_tot
  use mod_assim_pdaf, only: mesh_fesom
- use mod_carbon_fluxes_diags, only: carbonfluxes_diags_output_monthly
+ use mod_carbon_fluxes_diags, only: carbonfluxes_diags_output_timemean
 #endif
 
 IMPLICIT NONE
@@ -207,7 +207,7 @@ type(t_mesh),   save,  target  :: mesh
     ! Time stepping
     !=====================
 
-! Initialize timers
+    ! Initialize timers
     rtime_fullice       = 0._WP
     rtime_write_restart = 0._WP
     rtime_write_means   = 0._WP
@@ -218,7 +218,7 @@ type(t_mesh),   save,  target  :: mesh
     call timeit(2, 'old')
     call timeit(3, 'new')
     call compute_vel_nodes(mesh)
-    CALL init_PDAF()
+    CALL init_PDAF(nsteps)
     call timeit(3, 'old')
     call timeit(4, 'new')
 #endif
@@ -303,6 +303,14 @@ type(t_mesh),   save,  target  :: mesh
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call oce_timestep_ale'//achar(27)//'[0m'
         call oce_timestep_ale(n, mesh)
         t3 = MPI_Wtime()
+        
+#ifdef use_PDAF
+        CALL timeit(7, 'new')
+        CALL assimilate_PDAF(mstep) ! mstep: starting at 1 at each model (re)start
+        CALL timeit(7, 'old')
+        t4b = MPI_Wtime()
+        CALL carbonfluxes_diags_output_timemean(mstep)
+#endif
 
 #if defined (__recom)
         if (use_REcoM) then
@@ -315,14 +323,6 @@ type(t_mesh),   save,  target  :: mesh
         if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call compute_diagnostics(1)'//achar(27)//'[0m'
         call compute_diagnostics(1, mesh)
         t4 = MPI_Wtime()
-        
-#ifdef use_PDAF
-        CALL timeit(7, 'new')
-        CALL assimilate_PDAF(mstep) ! mstep: starting at 1 at each model (re)start
-        CALL timeit(7, 'old')
-        t4b = MPI_Wtime()
-        CALL carbonfluxes_diags_output_monthly(mstep)
-#endif
 
         !___prepare output______________________________________________________
 ! #ifndef use_PDAF

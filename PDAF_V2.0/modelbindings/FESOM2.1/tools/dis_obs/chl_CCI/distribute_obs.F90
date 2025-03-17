@@ -381,7 +381,7 @@ PROGRAM distribute_obs
      write (*,*) 'pe, cntobsday1', pe-1, cntobsday(pe)
   END DO
 
-  WRITE (*,'(1x,a/)') '------- END -------------'
+  WRITE (*,'(1x,a)') '------- END -------------'
 
   DEALLOCATE(cntobs, cntobsday, obs, std)
 

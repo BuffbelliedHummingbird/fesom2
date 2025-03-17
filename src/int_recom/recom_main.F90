@@ -63,7 +63,6 @@ subroutine recom(mesh)
   character(len=2)           :: tr_num_name
 #ifdef use_PDAF
   integer                    :: nlay
-  real, allocatable          :: factorvolmass(:)
 #endif
   
 #include "../associate_mesh.h"
@@ -148,17 +147,18 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> bio_fluxes'
 
      allocate(Diags3Dloc(nzmax,8))
      Diags3Dloc(:,:) = 0.d0
+     
 #ifdef use_PDAF
      nlay = min(nzmax,nlmax)
      ! initialize local carbon flux diags
-     allocate(s_bio_dicLoc         (nlay))
-     allocate(s_bio_livingmatterLoc(nlay))
-     allocate(s_bio_deadmatterLoc  (nlay))
-     allocate(s_bio_alkLoc         (nlay))
-     s_bio_dicLoc          = 0.d0
-     s_bio_livingmatterLoc = 0.d0
-     s_bio_deadmatterLoc   = 0.d0
-     s_bio_alkLoc          = 0.d0
+     allocate(cffields(id_s_bio_dic)         %loc(nlay))
+     allocate(cffields(id_s_bio_livingmatter)%loc(nlay))
+     allocate(cffields(id_s_bio_deadmatter)  %loc(nlay))
+     allocate(cffields(id_s_bio_alk)         %loc(nlay))
+     cffields(id_s_bio_dic)         %loc = 0.d0
+     cffields(id_s_bio_livingmatter)%loc = 0.d0
+     cffields(id_s_bio_deadmatter)  %loc = 0.d0
+     cffields(id_s_bio_alk)         %loc = 0.d0
 #endif
 
 if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forcing'//achar(27)//'[0m'
@@ -205,24 +205,14 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
 #ifdef use_PDAF
      ! local diagnostics to global field
      
-     allocate(factorvolmass(nlay))
-     if (cfconc) then
-       ! concentration
-       factorvolmass(:) = 1.0
-     else
-       ! mass
-       factorvolmass(:) = areasvol(1:nlay,n)*hnode_new(1:nlay,n)
-     endif
-     
-     s_bio_dic          (1:nlay,n) = s_bio_dicLoc(1:nlay)          !* factorvolmass
-     s_bio_livingmatter (1:nlay,n) = s_bio_livingmatterLoc(1:nlay) !* factorvolmass
-     s_bio_deadmatter   (1:nlay,n) = s_bio_deadmatterLoc(1:nlay)   !* factorvolmass
-     s_bio_alk          (1:nlay,n) = s_bio_alkLoc(1:nlay)          !* factorvolmass
-     deallocate(factorvolmass)
-     deallocate(s_bio_dicLoc          )
-     deallocate(s_bio_livingmatterLoc )
-     deallocate(s_bio_deadmatterLoc   )
-     deallocate(s_bio_alkLoc          )
+     cffields(id_s_bio_dic         )%instantconc(1:nlay,n) = cffields(id_s_bio_dic)         %loc(1:nlay)          
+     cffields(id_s_bio_livingmatter)%instantconc(1:nlay,n) = cffields(id_s_bio_livingmatter)%loc(1:nlay) 
+     cffields(id_s_bio_deadmatter  )%instantconc(1:nlay,n) = cffields(id_s_bio_deadmatter)  %loc(1:nlay)   
+     cffields(id_s_bio_alk         )%instantconc(1:nlay,n) = cffields(id_s_bio_alk)         %loc(1:nlay)          
+     deallocate(cffields(id_s_bio_dic)         %loc )
+     deallocate(cffields(id_s_bio_livingmatter)%loc )
+     deallocate(cffields(id_s_bio_deadmatter)  %loc )
+     deallocate(cffields(id_s_bio_alk)         %loc )
 #endif
 
   end do

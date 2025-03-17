@@ -53,7 +53,7 @@ MODULE obs_pco2_SOCAT_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l         ! Declaration of observation data types
   USE mod_assim_pdaf, &
-       ONLY: n_sweeps             ! Variables for coupled data assimilation
+       ONLY: n_sweeps, obs_PP     ! Variables for coupled data assimilation
  
   IMPLICIT NONE
   SAVE
@@ -132,6 +132,12 @@ MODULE obs_pco2_SOCAT_pdafomi
 ! We use generic names here, but one could renamed the variables
   TYPE(obs_f), TARGET, PUBLIC :: thisobs      ! full observation
   TYPE(obs_l), TARGET, PUBLIC :: thisobs_l    ! local observation
+  
+  type(obs_PP) :: thisobs_PP
+  type(obs_PP) :: thisobs_PP_f
+  
+  LOGICAL :: isPP = .false.                 ! T: for postprocessing of simulation output
+                                            ! F: for assimilation
 
 !$OMP THREADPRIVATE(thisobs_l)
 
@@ -180,7 +186,7 @@ CONTAINS
     USE g_parsup, &
          ONLY: myDim_nod2D
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew
     USE o_param, &
          ONLY: pi
          
@@ -209,7 +215,12 @@ CONTAINS
                             nod2_p_reps(:), &
                             nod3_p_reps(:)            ! PE-local observed node/element indeces
     INTEGER, ALLOCATABLE :: elem_p_reps(:)
-    
+
+    INTEGER, ALLOCATABLE :: nod1_g_reps(:), &
+                            nod2_g_reps(:), &
+                            nod3_g_reps(:)            ! Global observed node/element indeces
+    INTEGER, ALLOCATABLE :: elem_g_reps(:)
+
     LOGICAL :: is_unique
     
     ! unique observation data: for each element, sorted array holds sum of all samples
@@ -220,6 +231,10 @@ CONTAINS
                             nod2_p_sorted(:), &
                             nod3_p_sorted(:)
     INTEGER, ALLOCATABLE :: elem_p_sorted(:)
+    INTEGER, ALLOCATABLE :: nod1_g_sorted(:), &
+                            nod2_g_sorted(:), &
+                            nod3_g_sorted(:)
+    INTEGER, ALLOCATABLE :: elem_g_sorted(:)
     INTEGER, ALLOCATABLE :: numrep_p(:)       ! number of observations at each element
     
     ! observation data after averaging over samples for each element, trimmed arrays:
@@ -250,9 +265,6 @@ CONTAINS
 ! *** Initialize full observation dimension ***
 ! *********************************************
 
-    ! Store whether to assimilate this observation type
-    IF (assim_o_pCO2_SOCAT) thisobs%doassim = 1
-
     ! Specify type of distance computation
     thisobs%disttype = 2   ! 2=Geographic
 
@@ -260,12 +272,9 @@ CONTAINS
     ! The distance compution starts from the first row
     thisobs%ncoord = 2
 
-    ! Initialize flag for type of full observations
-    thisobs%use_global_obs = use_global_obs
-
     ! set localization radius, everywhere the same
-    lradius_pCO2_SOCAT = local_range
-    sradius_pCO2_SOCAT = srange
+    lradius_pCO2_SOCAT = 5.0e5 ! 500 km
+    sradius_pCO2_SOCAT = 5.0e5
 
 
 ! **********************************
@@ -274,18 +283,36 @@ CONTAINS
 
     ! Initialize complete file name
     WRITE(mype_string,'(i2.2)') mype_filter
-    WRITE(year_string,'(i4.4)') yearold
+    WRITE(year_string,'(i4.4)') yearnew
     WRITE(mon_string, '(i2.2)') month
     WRITE(day_string, '(i2.2)') day_in_month
     
     file_pCO2_SOCAT = TRIM(year_string//'-'//mon_string//'-'//day_string//'.'//mype_string//'.nc')
     
-    ! Debugging message:
-    IF (mype_filter == 0) THEN
-       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,a)') &
-            'FESOM-PDAF', 'Assimilate SOCAT pCO2 observations - OBS_pCO2_SOCAT at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
-            ' h; read from file: ', file_pCO2_SOCAT
+    ! Message:
+    IF (step < 0) then
+        ! ---
+        ! Postprocessing
+        ! ---
+        isPP = .true.
+        if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Postprocessing of SOCAT pCO2 observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_pCO2_SOCAT
+        thisobs%use_global_obs = 1
+        thisobs%doassim = 1
+    ELSE
+       ! ---
+       ! Assimilation
+       ! ---
+       if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Assimilate SOCAT pCO2 observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_pCO2_SOCAT
+       ! Store whether to use global observations
+       thisobs%use_global_obs = use_global_obs
+       ! Store whether to assimilate this observation type
+       IF (assim_o_pCO2_SOCAT) thisobs%doassim = 1
     END IF
     
     ! Open the pe-local NetCDF file for that day
@@ -328,9 +355,13 @@ CONTAINS
       ocoord_p=0.0
       thisobs%id_obs_p=0
       
-!~       allocate(nod1_p(0),nod2_p(0),nod3_p(0),lon_p(0),lat_p(0))
-      
-!~       print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - No observations.'
+      if (isPP) then
+        allocate(thisobs_PP%nod1_g(0),thisobs_PP%nod2_g(0),thisobs_PP%nod3_g(0))
+        allocate(thisobs_PP%elem_g(0))
+        allocate(thisobs_PP%isExclObs(0))
+        allocate(thisobs_PP%lon(0),thisobs_PP%lat(0))
+        allocate(thisobs_PP%numrep(0))
+      endif
       
     ELSE ! (i.e. dim_obs_p > 0)
     
@@ -340,7 +371,12 @@ CONTAINS
       allocate(elem_p_reps(dim_obs_p_reps))
       allocate(lon_p_reps(dim_obs_p_reps),lat_p_reps(dim_obs_p_reps))
       
-      print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - dim_obs_p_reps: ', dim_obs_p_reps
+      if (isPP) then
+         allocate(nod1_g_reps(dim_obs_p_reps),nod2_g_reps(dim_obs_p_reps),nod3_g_reps(dim_obs_p_reps))
+         allocate(elem_g_reps(dim_obs_p_reps))
+      endif
+      
+!~       print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - dim_obs_p_reps: ', dim_obs_p_reps
       
       ! Reading observations
       ncstat = nf90_inq_varid(ncid,'OBS', id_obs)
@@ -379,6 +415,32 @@ CONTAINS
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - Error getting id_lat from netCDF'
       ncstat = nf90_get_var(ncid, id_lat, lat_p_reps)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - Error reading lat from netCDF'
+      
+      if (isPP) then
+      
+      ! Reading nodes on globe
+      ncstat = nf90_inq_varid(ncid,'NOD1_G', id_nod1)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod1, nod1_g_reps)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod1 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD2_G', id_nod2)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod2 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod2, nod2_g_reps)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod2 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD3_G', id_nod3)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod3 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod3, nod3_g_reps)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod3 from netCDF'
+      
+      ! Reading mesh element
+      ncstat = nf90_inq_varid(ncid,'ELEM_G', id_elem)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_elem from netCDF'
+      ncstat = nf90_get_var(ncid, id_elem, elem_g_reps)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading elem from netCDF'
+      
+      endif ! isPP
             
       ! **********************
       ! * Finding duplicates *
@@ -405,6 +467,15 @@ CONTAINS
       z_p(:) = 0
       numrep_p(:) = 0
       
+      if (isPP) then
+         ALLOCATE(elem_g_sorted(dim_obs_p_reps))
+         ALLOCATE(nod1_g_sorted(dim_obs_p_reps),nod2_g_sorted(dim_obs_p_reps),nod3_g_sorted(dim_obs_p_reps))
+         elem_g_sorted(:)=0.0
+         nod1_g_sorted(:) = 0
+         nod2_g_sorted(:) = 0
+         nod3_g_sorted(:) = 0
+      endif ! isPP
+      
       ! go through observations one-by-one:
       do_elem_p_reps: DO e_reps=1, dim_obs_p_reps
          
@@ -430,7 +501,7 @@ CONTAINS
              obs_p_sorted(e_found) = obs_p_sorted(e_found) + obs_p_reps(e_reps)
              
              ! preparing mean coordinate,
-             ! transforming to cartesian coordinates (just mean for debug purposes):
+             ! transforming to cartesian coordinates
              x_p(e_found) = x_p(e_found) &
                          + COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
              y_p(e_found) = y_p(e_found) &
@@ -452,17 +523,19 @@ CONTAINS
             x_p(dim_obs_p) = COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
             y_p(dim_obs_p) = COS(deg2rad*lat_p_reps(e_reps)) * SIN(deg2rad*lon_p_reps(e_reps))
             z_p(dim_obs_p) = SIN(deg2rad*lat_p_reps(e_reps))
+            
+            if (isPP) then
+               elem_g_sorted (dim_obs_p) = elem_g_reps(e_reps)
+               nod1_g_sorted (dim_obs_p) = nod1_g_reps(e_reps)
+               nod2_g_sorted (dim_obs_p) = nod2_g_reps(e_reps)
+               nod3_g_sorted (dim_obs_p) = nod3_g_reps(e_reps)
+            endif ! isPP
 
          ENDIF
       ENDDO do_elem_p_reps
       
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - dim_obs_p', dim_obs_p
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - elem_p_sorted', elem_p_sorted
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - numrep_p', numrep_p
-      
       ! Averaging repetitive samples
       allocate(obs_p(dim_obs_p))
-!~       allocate(nod1_p(dim_obs_p),nod2_p(dim_obs_p),nod3_p(dim_obs_p))
       allocate(lon_p(dim_obs_p),lat_p(dim_obs_p))
       
       DO e=1,dim_obs_p
@@ -475,12 +548,7 @@ CONTAINS
         
         lat_p(e) = ATAN2( z_p(e), SQRT(x_p(e)*x_p(e) + y_p(e)*y_p(e)) )
         lon_p(e) = ATAN2( y_p(e), x_p(e))
-        
       ENDDO
-      
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - obs_p', obs_p
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - lon_p', rad2deg*lon_p
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - lat_p', rad2deg*lat_p
       
       allocate(ivariance_obs_p(dim_obs_p))
       allocate(ocoord_p(2,dim_obs_p))
@@ -488,9 +556,32 @@ CONTAINS
       ocoord_p(1,:) = lon_p
       ocoord_p(2,:) = lat_p
       
+      if (isPP) then
+          allocate(thisobs_PP%nod1_g(dim_obs_p),thisobs_PP%nod2_g(dim_obs_p),thisobs_PP%nod3_g(dim_obs_p))
+          allocate(thisobs_PP%elem_g(dim_obs_p))
+          allocate(thisobs_PP%isExclObs(dim_obs_p))
+          allocate(thisobs_PP%lon(dim_obs_p),thisobs_PP%lat(dim_obs_p))
+          allocate(thisobs_PP%numrep(dim_obs_p))
+          
+          thisobs_PP%nod1_g = nod1_g_sorted(:dim_obs_p)
+          thisobs_PP%nod2_g = nod2_g_sorted(:dim_obs_p)
+          thisobs_PP%nod3_g = nod3_g_sorted(:dim_obs_p)
+          
+          thisobs_PP%elem_g = elem_g_sorted(:dim_obs_p)
+          
+          thisobs_PP%lon = lon_p(:dim_obs_p) / pi * 180.0
+          thisobs_PP%lat = lat_p(:dim_obs_p) / pi * 180.0
+                    
+          thisobs_PP%numrep = numrep_p(:dim_obs_p)
+          
+          thisobs_PP%isExclObs = 0
+          
+      endif ! isPP
+      
       ! *** Set constant observation error *** 
-      WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
-      '--- Use global SOCAT pCO2 observation error of ', rms_obs_pCO2_SOCAT, ' mikro mol'
+      IF (mype_filter == 0) &
+         WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
+         '--- Use global SOCAT pCO2 observation error of ', rms_obs_pCO2_SOCAT, ' mikro mol'
       ! Set inverse observation error variance
       ivariance_obs_p = 1.0 / (rms_obs_pCO2_SOCAT ** 2)
       
@@ -504,7 +595,7 @@ CONTAINS
         thisobs%id_obs_p(3,i) = nod3_p_sorted(i) + offset(id%pCO2s)       
       END DO
       
-      WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
+!~       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
       
     ENDIF
     

@@ -21,4 +21,7 @@ io_listsize=100 !number of streams to allocate. shallbe large or equal to the nu
 &nml_list
 io_list =  'pCO2s     ',1, 'm', 4,
            'CO2f      ',1, 'm', 4,
+           'DetC      ',1, 'd', 4,
+           'DIC       ',1, 'd', 4,
+           'HetC      ',1, 'd', 4,
 /

@@ -2,8 +2,6 @@
 !> PDAF-OMI template observation module 
 !!
 !! This module handles operations for one data type (called 'module-type' below).
-!! 
-!! Module type here: temperature and salinity subsurface profiles data from EN4.
 !!
 !! The subroutines in this module are for the particular handling of
 !! a single observation type.
@@ -55,7 +53,7 @@ MODULE obs_n_comf_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l         ! Declaration of observation data types
   USE mod_assim_pdaf, &
-       ONLY: n_sweeps             ! Variables for coupled data assimilation
+       ONLY: n_sweeps, obs_PP     ! Variables for coupled data assimilation
  
   IMPLICIT NONE
   SAVE
@@ -63,7 +61,7 @@ MODULE obs_n_comf_pdafomi
   ! Variables which are inputs to the module (usually set in init_pdaf)
   LOGICAL :: assim_o_n_comf   !< Whether to assimilate
 
-  ! Further variables specific for the EN4 profile observations
+  ! Further variables specific for the profile observations
   CHARACTER(len=110) :: path_obs_n_comf  = ''      !< Path to profile observations
   CHARACTER(len=110) :: file_n_comf
 
@@ -134,6 +132,12 @@ MODULE obs_n_comf_pdafomi
 ! We use generic names here, but one could renamed the variables
   TYPE(obs_f), TARGET, PUBLIC :: thisobs      ! full observation
   TYPE(obs_l), TARGET, PUBLIC :: thisobs_l    ! local observation
+  
+  type(obs_PP) :: thisobs_PP
+  type(obs_PP) :: thisobs_PP_f
+  
+  LOGICAL :: isPP = .false.                 ! T: for postprocessing of simulation output
+                                            ! F: for assimilation
 
 !$OMP THREADPRIVATE(thisobs_l)
 
@@ -182,7 +186,7 @@ CONTAINS
     USE g_parsup, &
          ONLY: myDim_nod2D
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew
     USE o_param, &
          ONLY: pi
          
@@ -210,14 +214,14 @@ CONTAINS
     REAL, ALLOCATABLE :: ivariance_obs_p(:)   ! PE-local array of observation errors
     INTEGER, ALLOCATABLE :: nod1_p(:), &
                             nod2_p(:), &
-                            nod3_p(:)         ! Array of observation pe-local indeces on FESOM grid
-    INTEGER, ALLOCATABLE :: nl_p(:)           ! Array of observation layer indeces
+                            nod3_p(:)          ! Array of observation pe-local indeces on FESOM grid
+    INTEGER, ALLOCATABLE :: nl_p(:)            ! Array of observation layer indeces
     
-    INTEGER :: ncstat                         ! Status for NetCDF functions
-    INTEGER :: ncid, dimid                    ! NetCDF IDs
+    INTEGER :: ncstat                          ! Status for NetCDF functions
+    INTEGER :: ncid, dimid                     ! NetCDF IDs
     INTEGER :: id_obs, id_nod1, id_nod2, &
                id_nod3, id_nl, id_lon, &
-               id_lat
+               id_lat, id_elem, id_depth
                
     INTEGER :: cnt_ex_dry_p, cnt_ex_dry       ! Number of excluded observations due to model topography ("dry nodes")
     INTEGER :: nzmin                          ! Number of wet vertical model layers at observation location considering model topography
@@ -226,9 +230,6 @@ CONTAINS
 ! *** Initialize full observation dimension ***
 ! *********************************************
 
-    ! Store whether to assimilate this observation type
-    IF (assim_o_n_comf) thisobs%doassim = 1
-
     ! Specify type of distance computation
     thisobs%disttype = 2   ! 2=Geographic
 
@@ -236,12 +237,11 @@ CONTAINS
     ! The distance compution starts from the first row
     thisobs%ncoord = 2
 
-    ! Initialize flag for type of full observations
-    thisobs%use_global_obs = use_global_obs
-
     ! set localization radius, everywhere the same
-    lradius_n_comf = local_range
-    sradius_n_comf = srange
+    lradius_n_comf = 1.0e6 ! 1000 km
+    sradius_n_comf = 1.0e6 ! 1000 km
+    
+    thisobs%inno_omit =   n_comf_exclude_diff / rms_obs_n_comf
 
 
 ! **********************************
@@ -250,18 +250,36 @@ CONTAINS
 
     ! Initialize complete file name
     WRITE(mype_string,'(i2.2)') mype_filter
-    WRITE(year_string,'(i4.4)') yearold
+    WRITE(year_string,'(i4.4)') yearnew
     WRITE(mon_string, '(i2.2)') month
     WRITE(day_string, '(i2.2)') day_in_month
     
     file_n_comf = TRIM(year_string//'-'//mon_string//'-'//day_string//'.'//mype_string//'.nc')
     
-    ! Debugging message:
-    IF (mype_filter == 0) THEN
-       WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,a)') &
-            'FESOM-PDAF', 'Assimilate COMFORT DIN observations - OBS_n_comf at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0,&
-            ' h; read from file: ', file_n_comf
+    ! Message:
+    IF (step < 0) then
+        ! ---
+        ! Postprocessing
+        ! ---
+        isPP = .true.
+        if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Postprocessing of COMFORT DIN observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_n_comf
+        thisobs%use_global_obs = 1
+        thisobs%doassim = 1
+    ELSE
+       ! ---
+       ! Assimilation
+       ! ---
+       if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
+            'FESOM-PDAF', 'Assimilate COMFORT DIN observations at', &
+            day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
+            'h; read from file:', file_n_comf
+       ! Store whether to use global observations
+       thisobs%use_global_obs = use_global_obs
+       ! Store whether to assimilate this observation type
+       IF (assim_o_n_comf) thisobs%doassim = 1
     END IF
     
     ! Open the pe-local NetCDF file for that day
@@ -298,7 +316,13 @@ CONTAINS
       
       allocate(nod1_p(0),nod2_p(0),nod3_p(0),nl_p(0),lon_p(0),lat_p(0))
       
-      print *, 'FESOM-PDAF - obs_n_comf_pdafomi - No obs'
+      if (isPP) then
+        allocate(thisobs_PP%nod1_g(0),thisobs_PP%nod2_g(0),thisobs_PP%nod3_g(0))
+        allocate(thisobs_PP%elem_g(0))
+        allocate(thisobs_PP%depth(0),thisobs_PP%nz(0))
+        allocate(thisobs_PP%isExclObs(0))
+        allocate(thisobs_PP%lon(0),thisobs_PP%lat(0))
+      endif
       
     ELSE ! (i.e. dim_obs_p > 0)
     
@@ -310,7 +334,13 @@ CONTAINS
       allocate(ivariance_obs_p(dim_obs_p))
       allocate(ocoord_p(2,dim_obs_p))
       
-      print *, 'FESOM-PDAF - obs_n_comf_pdafomi - Have obs: ', dim_obs_p
+      if (isPP) then
+        allocate(thisobs_PP%nod1_g(dim_obs_p),thisobs_PP%nod2_g(dim_obs_p),thisobs_PP%nod3_g(dim_obs_p))
+        allocate(thisobs_PP%elem_g(dim_obs_p))
+        allocate(thisobs_PP%depth(dim_obs_p),thisobs_PP%nz(dim_obs_p))
+        allocate(thisobs_PP%isExclObs(dim_obs_p))
+        allocate(thisobs_PP%lon(dim_obs_p),thisobs_PP%lat(dim_obs_p))
+      endif
       
       ! Reading observations
       ncstat = nf90_inq_varid(ncid,'VAL', id_obs)
@@ -350,15 +380,52 @@ CONTAINS
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_comf_pdafomi - Error getting id_lat from netCDF'
       ncstat = nf90_get_var(ncid, id_lat, lat_p)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_comf_pdafomi - Error reading lat from netCDF'
+      
+      if (isPP) then
+      
+      thisobs_PP%nz  = REAL(nl_p)
+      thisobs_PP%lon = lon_p
+      thisobs_PP%lat = lat_p
+      
+      ! Reading nodes on globe
+      ncstat = nf90_inq_varid(ncid,'NOD1_G', id_nod1)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod1 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod1, thisobs_PP%nod1_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod1 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD2_G', id_nod2)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod2 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod2, thisobs_PP%nod2_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod2 from netCDF'
+   
+      ncstat = nf90_inq_varid(ncid,'NOD3_G', id_nod3)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_nod3 from netCDF'
+      ncstat = nf90_get_var(ncid, id_nod3, thisobs_PP%nod3_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading nod3 from netCDF'
+      
+      ! Reading mesh element
+      ncstat = nf90_inq_varid(ncid,'ELEM_G', id_elem)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_elem from netCDF'
+      ncstat = nf90_get_var(ncid, id_elem, thisobs_PP%elem_g)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading elem from netCDF'
+      
+      ! Reading depth
+      ncstat = nf90_inq_varid(ncid,'DEPTH', id_depth)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting id_depth from netCDF'
+      ncstat = nf90_get_var(ncid, id_depth, thisobs_PP%depth)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error reading depth from netCDF'
+      endif ! isPP
    
       ocoord_p(1,:) = lon_p / 180.0 * PI
       ocoord_p(2,:) = lat_p / 180.0 * PI
       
-      ! *** Set constant observation error *** 
-      WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
-      '--- Use global COMFORT DIN observation error of ', rms_obs_n_comf, ' mmol/m3'
+      ! *** Set constant observation error ***
+      IF (mype_filter == 0) &
+         WRITE (*, '(a, 5x, a, f12.3, a)') 'FESOM-PDAF', &
+         '--- Use global COMFORT DIN observation error of ', rms_obs_n_comf, ' mmol/m3'
       ! Set inverse observation error variance
       ivariance_obs_p = 1.0 / (rms_obs_n_comf ** 2)
+      if (isPP) thisobs_PP%isExclObs = 0
       
       ! *** Initialize index vector of observed surface nodes ***
       ! This array has as many rows as required for the observation operator
@@ -378,11 +445,12 @@ CONTAINS
         IF (nl_p(i) >= nzmin) THEN
            ivariance_obs_p(i) = 1e-12
            cnt_ex_dry_p = cnt_ex_dry_p + 1
+           if (isPP) thisobs_PP%isExclObs(i) = 1
         ENDIF
        
       END DO
       
-      WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
+!~       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
       
     ENDIF
     
@@ -458,7 +526,7 @@ CONTAINS
 ! *** Apply observation operator H on a state vector ***
 ! ******************************************************
 
-! For EN4 profile observations handled here, the observation
+! For profile observations handled here, the observation
 ! operator has to average the values of 3 grid points.
 ! For this the observation operator OBS_OP_F_GRIDAVG is used.
 

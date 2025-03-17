@@ -145,6 +145,7 @@ subroutine solve_tracers_ale(mesh)
     use REcom_config, only: ciso           ! to calculation radioactive decay of 14C
     use REcom_glovar, only: export
     use REcoM_ciso, only: lambda_14        ! decay constant of 14C    
+    use g_support, only: integrate_nod
 #ifdef use_PDAF
     use mod_carbon_fluxes_diags
     use mod_assim_pdaf, only: nlmax, mesh_fesom
@@ -157,11 +158,64 @@ subroutine solve_tracers_ale(mesh)
     integer                  :: tr_num, node, nzmax, nzmin
     real(kind=WP)            :: aux_tr(mesh%nl-1,myDim_nod2D+eDim_nod2D)
 #ifdef use_PDAF
-    real, allocatable        :: f_massvol(:,:) ! factor for tracer flux in terms of mass or concentration
-    real :: vardata_glob(nlmax,mesh_fesom%nod2D)
+    real, allocatable        :: f_mass(:,:) ! factor for tracer flux in terms of mass or concentration
+    real, allocatable        :: f_conc(:,:)
+    real                     :: vardata_glob(nlmax,mesh_fesom%nod2D)
+    real                     :: globsumdebug
+    integer                  :: f, ids
 #endif
 
 #include "associate_mesh.h"
+    !___________________________________________________________________________
+#if defined(__recom)
+    ! init - set to zero before tracer loop
+    export=0.0
+#endif
+#ifdef use_PDAF
+    ! init - set to zero before tracer loop
+    DO f=1, cfnfields
+      ! case flux or volume change:
+      IF (ANY(f==cffieldsflux) .or. &
+          ANY(f==cffieldsvol )) THEN
+        cffields(f)%instantconc=0.0
+      ! case SMS:
+      ! with exceptions of: bio  SMS - init in REcoM
+      !                     asml SMS - init in PDAF
+      ELSEIF (ALL(f /= [id_s_bio_alk,          &
+                    id_s_bio_dic,          &
+                    id_s_bio_deadmatter,   &
+                    id_s_bio_livingmatter, &
+                    id_s_asml_alk,         &
+                    id_s_asml_dic,         &
+                    id_s_asml_deadmatter,  &
+                    id_s_asml_livingmatter &
+                    ] )) THEN
+        cffields(f)%instantconc=0.0
+        cffields(f)%instantmass=0.0
+      ENDIF
+    ENDDO
+    
+    ! apply volume-mass scaling to REcoM-SMS fluxes
+    allocate(f_mass(nlmax,myDim_nod2D))
+    allocate(f_conc(nlmax,myDim_nod2D))
+
+    f_conc = 1.0 / dt
+    f_mass = areasvol(:nlmax,:myDim_nod2D) * hnode(:nlmax,:myDim_nod2D) / dt
+    
+    cffields(id_s_bio_dic         )%instantmass = cffields(id_s_bio_dic)         %instantconc * f_mass 
+    cffields(id_s_bio_alk         )%instantmass = cffields(id_s_bio_alk)         %instantconc * f_mass 
+    cffields(id_s_bio_livingmatter)%instantmass = cffields(id_s_bio_livingmatter)%instantconc * f_mass 
+    cffields(id_s_bio_deadmatter  )%instantmass = cffields(id_s_bio_deadmatter)  %instantconc * f_mass 
+    
+    cffields(id_s_bio_dic         )%instantconc = cffields(id_s_bio_dic)         %instantconc * f_conc 
+    cffields(id_s_bio_alk         )%instantconc = cffields(id_s_bio_alk)         %instantconc * f_conc 
+    cffields(id_s_bio_livingmatter)%instantconc = cffields(id_s_bio_livingmatter)%instantconc * f_conc 
+    cffields(id_s_bio_deadmatter  )%instantconc = cffields(id_s_bio_deadmatter)  %instantconc * f_conc
+    
+    deallocate(f_mass)    
+    deallocate(f_conc)
+#endif
+
     !___________________________________________________________________________
     if (SPP) call cal_rejected_salt(mesh)
     if (SPP) call app_rejected_salt(mesh)
@@ -174,65 +228,13 @@ subroutine solve_tracers_ale(mesh)
         UV    =UV    +fer_UV
         Wvel_e=Wvel_e+fer_Wvel
         Wvel  =Wvel  +fer_Wvel
+        call compute_vel_nodes(mesh)
     end if
-    !___________________________________________________________________________
-#if defined(__recom)
-    ! tracer sum to zero before tracer loop
-    export=0.0
-#endif
 #ifdef use_PDAF
-    ! tracer sum to zero before tracer loop
-    ! sinking
-    t_export=0.0
-    s_export=0.0
-    t_sink_livingmatter=0.0
-    s_sink_livingmatter=0.0
-    ! advection horizontal
-    s_hor_deadmatter=0.0
-    s_hor_livingmatter=0.0
-    s_hor_alk=0.0
-    s_hor_dic=0.0
-    ! advetion vertical
-    s_ver_deadmatter=0.0
-    s_ver_livingmatter=0.0
-    s_ver_alk=0.0
-    s_ver_dic=0.0
-    ! diffusion horizontal
-    s_diffH_deadmatter=0.0
-    s_diffH_livingmatter=0.0
-    s_diffH_alk=0.0
-    s_diffH_dic=0.0
-    ! diffusion vertical
-    s_diffV_deadmatter=0.0
-    s_diffV_livingmatter=0.0
-    s_diffV_dic=0.0
-    s_diffV_alk=0.0
-    ! benthos fluxes
-    s_benthos_alk=0.0
-    s_benthos_dic=0.0
-    s_benthos_deadmatter=0.0
-    s_benthos_livingmatter=0.0
-    ! mass
-    m_dic=0.0
-    m_alk=0.0
-    m_livingmatter=0.0
-    m_deadmatter=0.0
-    
-    ! apply volume-mass scaling to REcoM-SMS fluxes
-    allocate(f_massvol(nlmax,myDim_nod2D))
-    IF (cfconc) THEN
-      f_massvol = 1.0 / dt
-    ELSE
-      f_massvol = areasvol(:nlmax,:myDim_nod2D) * hnode(:nlmax,:myDim_nod2D) / dt
-    ENDIF
-    
-    s_bio_dic          = s_bio_dic          * f_massvol 
-    s_bio_alk          = s_bio_alk          * f_massvol 
-    s_bio_livingmatter = s_bio_livingmatter * f_massvol 
-    s_bio_deadmatter   = s_bio_deadmatter   * f_massvol 
-    
-    deallocate(f_massvol)    
+    CALL cfdiags_computetransport(tr_arr,Unode,wvel)
 #endif
+
+    !___________________________________________________________________________
     ! loop over all tracers 
     do tr_num=1,num_tracers
     
@@ -271,6 +273,7 @@ subroutine solve_tracers_ale(mesh)
         UV    =UV    -fer_UV
         Wvel_e=Wvel_e-fer_Wvel
         Wvel  =Wvel  -fer_Wvel
+        call compute_vel_nodes(mesh)
     end if
     
     !___________________________________________________________________________
@@ -303,87 +306,122 @@ subroutine solve_tracers_ale(mesh)
     end do
     
 #ifdef use_PDAF
-    ! carbon mass diagnostics
-    allocate(f_massvol(nlmax,myDim_nod2D))
-    f_massvol = areasvol(:nlmax,:myDim_nod2D) * hnode_new(:nlmax,:myDim_nod2D)
+!~     ! carbon tracer diagnostics    
+!~     cffields(id_m_dic)        %instantconc =   tr_arr(:nlmax,:myDim_nod2D, 4)
     
-    m_dic             =   tr_arr(:nlmax,:myDim_nod2D, 4) * f_massvol
+!~     cffields(id_m_alk)        %instantconc =   tr_arr(:nlmax,:myDim_nod2D, 5)
     
-    m_alk             =   tr_arr(:nlmax,:myDim_nod2D, 5) * f_massvol
-    
-    m_livingmatter    = ( tr_arr(:nlmax,:myDim_nod2D, 7) &
-                        + tr_arr(:nlmax,:myDim_nod2D,12) &
-                        + tr_arr(:nlmax,:myDim_nod2D,22) &
-                        + tr_arr(:nlmax,:myDim_nod2D,16) &
-                        + tr_arr(:nlmax,:myDim_nod2D,26) &
-                        ) * f_massvol
+!~     cffields(id_m_livingmatter)%instantconc = (  tr_arr(:nlmax,:myDim_nod2D, 7) & ! PhyC
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,12) & ! HetC
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,22) & ! PhyCalc
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,16) & ! DiaC
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,26) & ! Zoo2C
+!~                                                )
                         
-    m_deadmatter      = ( tr_arr(:nlmax,:myDim_nod2D,28) &
-                        + tr_arr(:nlmax,:myDim_nod2D,30) &
-                        + tr_arr(:nlmax,:myDim_nod2D,10) &
-                        + tr_arr(:nlmax,:myDim_nod2D,23) &
-                        + tr_arr(:nlmax,:myDim_nod2D,14) &
-                        ) * f_massvol
+!~     cffields(id_m_deadmatter) %instantconc = ( tr_arr(:nlmax,:myDim_nod2D,28) &  ! Det2C
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,30) &  ! Det2Calc
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,10) &  ! DetC
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,23) &  ! DetCalc
+!~                                                + tr_arr(:nlmax,:myDim_nod2D,14) &  ! DOC
+!~                                                )
+!~     ! concentration to mass
+!~     allocate(f_mass(nlmax,myDim_nod2D))
+!~     f_mass = areasvol(:nlmax,:myDim_nod2D) * hnode_new(:nlmax,:myDim_nod2D)
+!~     DO f=1, size(cffieldstracer)
+!~        ids=cffieldstracer(f)
+!~        cffields(ids)%instantmass = cffields(ids)%instantconc * f_mass
+!~     ENDDO
+    
+!~     ! --- DEBUG ---
+!~     if (cfdiags_debug) then
+!~     !                - send -                             - receive -    - size -   - type -              - sum -  -receiver-   -fesom -    -check-
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D, 7)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass PhyC', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,12)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass HetC', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,22)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass PhyCalc', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,16)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DiaC', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,26)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass Zoo2C', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,28)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass Det2C', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,30)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass Det2Calc', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,10)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DetC', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,23)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DetCalc', globsumdebug
+!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,14)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DOC', globsumdebug
+!~     CALL MPI_REDUCE( sum(cffields(id_m_deadmatter)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DeadMatter', globsumdebug
+!~     CALL MPI_REDUCE( sum(cffields(id_m_livingmatter)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass LivingMatter', globsumdebug
+!~     CALL MPI_REDUCE( sum(cffields(id_m_dic)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
+!~     if (writepe) write(*,*) 'CFDIAGS mass DIC', globsumdebug
+!~     endif
                         
-    deallocate(f_massvol)
+!~     deallocate(f_mass)
 
-    ! debugging messages written at first day of year
-    IF (daynew <= 1) THEN
+    ! --- DEBUG ---
+    IF (cfdiags_debug) THEN
       
       ! DIC
-      CALL gather_nod(s_ver_dic,vardata_glob)
-      if (writepe) write(*,*) 'sum s_ver_dic ',   sum(vardata_glob)
-      CALL gather_nod(s_hor_dic,vardata_glob)
-      if (writepe) write(*,*) 'sum s_hor_dic ',   sum(vardata_glob)
-      CALL gather_nod(s_diffH_dic,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_dic           )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_verLO_dic ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_horLO_dic           )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_horLO_dic ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_diffH_dic)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffH_dic ', sum(vardata_glob)
-      CALL gather_nod(s_diffV_dic,vardata_glob)
+      CALL gather_nod(cffields(id_s_diffV_dic)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffV_dic ', sum(vardata_glob)
       
-      CALL gather_nod(s_ver_dic+s_hor_dic+s_diffV_dic+s_diffH_dic,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_dic           )%instantmass+cffields(id_s_horLO_dic           )%instantmass+cffields(id_s_diffV_dic)%instantmass+cffields(id_s_diffH_dic)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_X_dic ' , sum(vardata_glob)
       
       ! alkalinity
-      CALL gather_nod(s_ver_alk,vardata_glob)
-      if (writepe) write(*,*) 'sum s_ver_alk ',   sum(vardata_glob)
-      CALL gather_nod(s_hor_alk,vardata_glob)
-      if (writepe) write(*,*) 'sum s_hor_alk ',   sum(vardata_glob)
-      CALL gather_nod(s_diffH_alk,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_alk           )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_verLO_alk ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_horLO_alk           )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_horLO_alk ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_diffH_alk)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffH_alk ', sum(vardata_glob)
-      CALL gather_nod(s_diffV_alk,vardata_glob)
+      CALL gather_nod(cffields(id_s_diffV_alk)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffV_alk ', sum(vardata_glob)
       
-      CALL gather_nod(s_ver_alk+s_hor_alk+s_diffV_alk+s_diffH_alk,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_alk           )%instantmass+cffields(id_s_horLO_alk           )%instantmass+cffields(id_s_diffV_alk)%instantmass+cffields(id_s_diffH_alk)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_X_alk ' , sum(vardata_glob)
       
       ! living organic
-      CALL gather_nod(s_ver_livingmatter,vardata_glob)
-      if (writepe) write(*,*) 'sum s_ver_livingmatter ',   sum(vardata_glob)
-      CALL gather_nod(s_hor_livingmatter,vardata_glob)
-      if (writepe) write(*,*) 'sum s_hor_livingmatter ',   sum(vardata_glob)
-      CALL gather_nod(s_diffH_livingmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_livingmatter  )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_verLO_livingmatter ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_horLO_livingmatter    )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_horLO_livingmatter ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_diffH_livingmatter)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffH_livingmatter ', sum(vardata_glob)
-      CALL gather_nod(s_diffV_livingmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_diffV_livingmatter)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffV_livingmatter ', sum(vardata_glob)
-      CALL gather_nod(s_sink_livingmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_sink_livingmatter )%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_sink_livingmatter ', sum(vardata_glob)
       
-      CALL gather_nod(s_ver_livingmatter+s_hor_livingmatter+s_diffV_livingmatter+s_diffH_livingmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_livingmatter  )%instantmass+cffields(id_s_horLO_livingmatter    )%instantmass+cffields(id_s_diffV_livingmatter)%instantmass+cffields(id_s_diffH_livingmatter)%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_X_livingmatter ' , sum(vardata_glob)
       
       ! dead organic
-      CALL gather_nod(s_ver_deadmatter,vardata_glob)
-      if (writepe) write(*,*) 'sum s_ver_deadmatter ',   sum(vardata_glob)
-      CALL gather_nod(s_hor_deadmatter,vardata_glob)
-      if (writepe) write(*,*) 'sum s_hor_deadmatter ',   sum(vardata_glob)
-      CALL gather_nod(s_diffH_deadmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_deadmatter  )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_verLO_deadmatter ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_horLO_deadmatter    )%instantmass,vardata_glob)
+      if (writepe) write(*,*) 'sum s_horLO_deadmatter ',   sum(vardata_glob)
+      CALL gather_nod(cffields(id_s_diffH_deadmatter  )%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffH_deadmatter ', sum(vardata_glob)
-      CALL gather_nod(s_diffV_deadmatter,vardata_glob)
+      CALL gather_nod(cffields(id_s_diffV_deadmatter  )%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_diffV_deadmatter ', sum(vardata_glob)
-      CALL gather_nod(s_export,vardata_glob)
+      CALL gather_nod(cffields(id_s_sink_deadmatter   )%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_export ', sum(vardata_glob)
       
-      CALL gather_nod(s_ver_deadmatter+s_hor_deadmatter+s_diffV_deadmatter+s_diffH_deadmatter+s_export,vardata_glob)
+      CALL gather_nod(cffields(id_s_verLO_deadmatter  )%instantmass+cffields(id_s_horLO_deadmatter    )%instantmass+cffields(id_s_diffV_deadmatter  )%instantmass+cffields(id_s_diffH_deadmatter  )%instantmass+cffields(id_s_sink_deadmatter   )%instantmass,vardata_glob)
       if (writepe) write(*,*) 'sum s_X_deadmatter ' , sum(vardata_glob)
       
     ENDIF
@@ -403,15 +441,16 @@ subroutine adv_tracers_ale(tr_num, mesh)
     use adv_tracers_muscle_ale_interface
     use adv_tracers_vert_ppm_ale_interface
     use oce_adv_tra_driver_interfaces
-#ifdef use_PDAF
-    use mod_carbon_fluxes_diags
-    use mod_assim_pdaf, only: nlmax
-    use mod_parallel_pdaf, only: writepe
-#endif
+!~ #ifdef use_PDAF
+!~     use mod_carbon_fluxes_diags
+!~     use mod_assim_pdaf, only: nlmax
+!~     use mod_parallel_pdaf, only: writepe
+!~ #endif
     implicit none
-#ifdef use_PDAF
-    real, allocatable :: factorvolmass(:,:)
-#endif
+!~ #ifdef use_PDAF
+!~     real, allocatable :: factormass(:,:)
+!~     real, allocatable :: factorconc(:,:)
+!~ #endif
     integer :: tr_num, node, nz
     type(t_mesh), intent(in) , target :: mesh
     
@@ -437,7 +476,7 @@ subroutine adv_tracers_ale(tr_num, mesh)
     ! here --> add horizontal advection part to del_ttf(nz,n) = del_ttf(nz,n) + ...
     del_ttf_advhoriz = 0.0_WP
     del_ttf_advvert  = 0.0_WP
-    call do_oce_adv_tra(tr_arr(:,:,tr_num), tr_arr_old(:,:,tr_num), UV, wvel, wvel_i, wvel_e, 1, del_ttf_advhoriz, del_ttf_advvert, tra_adv_ph, tra_adv_pv, mesh)   
+    call do_oce_adv_tra(tr_arr(:,:,tr_num), tr_arr_old(:,:,tr_num), UV, wvel, wvel_i, wvel_e, 1, del_ttf_advhoriz, del_ttf_advvert, tra_adv_ph, tra_adv_pv, mesh, tr_num)
     !___________________________________________________________________________
     ! update array for total tracer flux del_ttf with the fluxes from horizontal
     ! and vertical advection
@@ -446,45 +485,58 @@ subroutine adv_tracers_ale(tr_num, mesh)
     !___________________________________________________________________________
     ! update carbon flux diagnostics with the fluxes from horizontal
     ! and vertical advection
-#ifdef use_PDAF
-    ! compute concentration or mass for carbon flux diagnostics
-    allocate(factorvolmass(nlmax,myDim_nod2D))
-    if (cfconc) then
-      ! concentration
-      factorvolmass = 1.0 / hnode_new(:nlmax,:myDim_nod2D) / dt
-    else
-      ! mass
-      factorvolmass = areasvol(:nlmax,:myDim_nod2D) / dt
-    endif
+!~ #ifdef use_PDAF
+!~     ! compute concentration or mass for carbon flux diagnostics
+!~     allocate(factormass(nlmax,myDim_nod2D))
+!~     allocate(factorconc(nlmax,myDim_nod2D))
+!~     factorconc = 1.0 / hnode_new(:nlmax,:myDim_nod2D) / dt
+!~     factormass = areasvol(:nlmax,:myDim_nod2D) / dt
     
-    IF (tr_num== 5) THEN ! alkalinity
-        s_hor_alk = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorvolmass
-        s_ver_alk = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorvolmass
-    ENDIF
-    IF (tr_num== 4) THEN ! DIC
-        s_hor_dic = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorvolmass
-        s_ver_dic = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorvolmass
-    ENDIF
+!~     IF (tr_num== 5) THEN ! alkalinity
+!~         ! hor advection
+!~         cffields(id_s_hor_alk )%instantconc = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorconc
+!~         cffields(id_s_hor_alk )%instantmass = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factormass
+!~         ! ver advection
+!~         cffields(id_s_ver_alk )%instantconc = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorconc
+!~         cffields(id_s_ver_alk )%instantmass = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factormass
+!~     ENDIF
+!~     IF (tr_num== 4) THEN ! DIC
+!~         ! hor advection
+!~         cffields(id_s_hor_dic )%instantconc = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorconc
+!~         cffields(id_s_hor_dic )%instantmass = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factormass
+!~         ! ver advection
+!~         cffields(id_s_ver_dic )%instantconc = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorconc
+!~         cffields(id_s_ver_dic )%instantmass = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factormass
+!~     ENDIF
     
-    IF ((tr_num== 7) .or. &           ! PhyC
-        (tr_num==12) .or. &           ! HetC
-        (tr_num==22) .or. &           ! PhyCalc
-        (tr_num==16) .or. &           ! DiaC
-        (tr_num==26)        ) THEN    ! Zoo2C
-    s_hor_livingmatter = s_hor_livingmatter + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorvolmass
-    s_ver_livingmatter = s_ver_livingmatter + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorvolmass
-    ENDIF
+!~     IF ((tr_num== 7) .or. &           ! PhyC
+!~         (tr_num==12) .or. &           ! HetC
+!~         (tr_num==22) .or. &           ! PhyCalc
+!~         (tr_num==16) .or. &           ! DiaC
+!~         (tr_num==26)        ) THEN    ! Zoo2C
+!~     ! hor advection
+!~     cffields(id_s_hor_livingmatter )%instantconc = cffields(id_s_hor_livingmatter )%instantconc + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorconc
+!~     cffields(id_s_hor_livingmatter )%instantmass = cffields(id_s_hor_livingmatter )%instantmass + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factormass
+!~     ! ver advection
+!~     cffields(id_s_ver_livingmatter )%instantconc = cffields(id_s_ver_livingmatter )%instantconc + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorconc
+!~     cffields(id_s_ver_livingmatter )%instantmass = cffields(id_s_ver_livingmatter )%instantmass + del_ttf_advvert (:nlmax,:myDim_nod2D) *factormass
+!~     ENDIF
     
-    IF ((tr_num==28) .or. &           ! Det Zoo2C
-        (tr_num==30) .or. &           ! Det Zoo2Calc
-        (tr_num==10) .or. &           ! Det C
-        (tr_num==23) .or. &           ! Det Calc
-        (tr_num==14)        ) THEN    ! DOC
-    s_hor_deadmatter = s_hor_deadmatter + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorvolmass
-    s_ver_deadmatter = s_ver_deadmatter + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorvolmass
-    ENDIF
-    deallocate(factorvolmass) 
-#endif
+!~     IF ((tr_num==28) .or. &           ! Det Zoo2C
+!~         (tr_num==30) .or. &           ! Det Zoo2Calc
+!~         (tr_num==10) .or. &           ! Det C
+!~         (tr_num==23) .or. &           ! Det Calc
+!~         (tr_num==14)        ) THEN    ! DOC
+!~     ! hor advection
+!~     cffields(id_s_hor_deadmatter   )%instantconc = cffields(id_s_hor_deadmatter   )%instantconc + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorconc
+!~     cffields(id_s_hor_deadmatter   )%instantmass = cffields(id_s_hor_deadmatter   )%instantmass + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factormass
+!~     ! ver advection
+!~     cffields(id_s_ver_deadmatter   )%instantconc = cffields(id_s_ver_deadmatter   )%instantconc + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorconc
+!~     cffields(id_s_ver_deadmatter   )%instantmass = cffields(id_s_ver_deadmatter   )%instantmass + del_ttf_advvert (:nlmax,:myDim_nod2D) *factormass
+!~     ENDIF
+!~     deallocate(factormass)
+!~     deallocate(factorconc)
+!~ #endif
     
     !___________________________________________________________________________
     ! compute discrete variance decay after Burchard and Rennau 2008
@@ -529,7 +581,8 @@ use g_support
     real                     :: net
 #ifdef use_PDAF
     integer                  :: nzmaxpdaf
-    real, allocatable        :: factorvolmass(:)
+    real, allocatable        :: factormass(:)
+    real, allocatable        :: factorconc(:)
 #endif
 
 
@@ -554,7 +607,7 @@ use g_support
     ! in danilovs srcipt
     ! includes Redi diffusivity if Redi=.true.
     ! FESOM-REcoM-PDAF: Redi=.true.
-    call diff_part_hor_redi(mesh,tr_num) ! seems to be ~9% faster than diff_part_hor
+    call diff_part_hor_redi(mesh,tr_num) ! seems to be ~9%faster than diff_part_hor
     
     !___________________________________________________________________________
     ! do vertical diffusion: explicite 
@@ -597,24 +650,25 @@ if (1) then
 #ifdef use_PDAF
         nzmaxpdaf = MIN(nlmax,nzmax)
         
-        allocate(factorvolmass(nzmaxpdaf-nzmin+1))
-        if (cfconc) then
-           ! concentration
-           factorvolmass = 1.0/dt
-        else
-           ! mass
-           factorvolmass = hnode_new(nzmin:nzmaxpdaf,n)*areasvol(nzmin:nzmaxpdaf,n)/dt
-        endif
+        allocate(factormass(nzmaxpdaf-nzmin+1))
+        allocate(factorconc(nzmaxpdaf-nzmin+1))
+        ! concentration
+        factorconc = 1.0/dt
+        ! mass
+        factormass = hnode(nzmin:nzmaxpdaf,n) * areasvol(nzmin:nzmaxpdaf,n) / dt
         
         ! alkalinity
         if (tracer_id(tr_num) == 1003) then
-            s_benthos_alk(nzmin:nzmaxpdaf,n) = s_benthos_alk(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+            cffields(id_s_benthos_alk)%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_alk)%instantconc(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorconc
+            cffields(id_s_benthos_alk)%instantmass(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_alk)%instantmass(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factormass
         endif
         ! dic
         if (tracer_id(tr_num) == 1002) then
-            s_benthos_dic(nzmin:nzmaxpdaf,n) = s_benthos_dic(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+            cffields(id_s_benthos_dic)%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_dic)%instantconc(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factorconc
+            cffields(id_s_benthos_dic)%instantmass(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_dic)%instantmass(nzmin:nzmaxpdaf,n) + dtr_bf(nzmin:nzmaxpdaf,n)*factormass
         endif
-        deallocate(factorvolmass)
+        deallocate(factormass)
+        deallocate(factorconc)
 #endif
         end do
     end if
@@ -661,14 +715,12 @@ end if ! if (0)
 #ifdef use_PDAF
         nzmaxpdaf = MIN(nlmax,nzmax)
         
-        allocate(factorvolmass(nzmaxpdaf-nzmin+1))
-        if (cfconc) then
-           ! concentration
-           factorvolmass = 1.0/dt
-        else
-           ! mass
-           factorvolmass = hnode_new(nzmin:nzmaxpdaf,n)*areasvol(nzmin:nzmaxpdaf,n)/dt
-        endif
+        allocate(factormass(nzmaxpdaf-nzmin+1))
+        allocate(factorconc(nzmaxpdaf-nzmin+1))
+        ! concentration
+        factorconc = 1.0/dt
+        ! mass
+        factormass = hnode(nzmin:nzmaxpdaf,n) * areasvol(nzmin:nzmaxpdaf,n) / dt
         
        ! detritus
        if (tracer_id(tr_num) == 1008 .or.    &      ! idetc
@@ -676,7 +728,8 @@ end if ! if (0)
            tracer_id(tr_num) == 1026 .or.    &      ! idetz2c
            tracer_id(tr_num) == 1028 ) then         ! idetz2calc
            
-           s_benthos_deadmatter(nzmin:nzmaxpdaf,n) = s_benthos_deadmatter(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+           cffields(id_s_benthos_deadmatter)%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_deadmatter)%instantconc(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorconc
+           cffields(id_s_benthos_deadmatter)%instantmass(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_deadmatter)%instantmass(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factormass
        endif
        
        ! alive carbon biomass
@@ -684,9 +737,11 @@ end if ! if (0)
            tracer_id(tr_num) == 1020 .or.    &   ! iphycal
            tracer_id(tr_num) == 1014 ) then      ! idiac
            
-           s_benthos_livingmatter(nzmin:nzmaxpdaf,n) = s_benthos_livingmatter(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorvolmass
+           cffields(id_s_benthos_livingmatter)%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_livingmatter)%instantconc(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factorconc
+           cffields(id_s_benthos_livingmatter)%instantmass(nzmin:nzmaxpdaf,n) = cffields(id_s_benthos_livingmatter)%instantmass(nzmin:nzmaxpdaf,n) + str_bf(nzmin:nzmaxpdaf,n)*factormass
        endif
-       deallocate(factorvolmass)
+       deallocate(factormass)
+       deallocate(factorconc)
 #endif
         end do                             
     end if
@@ -721,70 +776,55 @@ end if ! if (0)
         !!PS                             (hnode(1:nzmax,n)-hnode_new(1:nzmax,n))
         !!PS tr_arr(1:nzmax,n,tr_num)=tr_arr(1:nzmax,n,tr_num)+ &
         !!PS                             del_ttf(1:nzmax,n)/hnode_new(1:nzmax,n)
+#ifdef use_PDAF
+    nzmaxpdaf = MIN(nlmax,nzmax)
+    IF (tr_num== 5) THEN ! alkalinity
+        cffields(id_s_vol_alk )%instantconc(nzmin:nzmaxpdaf,n) = tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
+        *(hnode(nzmin:nzmaxpdaf,n)-hnode_new(nzmin:nzmaxpdaf,n))/hnode_new(nzmin:nzmaxpdaf,n)/dt
+    ENDIF
+    IF (tr_num== 4) THEN ! DIC
+        cffields(id_s_vol_dic )%instantconc(nzmin:nzmaxpdaf,n) = tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
+        *(hnode(nzmin:nzmaxpdaf,n)-hnode_new(nzmin:nzmaxpdaf,n))/hnode_new(nzmin:nzmaxpdaf,n)/dt
+    ENDIF
+    IF ((tr_num== 7) .or. &           ! PhyC
+        (tr_num==12) .or. &           ! HetC
+        (tr_num==22) .or. &           ! PhyCalc
+        (tr_num==16) .or. &           ! DiaC
+        (tr_num==26)        ) THEN    ! Zoo2C
+    cffields(id_s_vol_livingmatter )%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_vol_livingmatter )%instantconc(nzmin:nzmaxpdaf,n) + tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
+    *(hnode(nzmin:nzmaxpdaf,n)-hnode_new(nzmin:nzmaxpdaf,n))/hnode_new(nzmin:nzmaxpdaf,n)/dt
+    ENDIF
+    IF ((tr_num==28) .or. &           ! Det Zoo2C
+        (tr_num==30) .or. &           ! Det Zoo2Calc
+        (tr_num==10) .or. &           ! Det C
+        (tr_num==23) .or. &           ! Det Calc
+        (tr_num==14)        ) THEN    ! DOC
+    cffields(id_s_vol_deadmatter   )%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_vol_deadmatter   )%instantconc(nzmin:nzmaxpdaf,n) + tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
+    *(hnode(nzmin:nzmaxpdaf,n)-hnode_new(nzmin:nzmaxpdaf,n))/hnode_new(nzmin:nzmaxpdaf,n)/dt
+    ENDIF
+#endif
         
         del_ttf(nzmin:nzmax,n)=del_ttf(nzmin:nzmax,n)+tr_arr(nzmin:nzmax,n,tr_num)* &
                                     (hnode(nzmin:nzmax,n)-hnode_new(nzmin:nzmax,n))
         tr_arr(nzmin:nzmax,n,tr_num)=tr_arr(nzmin:nzmax,n,tr_num)+ &
                                     del_ttf(nzmin:nzmax,n)/hnode_new(nzmin:nzmax,n)
         ! WHY NOT ??? --> whats advantage of above --> tested it --> the upper 
-        ! equation has a 30% smaller nummerical drift
+        ! equation has a 30%smaller nummerical drift
         !tr_arr(1:nzmax,n,tr_num)=(hnode(1:nzmax,n)*tr_arr(1:nzmax,n,tr_num)+ &
         !                        del_ttf(1:nzmax,n))/hnode_new(1:nzmax,n)
-        
-#ifdef use_PDAF
-        nzmaxpdaf = MIN(nlmax,nzmax)
-        ! compute concentration or mass for carbon flux diagnostics
-        allocate(factorvolmass(nzmaxpdaf - nzmin + 1))
-        if (cfconc) then
-          ! concentration
-          factorvolmass(:) = 1.0/hnode_new(nzmin:nzmaxpdaf,n)
-        else
-          ! mass
-          factorvolmass(:) = areasvol(nzmin:nzmaxpdaf,n)
-        endif
-        
-        IF (tr_num == 5) THEN ! alkalinity
-          ! s_diffH_alk(nzmin:nzmaxpdaf,n) = s_diffH_alk(nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_diffV_alk(nzmin:nzmaxpdaf,n) = s_diffV_alk(nzmin:nzmaxpdaf,n)*factorvolmass
-          !s_ver_alk  (nzmin:nzmaxpdaf,n) = s_ver_alk  (nzmin:nzmaxpdaf,n)*factorvolmass
-          !s_hor_alk  (nzmin:nzmaxpdaf,n) = s_hor_alk  (nzmin:nzmaxpdaf,n)*factorvolmass
-        ENDIF
-        IF (tr_num == 4) THEN ! DIC
-          ! s_diffH_dic(nzmin:nzmaxpdaf,n) = s_diffH_dic(nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_diffV_dic(nzmin:nzmaxpdaf,n) = s_diffV_dic(nzmin:nzmaxpdaf,n)*factorvolmass
-          !s_hor_dic  (nzmin:nzmaxpdaf,n) = s_hor_dic  (nzmin:nzmaxpdaf,n)*factorvolmass
-          !s_ver_dic  (nzmin:nzmaxpdaf,n) = s_ver_dic  (nzmin:nzmaxpdaf,n)*factorvolmass
-        ENDIF
-
-        IF (tr_num == MAX(7,12,22,16,26)) THEN ! last time that tracer loop cycles through one of living carbon biomass tracers
-          ! s_diffH_livingmatter(nzmin:nzmaxpdaf,n) = s_diffH_livingmatter(nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_diffV_livingmatter(nzmin:nzmaxpdaf,n) = s_diffV_livingmatter(nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_ver_livingmatter  (nzmin:nzmaxpdaf,n) = s_ver_livingmatter  (nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_hor_livingmatter  (nzmin:nzmaxpdaf,n) = s_hor_livingmatter  (nzmin:nzmaxpdaf,n)*factorvolmass
-        ENDIF
-        IF (tr_num == MAX(28,30,10,23,14)) THEN ! last time that tracer loop cycles through one of dead carbon biomass tracers
-          !s_diffH_deadmatter(nzmin:nzmaxpdaf,n) = s_diffH_deadmatter(nzmin:nzmaxpdaf,n)*factorvolmass
-          !s_diffV_deadmatter(nzmin:nzmaxpdaf,n) = s_diffV_deadmatter(nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_ver_deadmatter  (nzmin:nzmaxpdaf,n) = s_ver_deadmatter  (nzmin:nzmaxpdaf,n)*factorvolmass
-          ! s_hor_deadmatter  (nzmin:nzmaxpdaf,n) = s_hor_deadmatter  (nzmin:nzmaxpdaf,n)*factorvolmass
-        ENDIF
-        
-        deallocate(factorvolmass)
-#endif
-       
     end do ! n=1, myDim_nod2D
 #ifdef use_PDAF
     IF (cfdiags_debug .and. (tr_num == 4)) THEN
-      vname_cfdiags='s_hor_dic'
-      call debug_hor(vname_cfdiags,s_hor_dic)
-      vname_cfdiags='s_ver_dic'
-      call debug_vert(vname_cfdiags,s_ver_dic)
-      vname_cfdiags='s_ver_dic_onlayer'
-      call debug_hor(vname_cfdiags,s_ver_dic)
+      vname_cfdiags='s_horLO_dic'
+      call debug_hor(vname_cfdiags,cffields(id_s_horLO_dic           )%instantmass)
+      vname_cfdiags='s_verLO_dic'
+      call debug_vert(vname_cfdiags,cffields(id_s_verLO_dic           )%instantmass)
+      vname_cfdiags='s_verLO_dic_onlayer'
+      call debug_hor(vname_cfdiags,cffields(id_s_verLO_dic           )%instantmass)
       vname_cfdiags='s_diffH_dic'
-      call debug_hor(vname_cfdiags,s_diffH_dic(:,:myDim_nod2D))
+      call debug_hor(vname_cfdiags,cffields(id_s_diffH_dic)%instantmass(:,:myDim_nod2D))
       vname_cfdiags='s_diffV_dic_expl'
-      call debug_vert(vname_cfdiags,s_diffV_dic)
+      call debug_vert(vname_cfdiags,cffields(id_s_diffV_dic)%instantmass)
     ENDIF
 #endif
     
@@ -902,7 +942,10 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
     logical                  :: do_wimpl=.true.
     
 #ifdef use_PDAF
-    real :: factorvolmass
+    real :: factorconc
+    real :: factorconcBC
+    real :: factormass
+    real :: factormassBC
 #endif
     
 #include "associate_mesh.h"
@@ -1230,27 +1273,44 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
         ! Carbon flux diagnostics
 #ifdef use_PDAF
             IF (nz<=nlmax) THEN
-               IF (cfconc) THEN
-                 ! concentration
-                 factorvolmass=1.0
-               ELSE
-                 ! mass
-                 factorvolmass=areasvol(nz,n) * hnode_new(nz,n)
-               ENDIF
+               ! concentration (SMS Vertical diffusion)
+               factorconc=1.0 / dt
+               ! concentration (SMS Surface boundary condition)
+               factorconcBC = 1.0 / hnode_new(nz,n) / dt
+               ! mass (SMS Vertical diffusion)
+               factormass=areasvol(nz,n) * hnode_new(nz,n) / dt
+               ! mass (SMS Surface boundary condition)
+               factormassBC=areasvol(nz,n) / dt
                
                IF (tr_num == 5) THEN ! alkalinity
                  IF (nz==nzmin) THEN
-                    s_diffV_alk(nz,n) = s_diffV_alk(nz,n) + (tr(nz) - bc_surface(n, tracer_id(tr_num),mesh)/hnode_new(nz,n)) * (factorvolmass/dt)
+                    ! surface: separate boundary flux from oceanic diffusion
+                    ! oceanic diffusion
+                    cffields(id_s_diffV_alk)%instantconc(nz,n) = cffields(id_s_diffV_alk)%instantconc(nz,n) + tr(nz)*factorconc - bc_surface(n, tracer_id(tr_num),mesh)*factorconcBC
+                    cffields(id_s_diffV_alk)%instantmass(nz,n) = cffields(id_s_diffV_alk)%instantmass(nz,n) + tr(nz)*factormass - bc_surface(n, tracer_id(tr_num),mesh)*factormassBC
+                    ! boundary flux
+                    cffields(id_s_surf_alk) %instantconc(nz,n) = cffields(id_s_surf_alk) %instantconc(nz,n) + bc_surface(n, tracer_id(tr_num),mesh) * factorconcBC
+                    cffields(id_s_surf_alk) %instantmass(nz,n) = cffields(id_s_surf_alk) %instantmass(nz,n) + bc_surface(n, tracer_id(tr_num),mesh) * factormassBC
                  ELSE
-                    s_diffV_alk(nz,n) = s_diffV_alk(nz,n) + (tr(nz)  * (factorvolmass/dt))
+                    ! subsurface: oceanic diffusion only
+                    cffields(id_s_diffV_alk)%instantconc(nz,n) = cffields(id_s_diffV_alk)%instantconc(nz,n) + (tr(nz)*factorconc)
+                    cffields(id_s_diffV_alk)%instantmass(nz,n) = cffields(id_s_diffV_alk)%instantmass(nz,n) + (tr(nz)*factormass)
                  ENDIF
                ENDIF ! end alkalinity
                
                IF (tr_num == 4) THEN ! DIC
                  IF (nz==nzmin) THEN
-                    s_diffV_dic(nz,n) = s_diffV_dic(nz,n) + (tr(nz) - bc_surface(n, tracer_id(tr_num),mesh)/hnode_new(nz,n)) * (factorvolmass/dt)
+                    ! surface: separate boundary flux from oceanic diffusion
+                    ! oceanic diffusion
+                    cffields(id_s_diffV_dic)%instantconc(nz,n) = cffields(id_s_diffV_dic)%instantconc(nz,n) + tr(nz)*factorconc - bc_surface(n, tracer_id(tr_num),mesh)*factorconcBC
+                    cffields(id_s_diffV_dic)%instantmass(nz,n) = cffields(id_s_diffV_dic)%instantmass(nz,n) + tr(nz)*factormass - bc_surface(n, tracer_id(tr_num),mesh)*factormassBC
+                    ! boundary flux
+                    cffields(id_s_surf_dic) %instantconc(nz,n) = cffields(id_s_surf_dic) %instantconc(nz,n) + bc_surface(n, tracer_id(tr_num),mesh)* factorconcBC
+                    cffields(id_s_surf_dic) %instantmass(nz,n) = cffields(id_s_surf_dic) %instantmass(nz,n) + bc_surface(n, tracer_id(tr_num),mesh)* factormassBC
                  ELSE
-                    s_diffV_dic(nz,n) = s_diffV_dic(nz,n) + (tr(nz) * (factorvolmass / dt))
+                    ! subsurface: oceanic diffusion only
+                    cffields(id_s_diffV_dic)%instantconc(nz,n) = cffields(id_s_diffV_dic)%instantconc(nz,n) + (tr(nz) * factorconc)
+                    cffields(id_s_diffV_dic)%instantmass(nz,n) = cffields(id_s_diffV_dic)%instantmass(nz,n) + (tr(nz) * factormass)
                  ENDIF
                ENDIF ! end DIC
                
@@ -1260,9 +1320,11 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
                (tr_num==16) .or. &           ! DiaC
                (tr_num==26)        ) THEN    ! Zoo2C
                  IF (nz==nzmin) THEN
-                   s_diffV_livingmatter(nz,n) = s_diffV_livingmatter(nz,n) + (tr(nz) - bc_surface(n, tracer_id(tr_num),mesh)/hnode_new(nz,n)) * (factorvolmass/dt)
+                   cffields(id_s_diffV_livingmatter)%instantconc(nz,n) = cffields(id_s_diffV_livingmatter)%instantconc(nz,n) + tr(nz)*factorconc - bc_surface(n, tracer_id(tr_num),mesh)*factorconcBC
+                   cffields(id_s_diffV_livingmatter)%instantmass(nz,n) = cffields(id_s_diffV_livingmatter)%instantmass(nz,n) + tr(nz)*factormass - bc_surface(n, tracer_id(tr_num),mesh)*factormassBC
                  ELSE
-                   s_diffV_livingmatter(nz,n) = s_diffV_livingmatter(nz,n) + (tr(nz) * (factorvolmass / dt))
+                   cffields(id_s_diffV_livingmatter)%instantconc(nz,n) = cffields(id_s_diffV_livingmatter)%instantconc(nz,n) + (tr(nz) * factorconc)
+                   cffields(id_s_diffV_livingmatter)%instantmass(nz,n) = cffields(id_s_diffV_livingmatter)%instantmass(nz,n) + (tr(nz) * factormass)
                  ENDIF
                ENDIF ! end living biomass
                
@@ -1272,9 +1334,11 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
                (tr_num==23) .or. &           ! Det Calc
                (tr_num==14)        ) THEN    ! DOC
                  IF (nz==nzmin) THEN
-                   s_diffV_deadmatter(nz,n) = s_diffV_deadmatter(nz,n) + (tr(nz) - bc_surface(n, tracer_id(tr_num),mesh)/hnode_new(nz,n)) * (factorvolmass/dt)
+                   cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) = cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) + tr(nz)*factorconc - bc_surface(n, tracer_id(tr_num),mesh)*factorconcBC
+                   cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) = cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) + tr(nz)*factormass - bc_surface(n, tracer_id(tr_num),mesh)*factormassBC
                  ELSE
-                   s_diffV_deadmatter(nz,n) = s_diffV_deadmatter(nz,n) + (tr(nz) * (factorvolmass / dt))
+                   cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) = cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) + (tr(nz) * factorconc)
+                   cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) = cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) + (tr(nz) * factormass)
                  ENDIF
                ENDIF ! end dead biomass
             ENDIF ! (nz<=nlmax)
@@ -1285,9 +1349,8 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
 #ifdef use_PDAF
     ! debugging output
     IF (cfdiags_debug .and. (tr_num == 4)) THEN
-    
       vname_cfdiags='s_diffV_dic_impl'
-      call debug_vert(vname_cfdiags,s_diffV_dic)
+      call debug_vert(vname_cfdiags,cffields(id_s_diffV_dic)%instantmass)
     ENDIF
 #endif
 end subroutine diff_ver_part_impl_ale
@@ -1342,9 +1405,7 @@ use ver_sinking_recom_benthos_interface
             Vben = VDet
             
             ! Variable sinking
-            ! No sinking if VDet==0; next line is an intentional bug!
             if ((allow_var_sinking) .and. (VDet .gt. 0.1)) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + VDet
-            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
 
         elseif(tracer_id(tr_num)==1004 .or. &  !iphyn
                tracer_id(tr_num)==1005 .or. &  !iphyc
@@ -1352,8 +1413,6 @@ use ver_sinking_recom_benthos_interface
                tracer_id(tr_num)==1006 ) then  !ipchl
 
             Vben = VPhy
-            ! No variable sinking: next line is an intentional bug!
-            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
 
         elseif(tracer_id(tr_num)==1013 .or. &  !idian
                tracer_id(tr_num)==1014 .or. &  !idiac
@@ -1361,8 +1420,6 @@ use ver_sinking_recom_benthos_interface
                tracer_id(tr_num)==1015 ) then  !idchl
 
             Vben = VDia
-            ! No variable sinking: next line is an intentional bug!
-            ! if (allow_var_sinking) Vben = Vdet_a * abs(zbar_3d_n(:,n)) + Vben
       
         elseif(tracer_id(tr_num)==1025 .or. &  !idetz2n
                tracer_id(tr_num)==1026 .or. &  !idetz2c
@@ -1370,7 +1427,6 @@ use ver_sinking_recom_benthos_interface
                tracer_id(tr_num)==1028 ) then  !idetz2calc
 
              Vben = VDet_zoo2
-             ! No variable sinking
         endif
 
         Vben= Vben/SecondsPerDay ! conversion [m/d] --> [m/s] (vertical velocity, note that it is positive here)
@@ -1610,7 +1666,8 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
     real(kind=WP)            :: Tx, Ty
     real(kind=WP)            :: tr_xynodes(2,mesh%nl-1,myDim_nod2D+eDim_nod2D), vd_flux(mesh%nl)
 #ifdef use_PDAF
-    real                     :: factorvolmass
+    real                     :: factormass
+    real                     :: factorconc
 #endif
 
 #include "associate_mesh.h"
@@ -1669,22 +1726,21 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
             del_ttf(nz,n) = del_ttf(nz,n)+(vd_flux(nz) - vd_flux(nz+1))*dt/areasvol(nz,n)
 #ifdef use_PDAF
             ! compute concentration or mass for carbon flux diagnostics
-            if (cfconc) then
-              ! concentration
-              factorvolmass = 1.0/areasvol(nz,n)/hnode_new(nz,n)
-            else
-              ! mass
-              factorvolmass = 1.0
-            endif
+            ! concentration
+            factorconc = 1.0/areasvol(nz,n)/hnode_new(nz,n)
+            ! mass
+            factormass = 1.0
             ! add vertical diffusivity flux difference to diagnostic
             IF (nz<=nlmax) THEN
             
                IF (tr_num == 5) THEN ! alkalinity
-                 s_diffV_alk(nz,n) = s_diffV_alk(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorvolmass
+                 cffields(id_s_diffV_alk)%instantconc(nz,n) = cffields(id_s_diffV_alk)%instantconc(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorconc
+                 cffields(id_s_diffV_alk)%instantmass(nz,n) = cffields(id_s_diffV_alk)%instantmass(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factormass
                ENDIF
                
                IF (tr_num == 4) THEN ! DIC
-                 s_diffV_dic(nz,n) = s_diffV_dic(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorvolmass
+                 cffields(id_s_diffV_dic)%instantconc(nz,n) = cffields(id_s_diffV_dic)%instantconc(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorconc
+                 cffields(id_s_diffV_dic)%instantmass(nz,n) = cffields(id_s_diffV_dic)%instantmass(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factormass
                ENDIF
                
                IF ((tr_num== 7) .or. &       ! PhyC
@@ -1692,7 +1748,8 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
                (tr_num==22) .or. &           ! PhyCalc
                (tr_num==16) .or. &           ! DiaC
                (tr_num==26)        ) THEN    ! Zoo2C
-                 s_diffV_livingmatter(nz,n) = s_diffV_livingmatter(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorvolmass
+                 cffields(id_s_diffV_livingmatter)%instantconc(nz,n) = cffields(id_s_diffV_livingmatter)%instantconc(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorconc
+                 cffields(id_s_diffV_livingmatter)%instantmass(nz,n) = cffields(id_s_diffV_livingmatter)%instantmass(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factormass
                ENDIF
                
                IF ((tr_num==28) .or. &       ! Det Zoo2C
@@ -1700,7 +1757,8 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
                (tr_num==10) .or. &           ! Det C
                (tr_num==23) .or. &           ! Det Calc
                (tr_num==14)        ) THEN    ! DOC
-                 s_diffV_deadmatter(nz,n) = s_diffV_deadmatter(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorvolmass
+                 cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) = cffields(id_s_diffV_deadmatter  )%instantconc(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factorconc
+                 cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) = cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factormass
                ENDIF
             ENDIF
 #endif
@@ -1716,6 +1774,7 @@ subroutine diff_part_hor_redi(mesh,tr_num)
     use MOD_MESH
     use o_param
     use g_config
+    use g_comm_auto
 #ifdef use_PDAF
         use mod_carbon_fluxes_diags
         use mod_assim_pdaf, only: nlmax
@@ -1731,8 +1790,10 @@ subroutine diff_part_hor_redi(mesh,tr_num)
     real(kind=WP)            :: isredi=0._WP
 #if use_PDAF
     integer                  :: nzmaxpdaf
-    real, allocatable        :: factorvolmass1(:)
-    real, allocatable        :: factorvolmass2(:)
+    real, allocatable        :: factormass1(:)
+    real, allocatable        :: factormass2(:)
+    real, allocatable        :: factorconc1(:)
+    real, allocatable        :: factorconc2(:)
 #endif
 
 #include "associate_mesh.h"
@@ -1868,28 +1929,31 @@ subroutine diff_part_hor_redi(mesh,tr_num)
         nzmaxpdaf = MIN(nlmax,nl12)
         
         ! compute concentration or mass for carbon flux diagnostics
-        allocate(factorvolmass1(nzmaxpdaf - ul12 + 1))
-        allocate(factorvolmass2(nzmaxpdaf - ul12 + 1))
-        if (cfconc) then
-          ! concentration
-          factorvolmass1(:) = 1.0 / hnode_new(ul12:nzmaxpdaf,enodes(1)) / areasvol(ul12:nzmaxpdaf,enodes(1))
-          factorvolmass2(:) = 1.0 / hnode_new(ul12:nzmaxpdaf,enodes(2)) / areasvol(ul12:nzmaxpdaf,enodes(2))
-        else
-          ! mass
-          factorvolmass1 = 1.0
-          factorvolmass2 = 1.0
-        endif
+        allocate(factormass1(nzmaxpdaf - ul12 + 1))
+        allocate(factormass2(nzmaxpdaf - ul12 + 1))
+        allocate(factorconc1(nzmaxpdaf - ul12 + 1))
+        allocate(factorconc2(nzmaxpdaf - ul12 + 1))
+        ! concentration
+        factorconc1(:) = 1.0 / hnode_new(ul12:nzmaxpdaf,enodes(1)) / areasvol(ul12:nzmaxpdaf,enodes(1))
+        factorconc2(:) = 1.0 / hnode_new(ul12:nzmaxpdaf,enodes(2)) / areasvol(ul12:nzmaxpdaf,enodes(2))
+        ! mass
+        factormass1 = 1.0
+        factormass2 = 1.0
 
         ! alkalinity
         IF (tr_num == 5) THEN
-          s_diffH_alk(ul12:nzmaxpdaf,enodes(1)) = s_diffH_alk(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorvolmass1
-          s_diffH_alk(ul12:nzmaxpdaf,enodes(2)) = s_diffH_alk(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorvolmass2
+          cffields(id_s_diffH_alk)%instantconc(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_alk)%instantconc(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorconc1
+          cffields(id_s_diffH_alk)%instantconc(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_alk)%instantconc(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorconc2
+          cffields(id_s_diffH_alk)%instantmass(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_alk)%instantmass(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factormass1
+          cffields(id_s_diffH_alk)%instantmass(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_alk)%instantmass(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factormass2
         ENDIF
         
         ! DIC
         IF (tr_num == 4) THEN
-          s_diffH_dic(ul12:nzmaxpdaf,enodes(1)) = s_diffH_dic(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorvolmass1
-          s_diffH_dic(ul12:nzmaxpdaf,enodes(2)) = s_diffH_dic(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorvolmass2
+          cffields(id_s_diffH_dic)%instantconc(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_dic)%instantconc(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorconc1
+          cffields(id_s_diffH_dic)%instantconc(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_dic)%instantconc(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorconc2
+          cffields(id_s_diffH_dic)%instantmass(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_dic)%instantmass(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factormass1
+          cffields(id_s_diffH_dic)%instantmass(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_dic)%instantmass(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factormass2
         ENDIF
         
         IF ((tr_num== 7) .or. &       ! PhyC
@@ -1897,8 +1961,10 @@ subroutine diff_part_hor_redi(mesh,tr_num)
         (tr_num==22) .or. &           ! PhyCalc
         (tr_num==16) .or. &           ! DiaC
         (tr_num==26)        ) THEN    ! Zoo2C
-          s_diffH_livingmatter(ul12:nzmaxpdaf,enodes(1)) = s_diffH_livingmatter(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorvolmass1
-          s_diffH_livingmatter(ul12:nzmaxpdaf,enodes(2)) = s_diffH_livingmatter(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorvolmass2
+          cffields(id_s_diffH_livingmatter)%instantconc(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_livingmatter)%instantconc(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorconc1
+          cffields(id_s_diffH_livingmatter)%instantconc(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_livingmatter)%instantconc(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorconc2
+          cffields(id_s_diffH_livingmatter)%instantmass(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_livingmatter)%instantmass(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factormass1
+          cffields(id_s_diffH_livingmatter)%instantmass(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_livingmatter)%instantmass(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factormass2
         ENDIF
         
         IF ((tr_num==28) .or. &       ! Det Zoo2C
@@ -1906,14 +1972,18 @@ subroutine diff_part_hor_redi(mesh,tr_num)
         (tr_num==10) .or. &           ! Det C
         (tr_num==23) .or. &           ! Det Calc
         (tr_num==14)        ) THEN    ! DOC
-          s_diffH_deadmatter(ul12:nzmaxpdaf,enodes(1)) = s_diffH_deadmatter(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorvolmass1
-          s_diffH_deadmatter(ul12:nzmaxpdaf,enodes(2)) = s_diffH_deadmatter(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorvolmass2
+          cffields(id_s_diffH_deadmatter  )%instantconc(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_deadmatter  )%instantconc(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factorconc1
+          cffields(id_s_diffH_deadmatter  )%instantconc(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_deadmatter  )%instantconc(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factorconc2
+          cffields(id_s_diffH_deadmatter  )%instantmass(ul12:nzmaxpdaf,enodes(1)) = cffields(id_s_diffH_deadmatter  )%instantmass(ul12:nzmaxpdaf,enodes(1)) + rhs1(ul12:nzmaxpdaf)*factormass1
+          cffields(id_s_diffH_deadmatter  )%instantmass(ul12:nzmaxpdaf,enodes(2)) = cffields(id_s_diffH_deadmatter  )%instantmass(ul12:nzmaxpdaf,enodes(2)) + rhs2(ul12:nzmaxpdaf)*factormass2
         ENDIF
         
-        deallocate(factorvolmass1,factorvolmass2)
+        deallocate(factormass1,factormass2)
+        deallocate(factorconc1,factorconc2)
 #endif
         
     end do ! edge=1, myDim_edge2D
+    call exchange_nod(del_ttf)
 end subroutine diff_part_hor_redi
 !
 !

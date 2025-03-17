@@ -23,7 +23,8 @@ SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
 !
 ! !USES:
   USE mod_parallel_pdaf, ONLY: mype_model, task_id
-  USE mod_assim_pdaf, ONLY: delt_obs_ocn
+  USE mod_assim_pdaf, ONLY: delt_obs_ocn, step_null, assim_time
+  USE recom_config, ONLY: secondsperday
 
   IMPLICIT NONE
 
@@ -41,7 +42,15 @@ SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
 ! *** Determine number of time steps until next observation ***
 ! *************************************************************
 
-  nsteps=delt_obs_ocn
+  IF (stepnow==step_null) THEN
+      ! at start, one assimilation step right away
+      nsteps=1
+      assim_time = INT( REAL(nsteps) / REAL(delt_obs_ocn) * REAL(secondsperday))
+  ELSE
+      ! daily assimilation steps during model time loop
+      nsteps=delt_obs_ocn
+  ENDIF
+
   
   IF (mype_model==0 .AND. task_id==1) THEN
      WRITE (*,'(a,i8,a)') 'FESOM-PDAF: Next observation after ', nsteps ,' time steps'

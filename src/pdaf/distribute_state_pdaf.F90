@@ -26,10 +26,11 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   !USES:
   USE mod_parallel_pdaf, &
        ONLY: mype_submodel, mype_world, task_id, mype_model, npes_model, &
-       COMM_model, MPIerr, mype_filter
+       COMM_model, MPIerr, mype_filter, writepe
   USE mod_assim_pdaf, &
        ONLY: offset, loc_radius,this_is_pdaf_restart, mesh_fesom, nlmax, &
-       dim_fields, id, istep_asml, step_null, start_from_ENS_spinup
+       dim_fields, id, istep_asml, step_null, start_from_ENS_spinup, &
+       topography_p
   USE mod_nc_out_variables, &
        ONLY: sfields, nfields_tr3D, ids_tr3D
   USE g_PARSUP, &
@@ -60,6 +61,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   
   REAL, ALLOCATABLE :: U_node_upd(:,:,:) ! Velocity update on nodes
   REAL, ALLOCATABLE :: U_elem_upd(:,:,:) ! Velocity update on elements
+  
+  LOGICAL, save :: first_call = .true.
+  
 
 ! Debugging:
   LOGICAL            :: debugmode
@@ -102,6 +106,13 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
     
   ELSE
     if (mype_submodel==0) write (*,*) 'FESOM-PDAF distribute_state_pdaf, task: ', task_id
+    
+  ! ensure to distribute fields with valid topography at first call
+  IF (first_call) THEN
+      IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Distribute_state: set topography'
+      state_p = state_p * topography_p
+      first_call = .FALSE.
+  END IF
 
 ! *******************************************
 ! *** Initialize model fields from state  ***

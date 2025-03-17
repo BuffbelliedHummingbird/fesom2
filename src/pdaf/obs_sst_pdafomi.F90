@@ -55,7 +55,7 @@ MODULE obs_sst_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l    ! Declaration of observation data types
   USE mod_assim_pdaf, &
-       ONLY: n_sweeps             ! Variables for coupled data assimilation
+       ONLY: n_sweeps        ! Variables for coupled data assimilation
 
 
   IMPLICIT NONE
@@ -191,7 +191,7 @@ CONTAINS
     USE g_rotate_grid, &
          ONLY: r2g
     USE g_clock, &
-         ONLY: month, day_in_month, yearold, timenew
+         ONLY: month, day_in_month, yearnew, timenew, daynew
 
     IMPLICIT NONE
 
@@ -266,13 +266,13 @@ CONTAINS
     ALLOCATE(all_std_p(myDim_nod2D))
 
     ! Position to read from file
-    iter_file = step / delt_obs_ocn
+    iter_file = daynew
     
     ! Write out message:
     IF (mype_filter==0) THEN
        WRITE (*,'(a,5x,a,i2,a,i2,a,i4,a,f5.2,a,i)') &
             'FESOM-PDAF', 'Assimilate SST observations - OBS_SST_OSTIA at ', &
-            day_in_month, '.', month, '.', yearold, ' ', timenew/3600.0, &
+            day_in_month, '.', month, '.', yearnew, ' ', timenew/3600.0, &
             ' h; read at: ', iter_file
     END IF
 
@@ -521,6 +521,7 @@ CONTAINS
     ! Clean up arrays
     DEALLOCATE(all_obs_p, all_std_p, obs_error_p)
     DEALLOCATE(obs_p, ocoord_n2d_p, ivariance_obs_p)
+    if (allocated(obs_include_index)) deallocate(obs_include_index)
 
   END SUBROUTINE init_dim_obs_sst
 
@@ -603,6 +604,11 @@ CONTAINS
           CALL get_adaptive_lradius_pdaf(domain_p, lradius_sst, loc_radius_sst)
        END IF
        lradius_sst = loc_radius_sst(modulo(domain_p,myDim_nod2D))
+
+!~        if (mype_filter==0) &
+!~                   write (*,'(a,4x,a,4x,i5,4x,i5)') 'FESOM-PDAF', &
+!~                    '--- SST DOMAIN_P ---', domain_p, myDim_nod2D
+!~        This shows that domain_p loops through all values from 1 to n_sweeps*myDim_nod2D.
 
        ! ************************************************************
        ! *** Adapt observation error for coupled DA (double loop) ***
