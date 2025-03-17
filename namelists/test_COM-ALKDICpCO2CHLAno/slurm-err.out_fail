@@ -1,0 +1,28 @@
+   0: /albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/test_COM-ALKDICpCO2CHLAno/start/./fesom01: line 3: 2050740 Killed                  /albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/test_COM-ALKDICpCO2CHLAno/work/01/fesom.x
+   0: slurmstepd: error: Detected 1 oom-kill event(s) in StepId=30186432.0. Some of your processes may have been killed by the cgroup out-of-memory handler.
+srun: error: prod-002: task 0: Out Of Memory
+srun: launch/slurm: _step_signal: Terminating StepId=30186432.0
+   0: slurmstepd: error: *** STEP 30186432.0 ON prod-002 CANCELLED AT 2025-02-15T13:40:33 ***
+srun: error: prod-020: tasks 880-1004: Terminated
+srun: error: prod-114: tasks 2255-2379: Terminated
+srun: error: prod-118: tasks 2380-2504: Terminated
+srun: error: prod-082: tasks 1255-1379: Terminated
+srun: error: prod-106: tasks 1505-1629: Terminated
+srun: error: prod-109: tasks 1755-1879: Terminated
+srun: error: prod-009: tasks 630-754: Terminated
+srun: error: prod-167: tasks 2505-2629: Terminated
+srun: error: prod-111: tasks 2005-2129: Terminated
+srun: error: prod-107: tasks 1630-1754: Terminated
+srun: error: prod-113: tasks 2130-2254: Terminated
+srun: error: prod-024: tasks 1130-1254: Terminated
+srun: error: prod-003: tasks 126-251: Terminated
+srun: error: prod-110: tasks 1880-2004: Terminated
+srun: error: prod-022: tasks 1005-1129: Terminated
+srun: error: prod-172: tasks 2630-2754: Terminated
+srun: error: prod-007: tasks 504-629: Terminated
+srun: error: prod-014: tasks 755-879: Terminated
+srun: error: prod-005: tasks 252-377: Terminated
+srun: error: prod-095: tasks 1380-1504: Terminated
+srun: error: prod-006: tasks 378-503: Terminated
+srun: error: prod-186: tasks 2755-2879: Terminated
+srun: Force Terminated StepId=30186432.0

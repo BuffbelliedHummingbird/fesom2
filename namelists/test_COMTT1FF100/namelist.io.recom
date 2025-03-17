@@ -1,0 +1,111 @@
+&diag_list
+ldiag_solver     =.false.
+lcurt_stress_surf=.false.
+ldiag_curl_vel3  =.false.
+ldiag_energy     =.false.
+ldiag_salt3D     =.false.
+ldiag_dMOC       =.false.
+ldiag_DVD        =.false.
+ldiag_forc       =.false.
+/
+
+&nml_listsize
+io_listsize=100 !number of streams to allocate. shallbe large or equal to the number of streams in &nml_list
+/
+
+ for sea ice related variables use_ice should be true, otherewise there will be no output
+! for 'curl_surf' to work lcurt_stress_surf must be .true. otherwise no output
+! for 'fer_C', 'bolus_u', 'bolus_v', 'bolus_w', 'fer_K' to work Fer_GM must be .true. otherwise no output
+! 'otracers' - all other tracers if applicable
+! for 'dMOC' to work ldiag_dMOC must be .true. otherwise no output
+&nml_list
+io_list =  'CO2f      ',    1, 'm', 4,
+           'pCO2s     ',    1, 'm', 4,
+           'Kw660     ',    1, 'm', 4,
+           'alphaCO2  ',    1, 'm', 4,
+           'DICsurf   ',    1, 'm', 4,
+           'Alksurf   ',    1, 'm', 4,
+           'sst       ',    1, 'm', 4,
+!           'salt      ',    1, 'm', 4,
+!           'DIC       ',    1, 'd', 4,
+!           'Alk       ',    1, 'd', 4,
+!           'temp      ',    1, 'd', 4,
+!           'PhyC      ',    1, 'd', 4,
+!            'sss       ', 1000, 'y', 4,
+!            'ssh       ', 1000, 'y', 4,
+!            'vve_5     ', 1000, 'y', 4,
+!            'uice      ', 1000, 'y', 4,
+!            'vice      ', 1000, 'y', 4,
+!            'a_ice     ', 1000, 'y', 4,
+!            'm_ice     ', 1000, 'y', 4,
+!            'thdgr     ', 1000, 'y', 4,
+!            'thdgrsn   ', 1000, 'y', 4,
+!            'm_snow    ', 1000, 'y', 4,
+!            'MLD1      ', 1000, 'y', 4,
+!            'MLD2      ', 1000, 'y', 4,
+!            'fh        ', 1000, 'y', 4,
+!            'fw        ', 1000, 'y', 4,
+!            'alpha     ', 1000, 'y', 4,
+!            'beta      ', 1000, 'y', 4,
+!            'runoff    ', 1000, 'y', 4,
+!            'evap      ', 1000, 'y', 4,
+!            'prec      ', 1000, 'y', 4,
+!            'tx_sur    ', 1000, 'y', 4,
+!            'ty_sur    ', 1000, 'y', 4,
+!            'curl_surf ', 1000, 'y', 4,
+!            'fer_C     ', 1000, 'y', 4,
+!            'DIN       ', 1000, 'y', 4,
+!            'PhyN      ', 1000, 'y', 4,
+!            'PhyChl    ', 1000, 'y', 4,
+!            'DetN      ', 1000, 'y', 4,
+!            'DetC      ', 1, 'd', 4,
+!            'HetN      ', 1000, 'y', 4,
+!           'HetC      ', 1, 'd', 4,
+!            'DON       ', 1000, 'y', 4,
+!           'DOC       ', 1, 'd', 4,
+!            'DiaN      ', 1000, 'y', 4,
+!           'DiaC      ', 1, 'd', 4,
+!            'DiaChl    ', 1000, 'y', 4,
+!            'DiaSi     ', 1000, 'y', 4,
+!            'DetSi     ', 1000, 'y', 4,
+!            'DSi       ', 1000, 'y', 4,
+!            'Fe        ', 1000, 'y', 4,
+!           'PhyCalc   ', 1, 'd', 4,
+!           'DetCalc   ', 1, 'd', 4,
+!            'Oxy       ', 1000, 'y', 4,
+!            'Zoo2N     ', 1000, 'y', 4,
+!           'Zoo2C     ', 1, 'd', 4,
+!            'DetZ2N    ', 1000, 'y', 4,
+!           'DetZ2C    ', 1, 'd', 4,
+!            'DetZ2Si   ', 1000, 'y', 4,
+!           'DetZ2Calc ', 1, 'd', 4,
+!            'otracers  ', 1000, 'y', 4,
+!            'N2        ', 1000, 'y', 4,
+!            'Kv        ', 1000, 'y', 4,
+!            'u         ', 1000, 'y', 4,
+!            'v         ', 1000, 'y', 4,
+!            'w         ', 1000, 'y', 4,
+!            'dMOC      ', 1000, 'y', 4,
+!            'dpCO2s    ', 1000, 'y', 4,
+!            'pCO2s     ', 1000, 'y', 4,
+!            'Hp        ', 1000, 'y', 4,
+!            'aFe       ', 1000, 'y', 4,
+!            'aN        ', 1000, 'y', 4,
+!            'denb      ', 1000, 'y', 4,
+!            'benN      ', 1000, 'y', 4,
+!            'benC      ', 1000, 'y', 4,
+!            'benSi     ', 1000, 'y', 4,
+!            'benCalc   ', 1000, 'y', 4,
+!            'GNAd      ', 1000, 'y', 4,
+!            'GNAn      ', 1000, 'y', 4,
+!            'NNAd      ', 1000, 'y', 4,
+!            'NNAn      ', 1000, 'y', 4,
+!            'GPPd      ', 1000, 'y', 4,
+!            'GPPn      ', 1000, 'y', 4,
+!            'NPPd      ', 1000, 'y', 4,
+!            'NPPn      ', 1000, 'y', 4,
+!            'PAR       ', 1000, 'y', 4,
+!            'slp       ', 1000, 'y', 4,
+!            'uwind     ', 1000, 'y', 4,
+!            'vwind     ', 1000, 'y', 4,
+\

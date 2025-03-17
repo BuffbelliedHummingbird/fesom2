@@ -1,0 +1,63 @@
+! *****************************
+! *** Compute monthly means ***
+! *****************************
+
+  debugging_monthlymean = .false.
+
+  IF (write_monthly_mean) THEN
+  
+!~       now_to_write_monthly = .FALSE.
+!~       call check_fleapyr(yearold, fleap)
+      
+!~       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'dayold: ', dayold
+!~       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'daynew: ', daynew
+      
+!~       ! set "now_to_write_monthly" at last day of month
+!~       find_month: DO month_iter=1,12
+!~         if (dayold <= endday_of_month_in_year(fleap,month_iter)) THEN
+!~             whichmonth = month_iter
+!~             if (dayold == endday_of_month_in_year(fleap,month_iter)) THEN
+!~                now_to_write_monthly = .TRUE.
+!~             endif
+!~             exit find_month
+!~         endif
+!~       ENDDO find_month
+      
+!~       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'whichmonth: ', whichmonth
+!~       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'now_to_write_monthly: ', now_to_write_monthly
+
+      ! reset monthly_state to zero at first day of month
+      monthly_state_p_0: DO month_iter=1,12
+        if (dayold == startday_of_month_in_year(fleap,month_iter)) THEN
+          IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'resetting monthly mean to zero.'
+          IF ((step - step_null) > 0) THEN
+          ! *** assimilated state fields ***
+            monthly_state_a= 0.0D0
+            monthly_state_m= 0.0D0
+            IF (w_memb) monthly_state_ens_a= 0.0D0
+          ELSE IF ((step - step_null) < 0) THEN
+          ! *** forecasted state fields ***
+            monthly_state_f= 0.0D0
+            IF (w_memb) monthly_state_ens_f= 0.0D0
+          END IF
+          exit monthly_state_p_0
+        endif
+      ENDDO monthly_state_p_0
+      
+      IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'num_day_in_month: ', num_day_in_month(fleap,whichmonth)
+      
+      ! include state into monthly mean
+      IF ((step - step_null) > 0) THEN
+      ! *** analyzed state fields ***
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
+        monthly_state_a = monthly_state_a + state_p /num_day_in_month(fleap,whichmonth)
+        monthly_state_m = monthly_state_m + timemean/num_day_in_month(fleap,whichmonth)
+        IF (w_memb) monthly_state_ens_a = monthly_state_ens_a + ens_p/num_day_in_month(fleap,whichmonth)
+      ELSE IF ((step - step_null) < 0) THEN
+      ! *** forecasted state fields ***
+        IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
+        monthly_state_f = monthly_state_f + state_p/num_day_in_month(fleap,whichmonth)
+        IF (w_memb) monthly_state_ens_f = monthly_state_ens_f + ens_p/num_day_in_month(fleap,whichmonth)
+      END IF
+
+   ENDIF
