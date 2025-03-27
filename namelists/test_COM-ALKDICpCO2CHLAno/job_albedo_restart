@@ -41,7 +41,7 @@ NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2021-01-01"
+run_end_date="2013-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.

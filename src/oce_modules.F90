@@ -328,6 +328,7 @@ real(kind=WP), allocatable,dimension(:,:)   :: density_m_rho0_slev
 real(kind=WP), allocatable,dimension(:,:)   :: density_ref
 real(kind=WP), allocatable,dimension(:,:)   :: density_dmoc
 real(kind=WP), allocatable,dimension(:,:)   :: pgf_x, pgf_y
+real(kind=WP), allocatable,dimension(:,:)   :: sigma0
 
 !_______________________________________________________________________________
 !!PS ! dummy arrays

@@ -468,6 +468,8 @@ end if
     ! init field for pressure force 
     allocate(density_ref(nl-1,node_size))
     density_ref = density_0
+    allocate(sigma0(nl-1,node_size))
+    sigma0=0.0_WP
     allocate(density_m_rho0(nl-1, node_size))
     allocate(density_m_rho0_slev(nl-1, node_size)) !!PS
     if (ldiag_dMOC) then

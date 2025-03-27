@@ -70,9 +70,13 @@ MODULE obs_n_merged_pdafomi
   REAL    :: lradius_n_merged      ! Localization radius
   REAL    :: sradius_n_merged      ! Support radius for localization function
 
-  REAL    :: n_merged_exclude_diff ! Limit difference beyond which observations are excluded (0.0 to deactivate)
+  REAL    :: n_merged_exclude_diff ! limit difference beyond which observations are excluded
+                                    ! using PDAF's inno_omit functionality
+                                    ! set 0.0 to deactivate
+  REAL    :: n_merged_excl_relative   ! relative difference to exclude observations based on forecast
+  REAL    :: n_merged_excl_absolute   ! absolute difference to exclude observations based on forecast
 
-  REAL, ALLOCATABLE :: mean_n_p(:)            ! ensemble mean for observation exclusion
+  REAL, ALLOCATABLE :: mean_n_p(:)              ! ensemble mean for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_n_merged(:)   ! localization radius array
   
   REAL, ALLOCATABLE :: ivariance_obs_g(:)      ! global-earth inverse observation variances
@@ -183,7 +187,7 @@ CONTAINS
                mesh_fesom, nlmax, &
                local_range, srange
     USE mod_parallel_pdaf, &
-         ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER
+         ONLY: MPI_SUM, MPIerr, COMM_filter, MPI_INTEGER, MPI_MAX
     USE g_parsup, &
          ONLY: myDim_nod2D
     USE g_clock, &
@@ -195,14 +199,15 @@ CONTAINS
 
     IMPLICIT NONE
 
-!~     INCLUDE 'netcdf.inc'
-
 ! *** Arguments ***
     INTEGER, INTENT(in)    :: step      !< Current time step
     INTEGER, INTENT(inout) :: dim_obs   !< Dimension of full observation vector
 
 ! *** Local variables ***
-    INTEGER :: i, s, k, j, e, e_reps, e_found ! Counters
+    INTEGER :: i, s, k, j, &
+               e, e_reps, e_found, n_found, &
+               e_new, e1, n1, e2, n2, &
+               esa, nsa                       ! Counters
     CHARACTER(len=2) :: mype_string           ! String for process rank
     CHARACTER(len=4) :: year_string           ! String for yearly observation data path
     CHARACTER(len=2) :: mon_string            ! String for daily observation files
@@ -211,8 +216,9 @@ CONTAINS
     CHARACTER(len=300) :: filename
     LOGICAL            :: FileExists
     
-    ! observation data containing repetitions in case of repeatedly sampled elements
+    ! observation data including duplicates at repeatedly sampled elements
     INTEGER :: dim_obs_p_reps                         ! Number of process local observations
+    INTEGER :: dim_obs_reps                           ! Number of global observations
     REAL, ALLOCATABLE :: obs_p_reps(:)                ! PE-local observation values
     REAL, ALLOCATABLE :: lon_p_reps(:),lat_p_reps(:)  ! PE-local observed coords
     INTEGER, ALLOCATABLE :: nod1_p_reps(:), &
@@ -223,32 +229,83 @@ CONTAINS
                             nod2_g_reps(:), &
                             nod3_g_reps(:)            ! Global observed node/element indeces
     INTEGER, ALLOCATABLE :: elem_g_reps(:)
-    INTEGER, ALLOCATABLE :: nl_p_reps(:), &
-                            depth_p_reps(:)
-    REAL, ALLOCATABLE    :: std_obs_p_reps(:)         ! PE-local array of observation errors
-    LOGICAL :: is_unique
+    INTEGER, ALLOCATABLE :: nlay_p_reps(:)
+    REAL, ALLOCATABLE    :: dep_p_reps(:)
     
-    ! unique observation data: for each element, sorted array holds sum of all samples
-    REAL, ALLOCATABLE :: obs_p_sorted(:)
-    REAL, ALLOCATABLE :: x_p(:), y_p(:), z_p(:)
-    INTEGER, ALLOCATABLE :: nod1_p_sorted(:), &
-                            nod2_p_sorted(:), &
-                            nod3_p_sorted(:)
-    INTEGER, ALLOCATABLE :: elem_p_sorted(:)
-    INTEGER, ALLOCATABLE :: nod1_g_sorted(:), &
-                            nod2_g_sorted(:), &
-                            nod3_g_sorted(:)
-    INTEGER, ALLOCATABLE :: elem_g_sorted(:)
-    INTEGER, ALLOCATABLE :: nl_p_sorted(:), &
-                            depth_p_sorted(:)
-    REAL, ALLOCATABLE    :: std_obs_p_sorted(:)
-    INTEGER, ALLOCATABLE :: numrep_p(:)       ! number of observations at each element
+    REAL    :: excl_relative_upper, excl_relative_lower ! relative upper and lower limits for exclusion
     
-    ! observation data after averaging over samples for each element, trimmed arrays:
+    !  Step 1: sorting of observations and trivial exclusion criteria
+        ! observation data at element
+    REAL, ALLOCATABLE    :: x_p1(:,:), y_p1(:,:), z_p1(:,:)
+    REAL, ALLOCATABLE    :: obs_p_sort1(:,:)
+    REAL, ALLOCATABLE    :: dep_p_sort1(:,:)
+        ! observation statistics at element
+    INTEGER, ALLOCATABLE :: num_obs_p_sort1(:)
+    REAL, ALLOCATABLE    :: var_obs_p_sort1(:)
+    REAL, ALLOCATABLE    :: avg_obs_p_sort1(:)
+    INTEGER              :: dim_obs_p_sort1      ! PE-local number of observed elements
+    INTEGER              :: dim_obs_sort1        ! Global number of observed elements
+        ! element indeces
+    INTEGER, ALLOCATABLE :: nod1_p_sort1(:), &
+                            nod2_p_sort1(:), &
+                            nod3_p_sort1(:)
+    INTEGER, ALLOCATABLE :: elem_p_sort1(:)
+    INTEGER, ALLOCATABLE :: nod1_g_sort1(:), &
+                            nod2_g_sort1(:), &
+                            nod3_g_sort1(:)
+    INTEGER, ALLOCATABLE :: elem_g_sort1(:)
+    INTEGER, ALLOCATABLE :: nlay_p_sort1(:)
+    
+    !  Step 2: exclude outliers from observations
+    !          exclude based on model topography
+        ! observation data at element
+    REAL, ALLOCATABLE    :: x_p2(:,:), y_p2(:,:), z_p2(:,:)
+    REAL, ALLOCATABLE    :: obs_p_sort2(:,:)
+    REAL, ALLOCATABLE    :: dep_p_sort2(:,:)
+        ! observation statistics at element
+    INTEGER, ALLOCATABLE :: num_obs_p_sort2(:)
+    REAL, ALLOCATABLE    :: var_obs_p_sort2(:)
+    REAL, ALLOCATABLE    :: avg_obs_p_sort2(:)
+    INTEGER              :: dim_obs_p_sort2
+        ! element indeces
+    INTEGER, ALLOCATABLE :: nod1_p_sort2(:), &
+                            nod2_p_sort2(:), &
+                            nod3_p_sort2(:)
+    INTEGER, ALLOCATABLE :: elem_p_sort2(:)
+    INTEGER, ALLOCATABLE :: nod1_g_sort2(:), &
+                            nod2_g_sort2(:), &
+                            nod3_g_sort2(:)
+    INTEGER, ALLOCATABLE :: elem_g_sort2(:)
+    INTEGER, ALLOCATABLE :: nlay_p_sort2(:)
+    
+    !  Step 3: define observation error from variance
+    !          exclude observations based on model-observation difference
+    !          compute average for grid element
+        ! observation data at element
+    REAL, ALLOCATABLE    :: x_p_sortavg(:), y_p_sortavg(:), z_p_sortavg(:)
+    REAL, ALLOCATABLE    :: lon_p_sortavg(:), lat_p_sortavg(:)
+    REAL, ALLOCATABLE    :: obs_p_sortavg(:)
+    REAL, ALLOCATABLE    :: dep_p_sortavg(:)
+        ! observation statistics at element
+    INTEGER, ALLOCATABLE :: num_obs_p_sortavg(:)
+    REAL, ALLOCATABLE    :: var_obs_p_sortavg(:)
+        ! element indeces
+    INTEGER, ALLOCATABLE :: nod1_p_sortavg(:), &
+                            nod2_p_sortavg(:), &
+                            nod3_p_sortavg(:)
+    INTEGER, ALLOCATABLE :: elem_p_sortavg(:)
+    INTEGER, ALLOCATABLE :: nod1_g_sortavg(:), &
+                            nod2_g_sortavg(:), &
+                            nod3_g_sortavg(:)
+    INTEGER, ALLOCATABLE :: elem_g_sortavg(:)
+    INTEGER, ALLOCATABLE :: nlay_p_sortavg(:)
+    
+    ! final unique observation data, trimmed arrays
     INTEGER :: dim_obs_p                      ! Number of process local observations
     
     REAL, ALLOCATABLE :: obs_p(:)             ! PE-local observation values
-    REAL, ALLOCATABLE :: std_obs_p(:)         ! PE-local observation errors
+    REAL, ALLOCATABLE :: dep_p(:)
+    REAL, ALLOCATABLE :: var_obs_p(:)         ! PE-local observation variance
     REAL, ALLOCATABLE :: ocoord_p(:,:)        ! PE-local coordinates of observations
     REAL, ALLOCATABLE :: lon_p(:),lat_p(:)
     REAL, ALLOCATABLE :: ivariance_obs_p(:)   ! PE-local array of inverse observation errors
@@ -256,8 +313,13 @@ CONTAINS
                             nod2_p(:), &
                             nod3_p(:)         ! Array of observation pe-local indeces on FESOM grid
     INTEGER, ALLOCATABLE :: elem_p(:)
-    INTEGER, ALLOCATABLE :: nl_p(:)           ! Array of observation layer indeces
+    INTEGER, ALLOCATABLE :: nod1_g(:), &
+                            nod2_g(:), &
+                            nod3_g(:)         ! Array of observation global indeces on FESOM grid
+    INTEGER, ALLOCATABLE :: elem_g(:)
+    INTEGER, ALLOCATABLE :: nlay_p(:)         ! Array of observation layer indeces
     
+    ! netCDF handles
     INTEGER :: ncstat                         ! Status for NetCDF functions
     INTEGER :: ncid, dimid                    ! NetCDF IDs
     INTEGER :: id_obs, id_nod1, id_nod2, &
@@ -265,18 +327,41 @@ CONTAINS
                id_lat, id_depth, id_elem, &
                id_err
                
-    INTEGER :: cnt_ex_dry_p, cnt_ex_dry       ! Number of excluded observations due to model topography ("dry nodes")
-    INTEGER :: nzmin                          ! Number of wet vertical model layers at observation location considering model topography
+    ! exclusion count
+    INTEGER :: ecntex_topo_p, ecntex_topo   ! Observed Element Count Exclusion Topography
+    INTEGER :: ecntex_diff_p, ecntex_diff   ! Observed Element Count Exclusion Model-Observation-Difference
+    INTEGER :: ncntex_topo_p, ncntex_topo   ! Observation Count Exclusion Topography
+    INTEGER :: ncntex_diff_p, ncntex_diff   ! Observation Count Exclusion Model-Observation-Difference
+    INTEGER :: ncntex_onan_p, ncntex_onan   ! Observation Count Exclusion: Observation is FillValue
+    INTEGER :: ncntex_oneg_p, ncntex_oneg   ! Observation Count Exclusion: Observation is zero / negative
+    INTEGER :: ncntex_dnan_p, ncntex_dnan   ! Observation Count Exclusion: Depth is FillValue
+    INTEGER :: ncntex_dneg_p, ncntex_dneg   ! Observation Count Exclusion: Depth is zero / negative
+    INTEGER :: ncntex_outl_p, ncntex_outl   ! Observation Count Exclusion: Value is outlier
+    INTEGER :: ncntex_halo_p, ncntex_halo   ! Observation Count Exclusion: Node not on PE
+    
+    
+    ! temporary variables during loops
+    LOGICAL :: is_included = .true. ! observation exclusion due to trivial criteria
+    LOGICAL :: is_unique            ! not a duplicate of previous observation
+    INTEGER :: nzmin                ! number of wet vertical model layers at observation location considering model topography
+    INTEGER :: num_obs_p_max        ! maximum number of observations at same element
+    INTEGER :: num_obs              ! number of observations at element
+    REAL    :: num_obs_inv
+    REAL, allocatable :: diffobs(:)
+    REAL    :: emean                ! mean of observations at element
+    REAL    :: evar                 ! variance of observations at element
+    REAL    :: emean_fcst           ! observed model forecast at sample location
     
     REAL :: deg2rad
     REAL :: rad2deg
     
     deg2rad = PI/180.0
     rad2deg = 180.0/PI
+    
 
-! *********************************************
-! *** Initialize full observation dimension ***
-! *********************************************
+! *******************
+! *** Initialize  ***
+! *******************
 
     ! Specify type of distance computation
     thisobs%disttype = 2   ! 2=Geographic
@@ -293,12 +378,23 @@ CONTAINS
     ! omit observation if innovation larger than this factor times
     ! observation error (only active for >0)
     thisobs%inno_omit =  n_merged_exclude_diff / rms_obs_n_merged
+    
+    ! relative observation exclusion limits
+    if (n_merged_excl_relative > 0.0) then
+       excl_relative_lower = 1.0 - n_merged_excl_relative
+       excl_relative_upper = 1.0 / excl_relative_lower
+    endif
 
 ! **********************************
 ! *** Read PE-local observations ***
 ! **********************************
 
-    ! Daily files: nitialize complete file name
+   ! ------------------------------------
+   ! init file and number of observations
+   ! ------------------------------------
+
+
+    ! Daily files: initialize complete file name
     WRITE(mype_string,'(i2.2)') mype_filter
     WRITE(year_string,'(i4.4)') yearnew
     WRITE(mon_string, '(i2.2)') month
@@ -313,7 +409,7 @@ CONTAINS
         ! ---
         isPP = .true.
         if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
-            'FESOM-PDAF', 'Postprocessing of DIN Merged observations at', &
+            'FESOM-PDAF', 'Postprocessing of merged DIN observations at', &
             day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
             'h; read from file:', file_n_merged
         thisobs%use_global_obs = 1
@@ -323,7 +419,7 @@ CONTAINS
        ! Assimilation
        ! ---
        if (writepe) WRITE (*,'(a,5x,a,1x,i2,a1,i2,a1,i4,1x,f5.2,a,1x,a)') &
-            'FESOM-PDAF', 'Assimilate DIN Merged observations at', &
+            'FESOM-PDAF', 'Assimilate merged DIN observations at', &
             day_in_month, '.', month, '.', yearnew, timenew/3600.0,&
             'h; read from file:', file_n_merged
        ! Store whether to use global observations
@@ -344,9 +440,9 @@ CONTAINS
        end if
        
        ! Get the number of observations dim_obs_p_reps
-       ncstat = nf90_inq_dimid(ncid, "INDEX", dimid)
+       ncstat = nf90_inq_dimid(ncid, 'INDEX', dimid)
        if (ncstat /= nf90_noerr) then
-          print *, "FESOM-PDAF - obs_n_merged_pdafomi - Error getting dimension ID"
+          print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting dimension ID'
        end if
        ncstat = nf90_inquire_dimension(ncid,dimid,len=dim_obs_p_reps)
        if (ncstat /= nf90_noerr) then
@@ -356,19 +452,38 @@ CONTAINS
        dim_obs_p_reps=0
     ENDIF ! FileExists
     
-    cnt_ex_dry_p = 0
-    cnt_ex_dry   = 0
+    ! ------------------------------------------
+    ! init variables with zero or dim_obs_p_reps
+    ! ------------------------------------------
     
+    ! start exclusion count
+    ecntex_topo_p = 0
+    ecntex_diff_p = 0
+    ncntex_onan_p = 0
+    ncntex_oneg_p = 0
+    ncntex_dnan_p = 0
+    ncntex_dneg_p = 0
+    ncntex_topo_p = 0
+    ncntex_outl_p = 0
+    ncntex_diff_p = 0
+    ncntex_halo_p = 0
+    
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
     IF (dim_obs_p_reps <= 0) THEN
+    ! --> Have no observations
+    
+      dim_obs_p = 0
+      dim_obs_p_sort1 = 0
+      num_obs_p_max = 0
     
       allocate(obs_p(1))
       allocate(ivariance_obs_p(1))
       allocate(ocoord_p(2, 1))
       allocate(thisobs%id_obs_p(3,1))
-      allocate(std_obs_p(1))
       
       obs_p=0.0
-      ivariance_obs_p=0.0
+      ivariance_obs_p=1e-12
       ocoord_p=0.0
       thisobs%id_obs_p=0
       
@@ -382,37 +497,34 @@ CONTAINS
         allocate(thisobs_PP%lon(0),thisobs_PP%lat(0))
         allocate(thisobs_PP%numrep(0))
       endif
-            
+    
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
     ELSE ! (i.e. dim_obs_p > 0)
+    ! --> Have observations
     
       ! Allocate memory before reading from netCDF
       allocate(obs_p_reps(dim_obs_p_reps))
       allocate(nod1_p_reps(dim_obs_p_reps),nod2_p_reps(dim_obs_p_reps),nod3_p_reps(dim_obs_p_reps))
-      allocate(nl_p_reps(dim_obs_p_reps))
+      allocate(nlay_p_reps(dim_obs_p_reps))
       allocate(lon_p_reps(dim_obs_p_reps),lat_p_reps(dim_obs_p_reps))
       allocate(elem_p_reps(dim_obs_p_reps))
-      allocate(std_obs_p_reps(dim_obs_p_reps))
+      allocate(dep_p_reps(dim_obs_p_reps))
       
       if (isPP) then
          allocate(nod1_g_reps(dim_obs_p_reps),nod2_g_reps(dim_obs_p_reps),nod3_g_reps(dim_obs_p_reps))
          allocate(elem_g_reps(dim_obs_p_reps))
-         allocate(depth_p_reps(dim_obs_p_reps))
       endif
+      
+     ! ---------
+     ! read data
+     ! ---------
             
       ! Reading observations
       ncstat = nf90_inq_varid(ncid,'OBS', id_obs)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_obs from netCDF'
       ncstat = nf90_get_var(ncid, id_obs, obs_p_reps)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading obs from netCDF'
-      
-      ! Reading observation error
-      ncstat = nf90_inq_varid(ncid,'ERR', id_err)
-      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_err from netCDF'
-      ncstat = nf90_get_var(ncid, id_err, std_obs_p_reps)
-      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading err from netCDF'
-      
-      WHERE (std_obs_p_reps >               999) std_obs_p_reps = rms_obs_n_merged
-      WHERE (std_obs_p_reps <  rms_obs_n_merged) std_obs_p_reps = rms_obs_n_merged
    
       ! Reading nodes
       ncstat = nf90_inq_varid(ncid,'NOD1_P', id_nod1)
@@ -438,8 +550,14 @@ CONTAINS
       ! Reading layer
       ncstat = nf90_inq_varid(ncid,'NZ1', id_nl)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_layer from netCDF'
-      ncstat = nf90_get_var(ncid, id_nl, nl_p_reps)
+      ncstat = nf90_get_var(ncid, id_nl, nlay_p_reps)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading layer from netCDF'
+      
+      ! Reading depth
+      ncstat = nf90_inq_varid(ncid,'DEPTH', id_depth)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_depth from netCDF'
+      ncstat = nf90_get_var(ncid, id_depth, dep_p_reps)
+      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading depth from netCDF'
    
       ! Reading coordinates
       ncstat = nf90_inq_varid(ncid,'LON', id_lon)
@@ -475,242 +593,897 @@ CONTAINS
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_elem from netCDF'
       ncstat = nf90_get_var(ncid, id_elem, elem_g_reps)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading elem from netCDF'
-      
-      ! Reading depth
-      ncstat = nf90_inq_varid(ncid,'DEPTH', id_depth)
-      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error getting id_depth from netCDF'
-      ncstat = nf90_get_var(ncid, id_depth, depth_p_reps)
-      if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_n_merged_pdafomi - Error reading depth from netCDF'
       endif ! isPP
       
       ! **********************
       ! * Finding duplicates *
       ! **********************
       
-      dim_obs_p = 0 ! Number of observations without duplicates
-      e_found = 0
-      
-      ALLOCATE(obs_p_sorted(dim_obs_p_reps))
-      ALLOCATE(elem_p_sorted(dim_obs_p_reps))
-      ALLOCATE(nl_p_sorted(dim_obs_p_reps))
-      ALLOCATE(nod1_p_sorted(dim_obs_p_reps),nod2_p_sorted(dim_obs_p_reps),nod3_p_sorted(dim_obs_p_reps))
-      ALLOCATE(x_p(dim_obs_p_reps),y_p(dim_obs_p_reps),z_p(dim_obs_p_reps))
-      ALLOCATE(std_obs_p_sorted(dim_obs_p_reps))
-      ALLOCATE(numrep_p(dim_obs_p_reps))
-      
-      obs_p_sorted(:)     = 0
-      std_obs_p_sorted(:) = 0
-      elem_p_sorted(:) = 0
-      nl_p_sorted(:)   = 0
-      nod1_p_sorted(:) = 0
-      nod2_p_sorted(:) = 0
-      nod3_p_sorted(:) = 0
-      x_p(:) = 0
-      y_p(:) = 0
-      z_p(:) = 0
-      numrep_p(:) = 0
-      
-      if (isPP) then
-         ALLOCATE(elem_g_sorted(dim_obs_p_reps))
-         ALLOCATE(nod1_g_sorted(dim_obs_p_reps),nod2_g_sorted(dim_obs_p_reps),nod3_g_sorted(dim_obs_p_reps))
-         ALLOCATE(depth_p_sorted(dim_obs_p_reps))
-         elem_g_sorted(:)=0.0
-         nod1_g_sorted(:) = 0
-         nod2_g_sorted(:) = 0
-         nod3_g_sorted(:) = 0
-         depth_p_sorted(:) = 0
-      endif ! isPP
-      
-      ! go through repreated observations one-by-one:
-      do_elem_p_reps: DO e_reps=1, dim_obs_p_reps
-      
-         IF (obs_p_reps(e_reps)>0.0) THEN
-         ! observations apparently spurious/small: exclusion
-         ! else, continue here:
-         
+      ! Pre-Step: Dry run of first loop to determine how much memory is required.
+      allocate(num_obs_p_sort1(dim_obs_p_reps),source=0)
+      allocate(elem_p_sort1   (dim_obs_p_reps),source=0)
+      allocate(nlay_p_sort1   (dim_obs_p_reps),source=0)
+      dim_obs_p_sort1 = 0  ! number of observed elements
+      DO e_reps=1, dim_obs_p_reps ! go through repreated observations one-by-one
+         is_included = .true. ! trivial observation exclusion
+         if ((obs_p_reps(e_reps) == -999) .or. &
+             (obs_p_reps(e_reps) <=    0) .or. &
+             (dep_p_reps(e_reps) == -999) .or. &
+             (dep_p_reps(e_reps) <=    0) .or. &
+             (nod1_p_reps(e_reps) <=   0) .or. &
+             (nod2_p_reps(e_reps) <=   0) .or. &
+             (nod3_p_reps(e_reps) <=   0)) then
+             is_included = .false. 
+         endif ! trivial observation exclusion
+         IF (is_included) THEN
             is_unique = .true.
-            
-            ! searching for previous occurence of elem(e_reps) and nl(e_reps) within sorted arrays:
-            do_elem_p: DO e=1,dim_obs_p
-               
-               IF ((elem_p_reps(e_reps)==elem_p_sorted(e)) .and. &
-                   (nl_p_reps  (e_reps)==nl_p_sorted(e))) THEN
+            ! searching for previous occurence of elem(e_reps) and nlay(e_reps) within sorted arrays
+            DO e=1,dim_obs_p_sort1
+               IF ((elem_p_reps(e_reps)==elem_p_sort1(e)) .and. &
+                   (nlay_p_reps(e_reps)==nlay_p_sort1(e))) THEN
                   is_unique = .false.
                   e_found   = e
                   EXIT ! --> found previous occurence at e; stop searching.
                ENDIF
-            ENDDO do_elem_p
+            ENDDO ! e=1,dim_obs_p_sort1
+            IF (.not. is_unique) THEN
+            ! --> already have observations of elem(e_reps) at e_found
+                num_obs_p_sort1(e_found) = num_obs_p_sort1(e_found) + 1 ! number of observations at e, adding one.
+            ELSE
+            ! --> is the first or only observation at elem(e_reps)
+               dim_obs_p_sort1 = dim_obs_p_sort1 + 1 ! number of observed elements, adding one.
+               num_obs_p_sort1(dim_obs_p_sort1) = 1  ! number of observations at e, adding first.
+               elem_p_sort1   (dim_obs_p_sort1) = elem_p_reps (e_reps) ! index of observed element
+               nlay_p_sort1   (dim_obs_p_sort1) = nlay_p_reps (e_reps) ! index of observed element
+            ENDIF ! is_unique
+         ENDIF ! is_included
+      ENDDO! e_reps=1, dim_obs_p_reps
+      num_obs_p_max = MAXVAL(num_obs_p_sort1)
+      deallocate(num_obs_p_sort1,elem_p_sort1,nlay_p_sort1)
+      
+      ENDIF
+      ! print pre-count
+      CALL MPI_Allreduce( &
+                   dim_obs_p_reps, dim_obs_reps, &
+                   1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      CALL MPI_Allreduce( &
+                   num_obs_p_max, n_found, &
+                   1, MPI_INTEGER, MPI_MAX, COMM_filter, MPIerr)
+      CALL MPI_Allreduce( &
+                   dim_obs_p_sort1, dim_obs_sort1, &
+                   1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+      IF (mype_filter == 0) then
+        WRITE (*,'(a,5x,a30,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged; dim_obs_reps:    ', dim_obs_reps
+        WRITE (*,'(a,5x,a30,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged; num_obs_max:     ', n_found
+        WRITE (*,'(a,5x,a30,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged; dim_obs_sort:    ', dim_obs_sort1
+        WRITE (*,'(a,5x,a30,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged; num x dim_sort:  ', n_found * dim_obs_sort1
+      ENDIF
+      IF (dim_obs_p_reps > 0) THEN
+      
+      ! -----------------------------------------------
+      !  Step 1: sorting and trivial exclusion criteria
+      ! -----------------------------------------------
+      
+      allocate(x_p1       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(y_p1       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(z_p1       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(obs_p_sort1(dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      
+      allocate(elem_p_sort1(dim_obs_p_sort1),source=0)
+      allocate(nlay_p_sort1(dim_obs_p_sort1),source=0)
+      allocate(nod1_p_sort1(dim_obs_p_sort1),source=0)
+      allocate(nod2_p_sort1(dim_obs_p_sort1),source=0)
+      allocate(nod3_p_sort1(dim_obs_p_sort1),source=0)
+      
+      allocate(num_obs_p_sort1(dim_obs_p_sort1),source=0)
+      
+      if (isPP) then
+         allocate(dep_p_sort1(dim_obs_p_sort1,num_obs_p_max),source=0.0)
+         
+         allocate(elem_g_sort1(dim_obs_p_sort1),source=0)
+         allocate(nod1_g_sort1(dim_obs_p_sort1),source=0)
+         allocate(nod2_g_sort1(dim_obs_p_sort1),source=0)
+         allocate(nod3_g_sort1(dim_obs_p_sort1),source=0)
+      endif
+      
+      dim_obs_p_sort1 = 0
+      e_found = 0
+      n_found = 0
+      
+      ! go through repreated observations one-by-one:
+      do_elem_p_reps: DO e_reps=1, dim_obs_p_reps
+         
+         ! trivial observation exclusion
+         is_included = .true.
+         ! FillValue for observation
+         if     (obs_p_reps(e_reps) == -999) then
+            is_included = .false.
+            ncntex_onan_p = ncntex_onan_p +1
+         ! Negative / zero observation value
+         elseif (obs_p_reps(e_reps) <=    0) then
+            is_included = .false.
+            ncntex_oneg_p = ncntex_oneg_p +1
+         ! FillValue for depth
+         elseif (dep_p_reps(e_reps) == -999) then
+            is_included = .false.
+            ncntex_dnan_p = ncntex_dnan_p +1
+         ! Negative / zero depth
+         elseif (dep_p_reps(e_reps) <=    0) then
+            is_included = .false.
+            ncntex_dneg_p = ncntex_dneg_p +1
+         ! Node info is invalid
+         elseif (nod1_p_reps(e_reps) <=   0) then
+            is_included = .false.
+            ncntex_halo_p = ncntex_halo_p +1
+         elseif (nod2_p_reps(e_reps) <=   0) then
+            is_included = .false.
+            ncntex_halo_p = ncntex_halo_p +1
+         elseif (nod3_p_reps(e_reps) <=   0) then
+            is_included = .false.
+            ncntex_halo_p = ncntex_halo_p +1 
+         endif ! trivial observation exclusion
+         
+         IF (is_included) THEN
+            is_unique = .true.
+            
+            ! searching for previous occurence of elem(e_reps) and nlay(e_reps) within sorted arrays:
+            do_elem_p: DO e=1,dim_obs_p_sort1
+               
+               IF ((elem_p_reps(e_reps)==elem_p_sort1(e)) .and. &
+                   (nlay_p_reps(e_reps)==nlay_p_sort1(e))) THEN
+                  is_unique = .false.
+                  e_found   = e
+                  EXIT ! --> found previous occurence at e; stop searching.
+               ENDIF
+            ENDDO do_elem_p ! counter e
             
             IF (.not. is_unique) THEN
             ! --> already have observations of elem(e_reps) at e_found:
                 
-                ! number of observations at e:
-                numrep_p(e_found) = numrep_p(e_found) + 1
+                ! number of observations at e, adding one:
+                n_found = num_obs_p_sort1(e_found) + 1
+                num_obs_p_sort1(e_found) = n_found
                 
-                ! adding to average of observations at e:
-                obs_p_sorted(e_found)     = obs_p_sorted(e_found)     + obs_p_reps(e_reps)
-                std_obs_p_sorted(e_found) = std_obs_p_sorted(e_found) + std_obs_p_reps(e_reps)
+                ! writing observation to array at e:
+                obs_p_sort1(e_found,n_found) = obs_p_reps(e_reps)
                 
-                ! adding to mean coordinate,
                 ! transforming to cartesian coordinates:
-                x_p(e_found) = x_p(e_found) &
-                            + COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
-                y_p(e_found) = y_p(e_found) &
-                            + COS(deg2rad*lat_p_reps(e_reps)) * SIN(deg2rad*lon_p_reps(e_reps))
-                z_p(e_found) = z_p(e_found) &
-                            + SIN(deg2rad*lat_p_reps(e_reps))
+                x_p1(e_found,n_found) = COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
+                y_p1(e_found,n_found) = COS(deg2rad*lat_p_reps(e_reps)) * SIN(deg2rad*lon_p_reps(e_reps))
+                z_p1(e_found,n_found) = SIN(deg2rad*lat_p_reps(e_reps))
                             
-                ! adding to mean depth:
-                IF (isPP) depth_p_sorted(e_found) = depth_p_sorted(e_found) + depth_p_reps(e_reps)
+                ! writing depth to array at e:
+                IF (isPP) dep_p_sort1(e_found,n_found) = dep_p_reps(e_reps)
                
             ELSE
             ! --> is the first or only observation at elem(e_reps)
                
-               dim_obs_p = dim_obs_p + 1
-               numrep_p(dim_obs_p) = 1
+               ! number of observed elements, adding one:
+               dim_obs_p_sort1 = dim_obs_p_sort1 + 1
+               e_new = dim_obs_p_sort1
                
-               elem_p_sorted   (dim_obs_p) = elem_p_reps   (e_reps)
-               nl_p_sorted     (dim_obs_p) = nl_p_reps     (e_reps)
-               nod1_p_sorted   (dim_obs_p) = nod1_p_reps   (e_reps)
-               nod2_p_sorted   (dim_obs_p) = nod2_p_reps   (e_reps)
-               nod3_p_sorted   (dim_obs_p) = nod3_p_reps   (e_reps)
-               obs_p_sorted    (dim_obs_p) = obs_p_reps    (e_reps)
-               std_obs_p_sorted(dim_obs_p) = std_obs_p_reps(e_reps)
+               ! one observation so far:
+               num_obs_p_sort1(e_new) = 1
+               
+               ! indices of observed element:
+               elem_p_sort1 (e_new) = elem_p_reps (e_reps)
+               nlay_p_sort1 (e_new) = nlay_p_reps (e_reps)
+               nod1_p_sort1 (e_new) = nod1_p_reps (e_reps)
+               nod2_p_sort1 (e_new) = nod2_p_reps (e_reps)
+               nod3_p_sort1 (e_new) = nod3_p_reps (e_reps)
+               
+               ! observation data:
+               obs_p_sort1 (e_new,1) = obs_p_reps (e_reps)
+               ! transforming to cartesian coordinates:
+               x_p1 (e_new,1) = COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
+               y_p1 (e_new,1) = COS(deg2rad*lat_p_reps(e_reps)) * SIN(deg2rad*lon_p_reps(e_reps))
+               z_p1 (e_new,1) = SIN(deg2rad*lat_p_reps(e_reps))
                
                if (isPP) then
-                  elem_g_sorted (dim_obs_p) = elem_g_reps(e_reps)
-                  nod1_g_sorted (dim_obs_p) = nod1_g_reps(e_reps)
-                  nod2_g_sorted (dim_obs_p) = nod2_g_reps(e_reps)
-                  nod3_g_sorted (dim_obs_p) = nod3_g_reps(e_reps)
-                  depth_p_sorted(dim_obs_p) = depth_p_reps(e_reps)
+                  ! indeces
+                  elem_g_sort1 (e_new) = elem_g_reps(e_reps)
+                  nod1_g_sort1 (e_new) = nod1_g_reps(e_reps)
+                  nod2_g_sort1 (e_new) = nod2_g_reps(e_reps)
+                  nod3_g_sort1 (e_new) = nod3_g_reps(e_reps)
+                  ! data
+                  dep_p_sort1 (e_new,1) = dep_p_reps(e_reps)
                endif ! isPP
 
-               ! transforming to cartesian coordinates:
-               x_p(dim_obs_p) = COS(deg2rad*lat_p_reps(e_reps)) * COS(deg2rad*lon_p_reps(e_reps))
-               y_p(dim_obs_p) = COS(deg2rad*lat_p_reps(e_reps)) * SIN(deg2rad*lon_p_reps(e_reps))
-               z_p(dim_obs_p) = SIN(deg2rad*lat_p_reps(e_reps))
-
             ENDIF ! is_unique
-         ENDIF ! exclusion of small/negative
-      ENDDO do_elem_p_reps
+         ENDIF ! is_included
+      ENDDO do_elem_p_reps ! counter e_reps
       
-      ! Averaging repetitive samples
-      allocate(obs_p(dim_obs_p))
-      allocate(std_obs_p(dim_obs_p))
-      allocate(lon_p(dim_obs_p),lat_p(dim_obs_p))
+      ! clean up *_reps
+      deallocate(nod1_p_reps,nod2_p_reps,nod3_p_reps,lon_p_reps,lat_p_reps,obs_p_reps,elem_p_reps,nlay_p_reps,dep_p_reps)
+      if (isPP) then
+         deallocate(nod1_g_reps,nod2_g_reps,nod3_g_reps)
+         deallocate(elem_g_reps)
+      endif
       
-      DO e=1,dim_obs_p
-        
-        ! observation mean
-        obs_p(e)     = obs_p_sorted(e)    /REAL(numrep_p(e))
-        std_obs_p(e) = std_obs_p_sorted(e)/REAL(numrep_p(e))
-        
-        ! mean location (in cartesian coordinates)
-        x_p(e) = x_p(e)/REAL(numrep_p(e))
-        y_p(e) = y_p(e)/REAL(numrep_p(e))
-        z_p(e) = z_p(e)/REAL(numrep_p(e))
-        
-        ! mean depth
-        if (isPP) then
-           depth_p_sorted(e) = depth_p_sorted(e)/REAL(numrep_p(e))
-        endif
-        
-        ! transforming to spherical coordinates
-        lat_p(e) = ATAN2( z_p(e), SQRT(x_p(e)*x_p(e) + y_p(e)*y_p(e)) )
-        lon_p(e) = ATAN2( y_p(e), x_p(e))
-        
-      ENDDO
-            
-      allocate(ivariance_obs_p(dim_obs_p))
-      allocate(ocoord_p(2,dim_obs_p))
+      
+      ! -----------------------------------------------
+      !  Step 2: exclude outliers from observations
+      !          exclude based on model topography
+      ! -----------------------------------------------
+      
+      ! maximum number of observations at same element
+      num_obs_p_max = MAXVAL(num_obs_p_sort1)
+      
+      allocate(x_p2       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(y_p2       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(z_p2       (dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      allocate(obs_p_sort2(dim_obs_p_sort1,num_obs_p_max),source=0.0)
+      
+      allocate(elem_p_sort2(dim_obs_p_sort1),source=0)
+      allocate(nlay_p_sort2(dim_obs_p_sort1),source=0)
+      allocate(nod1_p_sort2(dim_obs_p_sort1),source=0)
+      allocate(nod2_p_sort2(dim_obs_p_sort1),source=0)
+      allocate(nod3_p_sort2(dim_obs_p_sort1),source=0)
+      
+      allocate(num_obs_p_sort2(dim_obs_p_sort1),source=0)
       
       if (isPP) then
+         allocate(dep_p_sort2(dim_obs_p_sort1,num_obs_p_max),source=0.0)
+         allocate(elem_g_sort2(dim_obs_p_sort1),source=0)
+         allocate(nod1_g_sort2(dim_obs_p_sort1),source=0)
+         allocate(nod2_g_sort2(dim_obs_p_sort1),source=0)
+         allocate(nod3_g_sort2(dim_obs_p_sort1),source=0)
+      endif
+      
+      e2 = 0      
+      ! loop observed elements
+      DO e1=1, dim_obs_p_sort1
+      
+         ! model topography
+         ! nlevels <- index of first dry layer at node
+         ! nzmin   <- index of first incomplete element
+         nzmin = MIN (mesh_fesom% nlevels_nod2D( nod1_p_sort1(e1) ), &
+                      mesh_fesom% nlevels_nod2D( nod2_p_sort1(e1) ), &
+                      mesh_fesom% nlevels_nod2D( nod3_p_sort1(e1) ))
+         if (nlay_p_sort1(e1) < nzmin) then
+         ! --> included after model topography check
+             
+            ! observed elements, adding one:
+            e2 = e2+1
+            
+            ! write to arrays
+            elem_p_sort2 (e2) = elem_p_sort1 (e1)
+            nlay_p_sort2 (e2) = nlay_p_sort1 (e1)
+            nod1_p_sort2 (e2) = nod1_p_sort1 (e1)
+            nod2_p_sort2 (e2) = nod2_p_sort1 (e1)
+            nod3_p_sort2 (e2) = nod3_p_sort1 (e1)
+            
+            if (isPP) then
+              elem_g_sort2 (e2) = elem_g_sort1 (e1)
+              nod1_g_sort2 (e2) = nod1_g_sort1 (e1)
+              nod2_g_sort2 (e2) = nod2_g_sort1 (e1)
+              nod3_g_sort2 (e2) = nod3_g_sort1 (e1)
+            endif
+            
+            ! compute mean and variance of observations at e1
+            num_obs     = num_obs_p_sort1(e1)
+            num_obs_inv = 1/REAL(num_obs)
+            allocate(diffobs(num_obs))
+            emean   = num_obs_inv * SUM (obs_p_sort1(e1,1:num_obs))
+            diffobs = obs_p_sort1(e1,1:num_obs) - emean
+            evar    = num_obs_inv * SUM (diffobs * diffobs)
+            
+            n2 = 0
+            do n1=1, num_obs
+               if ((evar <= 1.0) .or. (diffobs(n1)*diffobs(n1) <= (9.0 * evar))) then
+               ! --> included after outlier check
+               
+                   ! number of observations at element, adding one:
+                   n2 = n2+1
+                   ! write to arrays
+                   obs_p_sort2(e2,n2) = obs_p_sort1(e1,n1)
+                   x_p2(e2,n2) = x_p1(e1,n1)
+                   y_p2(e2,n2) = y_p1(e1,n1)
+                   z_p2(e2,n2) = z_p1(e1,n1)
+                   IF (isPP) dep_p_sort2(e2,n2) = dep_p_sort1(e1,n1)
+               
+               else
+                   ! exlusion counter
+                   ncntex_outl_p = ncntex_outl_p +1
+               endif ! outlier check
+               ! number of observations after outlier exclusions
+               num_obs_p_sort2(e2) = n2
+            enddo
+            
+            deallocate(diffobs)
+         else
+            ! exclusion counter
+            ecntex_topo_p = ecntex_topo_p +1
+            ncntex_topo_p = ncntex_topo_p +num_obs_p_sort1(e1)
+         endif ! model topography check
+         ! number of observed elements after topography exclusions
+         dim_obs_p_sort2 = e2
+      ENDDO ! loop observed elements
+      
+      ! ecntex_topo_p = dim_obs_p_sort1 - dim_obs_p_sort2
+      
+      ! clean up *_sort1
+      deallocate(x_p1       )
+      deallocate(y_p1       )
+      deallocate(z_p1       )
+      deallocate(obs_p_sort1)
+      deallocate(elem_p_sort1)
+      deallocate(nlay_p_sort1)
+      deallocate(nod1_p_sort1)
+      deallocate(nod2_p_sort1)
+      deallocate(nod3_p_sort1)
+      deallocate(num_obs_p_sort1)
+      if (isPP) then
+         deallocate(dep_p_sort1)
+         deallocate(elem_g_sort1)
+         deallocate(nod1_g_sort1)
+         deallocate(nod2_g_sort1)
+         deallocate(nod3_g_sort1)
+      endif
+      
+      ! -------------------------------------------------------------------
+      !  Step 3: exclude observations based on model-observation difference
+      !          define observation error from variance
+      !          compute average for grid element
+      ! -------------------------------------------------------------------
+      
+      ALLOCATE(obs_p_sortavg    (dim_obs_p_sort2))
+      ALLOCATE(var_obs_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(num_obs_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(elem_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(nlay_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(nod1_p_sortavg(dim_obs_p_sort2),nod2_p_sortavg(dim_obs_p_sort2),nod3_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(x_p_sortavg(dim_obs_p_sort2),y_p_sortavg(dim_obs_p_sort2),z_p_sortavg(dim_obs_p_sort2))
+      ALLOCATE(lat_p_sortavg(dim_obs_p_sort2),lon_p_sortavg(dim_obs_p_sort2))
+
+      obs_p_sortavg(:)     = 0
+      var_obs_p_sortavg(:) = 0
+      num_obs_p_sortavg(:) = 0
+      elem_p_sortavg(:) = 0
+      nlay_p_sortavg(:) = 0
+      nod1_p_sortavg(:) = 0
+      nod2_p_sortavg(:) = 0
+      nod3_p_sortavg(:) = 0
+      x_p_sortavg(:) = 0
+      y_p_sortavg(:) = 0
+      z_p_sortavg(:) = 0
+      lat_p_sortavg(:) = 0
+      lon_p_sortavg(:) = 0
+      
+      if (isPP) then
+         ALLOCATE(elem_g_sortavg(dim_obs_p_sort2))
+         ALLOCATE(nod1_g_sortavg(dim_obs_p_sort2),nod2_g_sortavg(dim_obs_p_sort2),nod3_g_sortavg(dim_obs_p_sort2))
+         ALLOCATE(dep_p_sortavg(dim_obs_p_sort2))
+         elem_g_sortavg(:)=0.0
+         nod1_g_sortavg(:) = 0
+         nod2_g_sortavg(:) = 0
+         nod3_g_sortavg(:) = 0
+         dep_p_sortavg(:) = 0
+      endif ! isPP
+      
+      ! -------------------------------------------------------------------------
+      if ((n_merged_excl_absolute > 0) .and. (n_merged_excl_relative > 0)) then
+      ! perform loop, checking absolute and relative exclusion criteria
+         
+         ! loop observed elements
+         esa=0
+         DO e2=1, dim_obs_p_sort2
+           ! model forecast at observed element
+           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           ! loop observations at element
+           num_obs = num_obs_p_sort2(e2)
+           nsa=0
+           DO n2=1,num_obs
+              if (abs(obs_p_sort2(e2,n2) - emean_fcst) < n_merged_excl_absolute) then
+              ! observation passed absolute model difference check
+                if (obs_p_sort2(e2,n2) > (excl_relative_lower * emean_fcst)) then
+                ! observation passed relative difference check, lower limit
+                  if (obs_p_sort2(e2,n2) < (excl_relative_upper * emean_fcst)) then
+                  ! observation passed relative difference check, upper limit
+                     
+                     if (nsa==0) then
+                     ! first observation at element
+                       esa = esa+1
+                       
+                       ! write indeces to arrays
+                       elem_p_sortavg (esa) = elem_p_sort2 (e2)
+                       nlay_p_sortavg (esa) = nlay_p_sort2 (e2)
+                       nod1_p_sortavg (esa) = nod1_p_sort2 (e2)
+                       nod2_p_sortavg (esa) = nod2_p_sort2 (e2)
+                       nod3_p_sortavg (esa) = nod3_p_sort2 (e2)
+                       
+                       if (isPP) then
+                         elem_g_sortavg (esa) = elem_g_sort2 (e2)
+                         nod1_g_sortavg (esa) = nod1_g_sort2 (e2)
+                         nod2_g_sortavg (esa) = nod2_g_sort2 (e2)
+                         nod3_g_sortavg (esa) = nod3_g_sort2 (e2)
+                       endif
+                       
+                       ! compute variance for observation error
+                       num_obs_inv = 1/REAL(num_obs)
+                       allocate(diffobs(num_obs))
+                       emean   = num_obs_inv * SUM (obs_p_sort2(e2,1:num_obs))
+                       diffobs = obs_p_sort2(e2,1:num_obs) - emean
+                       var_obs_p_sortavg(esa) = num_obs_inv * SUM (diffobs * diffobs)
+                       deallocate(diffobs)
+                     endif ! nsa==0
+                     
+                     nsa=nsa+1
+                     ! include this observation into sum of observations at element
+                     obs_p_sortavg(esa) = obs_p_sortavg(esa) + obs_p_sort2(e2,n2)
+                     x_p_sortavg  (esa) = x_p_sortavg  (esa) + x_p2(e2,n2)
+                     y_p_sortavg  (esa) = y_p_sortavg  (esa) + y_p2(e2,n2)
+                     z_p_sortavg  (esa) = z_p_sortavg  (esa) + z_p2(e2,n2)
+                     
+                     IF (isPP) dep_p_sortavg(esa) = dep_p_sortavg(esa) + dep_p_sort2(e2,n2)
+                  endif ! upper limit check
+                endif ! lower limit check
+              endif ! absolute difference check
+           ENDDO ! loop observations
+           
+           ! exclusion count
+           ncntex_diff_p = ncntex_diff_p +num_obs -nsa
+           
+           if (nsa>0) then
+           ! after checks, at least one valid observation at element
+           
+             num_obs_p_sortavg(esa) = nsa
+             num_obs_inv = 1 / REAL(nsa)
+             ! mean of observations at element
+             obs_p_sortavg(esa) = num_obs_inv * obs_p_sortavg(esa)
+             ! mean location, in cartesian coordinates
+             x_p_sortavg(esa) = num_obs_inv * x_p_sortavg(esa)
+             y_p_sortavg(esa) = num_obs_inv * y_p_sortavg(esa)
+             z_p_sortavg(esa) = num_obs_inv * z_p_sortavg(esa)
+             ! mean depth
+             if (isPP) dep_p_sortavg(esa) = num_obs_inv * dep_p_sortavg(esa)        
+             ! transforming to spherical coordinates
+             lat_p_sortavg(esa) = ATAN2( z_p_sortavg(esa), SQRT(x_p_sortavg(esa)*x_p_sortavg(esa) + y_p_sortavg(esa)*y_p_sortavg(esa)) )
+             lon_p_sortavg(esa) = ATAN2( y_p_sortavg(esa), x_p_sortavg(esa))
+           else
+             ! exclusion count
+             ecntex_diff_p = ecntex_diff_p +1
+           endif ! nsa>0
+         ENDDO ! loop observed elements
+         dim_obs_p = esa
+         
+      ! ------------------------------------------------------------------------------
+      elseif ((n_merged_excl_absolute > 0) .and. (n_merged_excl_relative == 0)) then
+      ! perform loop, checking only absolute exclusion criterion
+      
+         ! loop observed elements
+         esa=0
+         DO e2=1, dim_obs_p_sort2
+           ! model forecast at observed element
+           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           ! loop observations at element
+           num_obs = num_obs_p_sort2(e2)
+           nsa=0
+           DO n2=1,num_obs
+              if (abs(obs_p_sort2(e2,n2) - emean_fcst) < n_merged_excl_absolute) then
+              ! observation passed absolute model difference check
+                     
+                     if (nsa==0) then
+                     ! first observation at element
+                       esa = esa+1
+                       
+                       ! write indeces to arrays
+                       elem_p_sortavg (esa) = elem_p_sort2 (e2)
+                       nlay_p_sortavg (esa) = nlay_p_sort2 (e2)
+                       nod1_p_sortavg (esa) = nod1_p_sort2 (e2)
+                       nod2_p_sortavg (esa) = nod2_p_sort2 (e2)
+                       nod3_p_sortavg (esa) = nod3_p_sort2 (e2)
+                       
+                       if (isPP) then
+                         elem_g_sortavg (esa) = elem_g_sort2 (e2)
+                         nod1_g_sortavg (esa) = nod1_g_sort2 (e2)
+                         nod2_g_sortavg (esa) = nod2_g_sort2 (e2)
+                         nod3_g_sortavg (esa) = nod3_g_sort2 (e2)
+                       endif
+                       
+                       ! compute variance for observation error
+                       num_obs_inv = 1/REAL(num_obs)
+                       allocate(diffobs(num_obs))
+                       emean   = num_obs_inv * SUM (obs_p_sort2(e2,1:num_obs))
+                       diffobs = obs_p_sort2(e2,1:num_obs) - emean
+                       var_obs_p_sortavg(esa) = num_obs_inv * SUM (diffobs * diffobs)
+                       deallocate(diffobs)
+                     endif ! nsa==0
+                     
+                     nsa=nsa+1
+                     ! include this observation into sum of observations at element
+                     obs_p_sortavg(esa) = obs_p_sortavg(esa) + obs_p_sort2(e2,n2)
+                     x_p_sortavg  (esa) = x_p_sortavg  (esa) + x_p2(e2,n2)
+                     y_p_sortavg  (esa) = y_p_sortavg  (esa) + y_p2(e2,n2)
+                     z_p_sortavg  (esa) = z_p_sortavg  (esa) + z_p2(e2,n2)
+                     
+                     IF (isPP) dep_p_sortavg(esa) = dep_p_sortavg(esa) + dep_p_sort2(e2,n2)
+              endif ! absolute difference check
+           ENDDO ! loop observations
+           
+           ! exclusion count
+           ncntex_diff_p = ncntex_diff_p +num_obs -nsa
+           
+           if (nsa>0) then
+           ! after checks, at least one valid observation at element
+           
+             num_obs_p_sortavg(esa) = nsa
+             num_obs_inv = 1 / REAL(nsa)
+             ! mean of observations at element
+             obs_p_sortavg(esa) = num_obs_inv * obs_p_sortavg(esa)
+             ! mean location, in cartesian coordinates
+             x_p_sortavg(esa) = num_obs_inv * x_p_sortavg(esa)
+             y_p_sortavg(esa) = num_obs_inv * y_p_sortavg(esa)
+             z_p_sortavg(esa) = num_obs_inv * z_p_sortavg(esa)
+             ! mean depth
+             if (isPP) dep_p_sortavg(esa) = num_obs_inv * dep_p_sortavg(esa)        
+             ! transforming to spherical coordinates
+             lat_p_sortavg(esa) = ATAN2( z_p_sortavg(esa), SQRT(x_p_sortavg(esa)*x_p_sortavg(esa) + y_p_sortavg(esa)*y_p_sortavg(esa)) )
+             lon_p_sortavg(esa) = ATAN2( y_p_sortavg(esa), x_p_sortavg(esa))
+           else
+             ! exclusion count
+             ecntex_diff_p = ecntex_diff_p +1
+           endif ! nsa>0
+         ENDDO ! loop observed elements
+         dim_obs_p = esa
+      
+      ! ------------------------------------------------------------------------------
+      elseif ((n_merged_excl_absolute == 0) .and. (n_merged_excl_relative > 0)) then
+      ! perform loop, checking only relative exclusion criterion
+      
+         ! loop observed elements
+         esa=0
+         DO e2=1, dim_obs_p_sort2
+           ! model forecast at observed element
+           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           ! loop observations at element
+           num_obs = num_obs_p_sort2(e2)
+           nsa=0
+           DO n2=1,num_obs
+                if (obs_p_sort2(e2,n2) > (excl_relative_lower * emean_fcst)) then
+                ! observation passed relative difference check, lower limit
+                  if (obs_p_sort2(e2,n2) < (excl_relative_upper * emean_fcst)) then
+                  ! observation passed relative difference check, upper limit
+                     
+                     if (nsa==0) then
+                     ! first observation at element
+                       esa = esa+1
+                       
+                       ! write indeces to arrays
+                       elem_p_sortavg (esa) = elem_p_sort2 (e2)
+                       nlay_p_sortavg (esa) = nlay_p_sort2 (e2)
+                       nod1_p_sortavg (esa) = nod1_p_sort2 (e2)
+                       nod2_p_sortavg (esa) = nod2_p_sort2 (e2)
+                       nod3_p_sortavg (esa) = nod3_p_sort2 (e2)
+                       
+                       if (isPP) then
+                         elem_g_sortavg (esa) = elem_g_sort2 (e2)
+                         nod1_g_sortavg (esa) = nod1_g_sort2 (e2)
+                         nod2_g_sortavg (esa) = nod2_g_sort2 (e2)
+                         nod3_g_sortavg (esa) = nod3_g_sort2 (e2)
+                       endif
+                       
+                       ! compute variance for observation error
+                       num_obs_inv = 1/REAL(num_obs)
+                       allocate(diffobs(num_obs))
+                       emean   = num_obs_inv * SUM (obs_p_sort2(e2,1:num_obs))
+                       diffobs = obs_p_sort2(e2,1:num_obs) - emean
+                       var_obs_p_sortavg(esa) = num_obs_inv * SUM (diffobs * diffobs)
+                       deallocate(diffobs)
+                     endif ! nsa==0
+                     
+                     nsa=nsa+1
+                     ! include this observation into sum of observations at element
+                     obs_p_sortavg(esa) = obs_p_sortavg(esa) + obs_p_sort2(e2,n2)
+                     x_p_sortavg  (esa) = x_p_sortavg  (esa) + x_p2(e2,n2)
+                     y_p_sortavg  (esa) = y_p_sortavg  (esa) + y_p2(e2,n2)
+                     z_p_sortavg  (esa) = z_p_sortavg  (esa) + z_p2(e2,n2)
+                     
+                     IF (isPP) dep_p_sortavg(esa) = dep_p_sortavg(esa) + dep_p_sort2(e2,n2)
+                  endif ! upper limit check
+                endif ! lower limit check
+           ENDDO ! loop observations
+           
+           ! exclusion count
+           ncntex_diff_p = ncntex_diff_p +num_obs -nsa
+           
+           if (nsa>0) then
+           ! after checks, at least one valid observation at element
+           
+             num_obs_p_sortavg(esa) = nsa
+             num_obs_inv = 1 / REAL(nsa)
+             ! mean of observations at element
+             obs_p_sortavg(esa) = num_obs_inv * obs_p_sortavg(esa)
+             ! mean location, in cartesian coordinates
+             x_p_sortavg(esa) = num_obs_inv * x_p_sortavg(esa)
+             y_p_sortavg(esa) = num_obs_inv * y_p_sortavg(esa)
+             z_p_sortavg(esa) = num_obs_inv * z_p_sortavg(esa)
+             ! mean depth
+             if (isPP) dep_p_sortavg(esa) = num_obs_inv * dep_p_sortavg(esa)        
+             ! transforming to spherical coordinates
+             lat_p_sortavg(esa) = ATAN2( z_p_sortavg(esa), SQRT(x_p_sortavg(esa)*x_p_sortavg(esa) + y_p_sortavg(esa)*y_p_sortavg(esa)) )
+             lon_p_sortavg(esa) = ATAN2( y_p_sortavg(esa), x_p_sortavg(esa))
+           else
+             ! exclusion count
+             ecntex_diff_p = ecntex_diff_p +1
+           endif ! nsa>0
+         ENDDO ! loop observed elements
+         dim_obs_p = esa
+      
+      ! ------------------------------------------
+      else
+      ! perform loop, no exclusion checks required
+      
+         ! loop observed elements
+         DO e2=1, dim_obs_p_sort2
+           ! no exclusions
+           esa=e2
+           num_obs_p_sortavg(esa) = num_obs_p_sort2(e2)
+           num_obs = num_obs_p_sortavg(esa)
+           num_obs_inv = 1/REAL(num_obs)
+           ! write indeces to arrays
+           elem_p_sortavg (esa) = elem_p_sort2 (e2)
+           nlay_p_sortavg (esa) = nlay_p_sort2 (e2)
+           nod1_p_sortavg (esa) = nod1_p_sort2 (e2)
+           nod2_p_sortavg (esa) = nod2_p_sort2 (e2)
+           nod3_p_sortavg (esa) = nod3_p_sort2 (e2)
+           if (isPP) then
+             elem_g_sortavg (esa) = elem_g_sort2 (e2)
+             nod1_g_sortavg (esa) = nod1_g_sort2 (e2)
+             nod2_g_sortavg (esa) = nod2_g_sort2 (e2)
+             nod3_g_sortavg (esa) = nod3_g_sort2 (e2)
+           endif
+           ! mean of observations at element
+           emean   = num_obs_inv * SUM (obs_p_sort2(e2,1:num_obs))
+           obs_p_sortavg(esa) = emean
+           ! variance for observation error
+           allocate(diffobs(num_obs))
+           diffobs = obs_p_sort2(e2,1:num_obs) - emean
+           var_obs_p_sortavg(esa) = num_obs_inv * SUM (diffobs * diffobs)
+           deallocate(diffobs)
+           ! mean depth
+           if (isPP) dep_p_sortavg(esa) = num_obs_inv * SUM (dep_p_sort2(e2,1:num_obs))
+           ! mean location, in cartesian coordinates
+           x_p_sortavg(esa) = num_obs_inv * SUM (x_p2(e2,1:num_obs))
+           y_p_sortavg(esa) = num_obs_inv * SUM (y_p2(e2,1:num_obs))
+           z_p_sortavg(esa) = num_obs_inv * SUM (z_p2(e2,1:num_obs))
+           ! transforming to spherical coordinates
+           lat_p_sortavg(esa) = ATAN2( z_p_sortavg(esa), SQRT(x_p_sortavg(esa)*x_p_sortavg(esa) + y_p_sortavg(esa)*y_p_sortavg(esa)) )
+           lon_p_sortavg(esa) = ATAN2( y_p_sortavg(esa), x_p_sortavg(esa))
+         ENDDO ! loop observed elements
+         dim_obs_p = dim_obs_p_sort2
+      
+      endif ! absolute / relative exclusion criteria
+      
+      ! clean up *_sort2
+      deallocate(x_p2)
+      deallocate(y_p2)
+      deallocate(z_p2)
+      deallocate(obs_p_sort2)
+      deallocate(elem_p_sort2)
+      deallocate(nlay_p_sort2)
+      deallocate(nod1_p_sort2)
+      deallocate(nod2_p_sort2)
+      deallocate(nod3_p_sort2)
+      deallocate(num_obs_p_sort2)
+      if (isPP) then
+         deallocate(dep_p_sort2)
+         deallocate(elem_g_sort2)
+         deallocate(nod1_g_sort2)
+         deallocate(nod2_g_sort2)
+         deallocate(nod3_g_sort2)
+      endif
+
+      ! -------------------------------------------------------------------
+      !  Final: unique observation data, trimmed arrays
+      ! -------------------------------------------------------------------
+      
+      ! copy data from *_sortavg to trimmed arrays
+      
+      allocate(obs_p(dim_obs_p))                                      ! PE-local observation values
+      allocate(var_obs_p(dim_obs_p))                                  ! PE-local variance for observation error
+      allocate(lon_p(dim_obs_p),lat_p(dim_obs_p))
+      allocate(nod1_p(dim_obs_p),nod2_p(dim_obs_p),nod3_p(dim_obs_p)) ! PE-local indeces on FESOM grid
+      allocate(elem_p(dim_obs_p))
+      allocate(nlay_p(dim_obs_p))                                     ! PE-local layer indeces
+      
+      obs_p(:)     = obs_p_sortavg    (1:dim_obs_p)
+      var_obs_p(:) = var_obs_p_sortavg(1:dim_obs_p)
+      lon_p(:)     = lon_p_sortavg    (1:dim_obs_p)
+      lat_p(:)     = lat_p_sortavg    (1:dim_obs_p)
+      nod1_p(:)    = nod1_p_sortavg   (1:dim_obs_p)
+      nod2_p(:)    = nod2_p_sortavg   (1:dim_obs_p)
+      nod3_p(:)    = nod3_p_sortavg   (1:dim_obs_p)
+      elem_p(:)    = elem_p_sortavg   (1:dim_obs_p)
+      nlay_p(:)    = nlay_p_sortavg   (1:dim_obs_p)
+      
+      deallocate(obs_p_sortavg    )
+      deallocate(var_obs_p_sortavg)
+      deallocate(lon_p_sortavg    )
+      deallocate(lat_p_sortavg    )
+      deallocate(nod1_p_sortavg   )
+      deallocate(nod2_p_sortavg   )
+      deallocate(nod3_p_sortavg   )
+      deallocate(elem_p_sortavg   )
+      deallocate(nlay_p_sortavg   )
+      
+      ! copy data for postprocessing
+      if (isPP) then
+          allocate(elem_g(dim_obs_p))
+          allocate(nod1_g(dim_obs_p),nod2_g(dim_obs_p),nod3_g(dim_obs_p))
+          allocate(dep_p(dim_obs_p))
+         
+          nod1_g(:) = nod1_g_sortavg(1:dim_obs_p)
+          nod2_g(:) = nod2_g_sortavg(1:dim_obs_p)
+          nod3_g(:) = nod3_g_sortavg(1:dim_obs_p)
+          elem_g(:) = elem_g_sortavg(1:dim_obs_p)
+          dep_p(:)  = dep_p_sortavg (1:dim_obs_p)
+          
+          deallocate(nod1_g_sortavg)
+          deallocate(nod2_g_sortavg)
+          deallocate(nod3_g_sortavg)
+          deallocate(elem_g_sortavg)
+          deallocate(dep_p_sortavg )
+
           allocate(thisobs_PP%nod1_g(dim_obs_p),thisobs_PP%nod2_g(dim_obs_p),thisobs_PP%nod3_g(dim_obs_p))
           allocate(thisobs_PP%elem_g(dim_obs_p))
-          allocate(thisobs_PP%isExclObs(dim_obs_p))
           allocate(thisobs_PP%depth(dim_obs_p),thisobs_PP%nz(dim_obs_p))
           allocate(thisobs_PP%lon(dim_obs_p),thisobs_PP%lat(dim_obs_p))
           allocate(thisobs_PP%numrep(dim_obs_p))
           
-          thisobs_PP%nod1_g = nod1_g_sorted(:dim_obs_p)
-          thisobs_PP%nod2_g = nod2_g_sorted(:dim_obs_p)
-          thisobs_PP%nod3_g = nod3_g_sorted(:dim_obs_p)
+          thisobs_PP%nod1_g = nod1_g
+          thisobs_PP%nod2_g = nod2_g
+          thisobs_PP%nod3_g = nod3_g
+          thisobs_PP%elem_g = elem_g
+          thisobs_PP%nz     = nlay_p
           
-          thisobs_PP%elem_g = elem_g_sorted(:dim_obs_p)
+          thisobs_PP%lon = lon_p / pi * 180.0
+          thisobs_PP%lat = lat_p / pi * 180.0
           
-          thisobs_PP%lon = lon_p(:dim_obs_p) / pi * 180.0
-          thisobs_PP%lat = lat_p(:dim_obs_p) / pi * 180.0
+          thisobs_PP%depth  = dep_p
+          thisobs_PP%numrep = num_obs_p_sortavg(:dim_obs_p)
           
-          thisobs_PP%depth = depth_p_sorted(:dim_obs_p)
-          thisobs_PP%nz    = nl_p_sorted(:dim_obs_p)
-          
-          thisobs_PP%numrep = numrep_p(:dim_obs_p)
-          
+          allocate(thisobs_PP%isExclObs(dim_obs_p))
+          thisobs_PP%isExclObs = 0 ! already trimmed: no more to exclude
       endif
-   
+      deallocate(x_p_sortavg,y_p_sortavg,z_p_sortavg,num_obs_p_sortavg)
+      
+      ! set inverse observation error variance
+      allocate(ivariance_obs_p(dim_obs_p))
+      DO i = 1, dim_obs_p
+         ! combine variance of duplicate observations (var_obs_p, computed above)
+         ! and minimum observation error (rms_obs_n_merged, defined in namelist)
+         ivariance_obs_p(i) = 1.0 / (var_obs_p(i) + (rms_obs_n_merged * rms_obs_n_merged))
+      ENDDO
+
+      ! set observations coordinates
+      allocate(ocoord_p(2,dim_obs_p))
       ocoord_p(1,:) = lon_p
       ocoord_p(2,:) = lat_p
-      
-      ! Set inverse observation error variance
-      DO i = 1, dim_obs_p
-         ivariance_obs_p(i) = 1.0 / (std_obs_p(i) * std_obs_p(i))
-      ENDDO
-      if (isPP) then
-         thisobs_PP%isExclObs = 0
-      endif
       
       ! *** Initialize index vector of observed surface nodes ***
       ! This array has as many rows as required for the observation operator
       ! 1 if observations are at grid points; >1 if interpolation is required
       allocate(thisobs%id_obs_p(3,dim_obs_p))
       DO i = 1, dim_obs_p
-        thisobs%id_obs_p(1,i) = (nlmax) * (nod1_p_sorted(i)-1) + nl_p_sorted(i) + offset(id%DIN)
-        thisobs%id_obs_p(2,i) = (nlmax) * (nod2_p_sorted(i)-1) + nl_p_sorted(i) + offset(id%DIN)
-        thisobs%id_obs_p(3,i) = (nlmax) * (nod3_p_sorted(i)-1) + nl_p_sorted(i) + offset(id%DIN)
-        
-      ! *** exclude observations at dry nodes ***
-      ! number of layers at nodes considering bottom topography: mesh_fesom% nlevels_nod2D
-        nzmin = MIN ( mesh_fesom% nlevels_nod2D( nod1_p_sorted(i) ), &
-                      mesh_fesom% nlevels_nod2D( nod2_p_sorted(i) ), &
-                      mesh_fesom% nlevels_nod2D( nod3_p_sorted(i) ))
-                      
-        IF (nl_p_sorted(i) >= nzmin) THEN
-           ivariance_obs_p(i) = 1e-12
-           cnt_ex_dry_p = cnt_ex_dry_p + 1
-           if (isPP) thisobs_PP%isExclObs(i) = 1
-        ENDIF
-       
+        thisobs%id_obs_p(1,i) = (nlmax) * (nod1_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        thisobs%id_obs_p(2,i) = (nlmax) * (nod2_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        thisobs%id_obs_p(3,i) = (nlmax) * (nod3_p(i)-1) + nlay_p(i) + offset(id%DIN)
       END DO
       
     ENDIF ! IF (dim_obs_p = 0) ELSEIF (dim_obs_p > 0)
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
+    ! &&&&&&&&&&&&&&&&&&&&&&&&&
+    ! regardless of whether we have observations or not,
+    ! continue with what needs to be done 
     
-    CALL MPI_Allreduce(cnt_ex_dry_p, cnt_ex_dry, 1, MPI_INTEGER, MPI_SUM, &
-            COMM_filter, MPIerr)
 
-    IF (mype_filter == 0) &
-            WRITE (*,'(a,5x,a,2x,i7)') 'REcoM-PDAF', &
-            '--- DIN Merged observations excluded due to topography: ', cnt_ex_dry
-    
     ! **************************************
     ! *** Gather full observation arrays ***
     ! **************************************
 
     CALL PDAFomi_gather_obs(thisobs, dim_obs_p, obs_p, ivariance_obs_p, ocoord_p, &
                             thisobs%ncoord, lradius_n_merged, dim_obs)
-                              
-    IF (mype_filter == 0) &
-        WRITE (*, '(a, 5x, a, i)') 'FESOM-PDAF', &
-        '--- Full DIN Merged observations have been gathered; dim_obs is ', dim_obs
     
     ! Global inverse variance array (thisobs%ivar_obs_f)
-    ! has been gathered, but, in case of coupled DA / "double-sweep",
-    ! it will be reset during each sweep. Thus, save a copy:
+    ! has been gathered during PDAFomi call.
+    ! In case of coupled DA (multiple sweeps),
+    ! we will reset ivar in the SUBROUTINE init_dim_obs_l_n_merged,
+    ! depending on whether the observation type is to be assimilated during the sweep.
+    ! Thus, save a copy, from which we can reset ivar.
     if (n_sweeps>1) then
        if (allocated(ivariance_obs_g)) deallocate(ivariance_obs_g)
        allocate(ivariance_obs_g(dim_obs))
        ivariance_obs_g = thisobs%ivar_obs_f
     end if
+    
+    ! Gather global observation exclusion statistics
+    CALL MPI_Allreduce( &
+                       dim_obs_p_reps, dim_obs_reps, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       dim_obs_p_sort1, dim_obs_sort1, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_onan_p, ncntex_onan, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_oneg_p, ncntex_oneg, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_dnan_p, ncntex_dnan, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_dneg_p, ncntex_dneg, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_halo_p, ncntex_halo, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_topo_p, ncntex_topo, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_outl_p, ncntex_outl, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ncntex_diff_p, ncntex_diff, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ecntex_topo_p, ecntex_topo, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
+    CALL MPI_Allreduce( &
+                       ecntex_diff_p, ecntex_diff, &
+                       1, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
 
+    ! Print observation exclusion statistics                     
+    IF (mype_filter == 0) then
+    
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Number of samples, some of them duplicates      ', dim_obs_reps
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (observation is FillValue)     ', ncntex_onan
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (observation is zero/ negative)', ncntex_oneg
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (depth is FillValue)           ', ncntex_dnan
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (depth is zero/ negative)      ', ncntex_dneg
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (nod invalid)                  ', ncntex_halo
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (model topography)             ', ncntex_topo
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (outliers among samples)       ', ncntex_outl
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Samples excluded (model-observation difference) ', ncntex_diff
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Number of observed volumes:                     ', dim_obs_sort1
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Volumes excluded (model topography)             ', ecntex_topo
+        
+        WRITE (*,'(a,5x,a61,2x,i7)') 'FESOM-PDAF', &
+        '- DIN merged. Volumes excluded (model-observation difference) ', ecntex_diff
+    endif
 
     ! *** Clean-up ***
     if (FileExists) THEN
@@ -722,15 +1495,10 @@ CONTAINS
     
     deallocate(ivariance_obs_p,ocoord_p,obs_p)
     deallocate(lat_p,lon_p)
-    deallocate(std_obs_p)
-    IF (dim_obs_p_reps>0) THEN
-      deallocate(nod1_p_sorted,nod2_p_sorted,nod3_p_sorted,obs_p_sorted,elem_p_sorted,nl_p_sorted)
-      deallocate(std_obs_p_sorted)
-      deallocate(nod1_p_reps,nod2_p_reps,nod3_p_reps,lon_p_reps,lat_p_reps,obs_p_reps,elem_p_reps,nl_p_reps)
-      deallocate(std_obs_p_reps)
-      deallocate(x_p,y_p,z_p,numrep_p)
-    ENDIF
-    ! this_obs%id_obs_p is deallocated in PDAFomi_obs_l.F90
+    if (dim_obs_p_reps > 0) then
+          deallocate(var_obs_p, nod1_p, nod2_p, nod3_p, elem_p, nlay_p)
+          if (isPP) deallocate(nod1_g, nod2_g, nod3_g, elem_g, dep_p)
+    endif
 
   END SUBROUTINE init_dim_obs_n_merged
 
@@ -814,18 +1582,10 @@ CONTAINS
     INTEGER, INTENT(in)  :: dim_obs      !< Full dimension of observation vector
     INTEGER, INTENT(inout) :: dim_obs_l  !< Local dimension of observation vector
 
-! *** OMI-Debug:
-!~   IF (mype_filter==0 .AND. domain_p==5) THEN
-!~     CALL PDAFomi_set_debug_flag(domain_p)
-!~   ELSE
-!~     CALL PDAFomi_set_debug_flag(0)
-!~   ENDIF
-
-
     IF (thisobs%doassim == 1) THEN
     
        ! ************************************************************
-       ! *** Adapt observation error for coupled DA (double loop) ***
+       ! *** Adapt observation error for coupled DA (multi sweep) ***
        ! ************************************************************
     
        if (n_sweeps>1) then
@@ -836,14 +1596,14 @@ CONTAINS
 
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                   '--- PHY sweep: set ivar_obs_f for DIN Merged to 1.0e-12'
+                   '--- PHY sweep: set ivar_obs_f for merged DIN to 1.0e-12'
              thisobs%ivar_obs_f = 1.0e-12
              
           ! BGC observations sweep.
           elseif (domain_p==myDim_nod2D+1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                  '--- BIO sweep: set ivar_obs_f for DIN Merged to normal'
+                  '--- BIO sweep: set ivar_obs_f for merged DIN to original'
              thisobs%ivar_obs_f(:) = ivariance_obs_g
           end if
        end if ! n_sweeps

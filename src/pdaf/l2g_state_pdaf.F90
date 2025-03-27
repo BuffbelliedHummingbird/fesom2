@@ -64,12 +64,13 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
      update_cda = .true.
      
      else
-        ! Check for strongly coupled DA configuration
+        ! Strongly coupled DA configuration:
         if (type_sweep(isweep)=='phy' .and. trim(cda_phy)=='strong') then
            update_cda = .true.
         elseif (type_sweep(isweep)=='bio' .and. trim(cda_bio)=='strong') then
            update_cda = .true.
         else
+        ! Weak coupling and unequal type of field and sweep:
            update_cda = .false.
         end if
      end if

@@ -330,6 +330,7 @@ subroutine pressure_bv(mesh)
             
             !!PS !--> Why not like this ?
             !!PS bvfreq(nz,node)  = -g*dz_inv*(rho_up-rho_dn)/(rho_dn)
+            sigma0(nz,node) = rhopot(nz)
             
             !_______________________________________________________________
             ! define MLD following Large et al. 1997
@@ -354,7 +355,9 @@ subroutine pressure_bv(mesh)
         if (flag2) MLD2_ind(node)=nzmax-1
                 
         bvfreq(nzmin,node)=bvfreq(nzmin+1,node)
-        bvfreq(nzmax,node)=bvfreq(nzmax-1,node) 
+        bvfreq(nzmax,node)=bvfreq(nzmax-1,node)
+        sigma0(nzmin,node) = rhopot(nzmin)
+        sigma0(nzmax,node) = rhopot(nzmax)
         !___________________________________________________________________
         ! The mixed layer depth 
         ! mixlay_depth    

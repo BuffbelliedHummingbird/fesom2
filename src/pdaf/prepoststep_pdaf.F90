@@ -56,6 +56,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        ONLY: sfields, nfields_3D, ids_3D, &
        w_dayensm, w_daymemb, w_monensm, w_monmemb, w_mm, w_sm, &
        mm, aa, ff, ii, sa, sf, si, sm, oo, dd, ee
+  ! mean state forecast for observation exclusion criteria
   USE obs_TSprof_EN4_pdafomi, &
        ONLY: assim_o_en4_t, assim_o_en4_s, prof_exclude_diff, mean_temp_p
   USE obs_sst_pdafomi, &
@@ -70,6 +71,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   USE obs_chl_cci_pdafomi, &
         ONLY: assim_o_chl_cci, chl_cci_exclude_ice, chl_cci_exclude_diff, &
               mean_chl_cci_p
+  USE obs_o2_merged_pdafomi, &
+        ONLY: assim_o_o2_merged, o2_merged_excl_absolute, o2_merged_excl_relative, &
+              mean_O2_p
+  USE obs_n_merged_pdafomi, &
+        ONLY: assim_o_n_merged, n_merged_excl_absolute, n_merged_excl_relative, &
+              mean_n_p
+              
   USE g_clock, &
         ONLY: dayold, yearold, check_fleapyr, daynew, yearnew, &
               num_day_in_month, fleapyear, month, cyearnew, &
@@ -154,17 +162,21 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (mype_filter==0) THEN
      IF ((step-step_null)==0) THEN
        IF (.not.(this_is_pdaf_restart)) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze initial state ensemble at step', step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze initial state ensemble at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'i'
        ELSE
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','This is a PDAF restart. No initial fields at step', step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','This is a PDAF restart. No initial fields at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'i'
        END IF
      ELSE IF ((step-step_null)>0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze assimilated state ensemble at step', step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze assimilated state ensemble at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'a'
      ELSE IF ((step-step_null)<0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze forecast state ensemble at step', step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze forecast state ensemble at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'f'
      END IF
   END IF ! IF (mype_filter==0)
@@ -363,21 +375,15 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *********************************************************************
 ! save values at forecast phase
 
-  IF ((    assim_o_sst      &
-      .OR. assim_o_sss      &
-      .OR. assim_o_sss_cci  &
-      .OR. assim_o_chl_cci) &
-      .AND. (step-step_null)<0) THEN
-
-   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- save ensemble mean forecast for observation exclusion'
+  IF ((step-step_null)<0) THEN
 
      ! -- Sea-ice concentration --
      ! save mean_ice_p
-     IF (    sst_exclude_ice &
-        .OR. sss_exclude_ice &
-        .OR. sss_cci_exclude_ice &
-        .OR. chl_cci_exclude_ice) THEN 
+     IF (    (sst_exclude_ice     .and. assim_o_sst     )&
+        .OR. (sss_exclude_ice     .and. assim_o_sss     )&
+        .OR. (sss_cci_exclude_ice .and. assim_o_sss_cci )&
+        .OR. (chl_cci_exclude_ice .and. assim_o_chl_cci )) THEN 
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SEA-ICE for observation exclusion'
         IF (ALLOCATED(mean_ice_p)) DEALLOCATE(mean_ice_p)
         ALLOCATE (mean_ice_p(dim_fields(id% a_ice)))
         mean_ice_p = state_p(offset(id% a_ice)+ 1 : &
@@ -386,7 +392,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
      ! -- SST --
      ! save mean_sst_p
-     IF (sst_exclude_diff > 0.0) THEN
+     IF ((sst_exclude_diff > 0.0) .and. assim_o_sst) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SST for observation exclusion'
         IF (ALLOCATED(mean_sst_p)) DEALLOCATE(mean_sst_p)
         ALLOCATE (mean_sst_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -396,7 +403,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      
      ! -- SSS (CASE SMOS) --
      ! save mean_sss_p
-     IF (sss_exclude_diff > 0.0) THEN
+     IF ((sss_exclude_diff > 0.0) .and. assim_o_sss) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SSS for observation exclusion'
         IF (ALLOCATED(mean_sss_p)) DEALLOCATE(mean_sss_p)
         ALLOCATE (mean_sss_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -406,7 +414,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 
      ! -- SSS (CASE CCI) --
      ! save mean_sss_cci_p
-     IF (sss_cci_exclude_diff > 0.0) THEN
+     IF ((sss_cci_exclude_diff > 0.0) .and. assim_o_sss_cci) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SSS for observation exclusion'
         IF (ALLOCATED(mean_sss_cci_p)) DEALLOCATE(mean_sss_cci_p)
         ALLOCATE (mean_sss_cci_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -416,7 +425,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      
      ! -- Chlorophyll --
      ! save mean_chl_cci_p
-     IF (chl_cci_exclude_diff > 0.0) THEN
+     IF ((chl_cci_exclude_diff > 0.0) .and. assim_o_chl_cci) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast CHL for observation exclusion'
         IF (ALLOCATED(mean_chl_cci_p)) DEALLOCATE(mean_chl_cci_p)
         ALLOCATE (mean_chl_cci_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -424,23 +434,40 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
                             + state_p(offset(id% DiaChl) + (i-1) * (nlmax) + 1)
         END DO
      END IF
+     
+     ! -- 3D temperature field --
+     ! save mean_temp_p
+     IF ((assim_o_en4_t .OR. assim_o_en4_s) &
+         .AND. &
+         (prof_exclude_diff > 0.0)) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean temperature (3D) for observation exclusion'
+        ! Store mean temperature for profile assimilation
+        IF (ALLOCATED(mean_temp_p)) DEALLOCATE(mean_temp_p)
+        ALLOCATE (mean_temp_p(dim_fields(id%temp)))
+        mean_temp_p = state_p(offset(id%temp)+1 : offset(id%temp)+dim_fields(id%temp))
+     END IF
+     
+     ! -- oxygen --
+     ! save mean_o2_p
+     IF (((o2_merged_excl_absolute > 0.0) .or. (o2_merged_excl_relative > 0.0)) &
+        .and. assim_o_o2_merged) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast oxygen for observation exclusion'
+        IF (ALLOCATED(mean_O2_p)) DEALLOCATE(mean_O2_p)
+        ALLOCATE (mean_O2_p(dim_fields(id%O2)))
+        mean_O2_p = state_p(offset(id%O2)+1 : offset(id%O2)+dim_fields(id%O2))
+     END IF
+     
+     ! -- nitrate --
+     ! save mean_n_p
+     IF (((n_merged_excl_absolute > 0.0) .or. (n_merged_excl_relative > 0.0)) &
+        .and. assim_o_n_merged) THEN
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast oxygen for observation exclusion'
+        IF (ALLOCATED(mean_n_p)) DEALLOCATE(mean_n_p)
+        ALLOCATE (mean_n_p(dim_fields(id%DIN)))
+        mean_n_p = state_p(offset(id%DIN)+1 : offset(id%DIN)+dim_fields(id%DIN))
+     END IF
 
-  END IF
-
-  ! -- 3D temperature field --
-  ! save mean_temp_p
-  IF (        (assim_o_en4_t .OR. assim_o_en4_s) &
-      .AND. &
-              ((step-step_null) < 0) &
-      .AND. &
-              (prof_exclude_diff > 0.0)) THEN
-
-     ! Store mean temperature for profile assimilation
-     IF (ALLOCATED(mean_temp_p)) DEALLOCATE(mean_temp_p)
-     ALLOCATE (mean_temp_p(myDim_nod2D))
-     mean_temp_p = state_p(offset(id%temp)+1 : offset(id%temp)+dim_fields(id%temp))
-
-  END IF
+  END IF ! forecast phase
   
 ! ************************************************
 ! *** Carbon sources minus sinks diagnostics   ***
@@ -942,7 +969,18 @@ ENDIF ! now_to_write_monthly
 ! *** finishing up ***
 ! ********************
 
-  IF ((step-step_null) >= 0) DEALLOCATE(stdev_SSH_f_p,state_fcst)     ! if forecast, keep stdev_SSH_f_p; it is used at next analysis step.
+  ! variables deallocated after analysis step
+  IF ((step-step_null) >= 0) THEN
+     DEALLOCATE(stdev_SSH_f_p,state_fcst)
+     IF (allocated(mean_O2_p ))     deallocate(mean_O2_p )
+     IF (allocated(mean_n_p))       deallocate(mean_n_p)
+     IF (allocated(mean_chl_cci_p)) deallocate(mean_chl_cci_p)
+     IF (allocated(mean_temp_p))    deallocate(mean_temp_p)
+     IF (allocated(mean_sss_cci_p)) deallocate(mean_sss_cci_p)
+     IF (allocated(mean_sss_p))     deallocate(mean_sss_p)     
+     IF (allocated(mean_sst_p))     deallocate(mean_sst_p)     
+     IF (allocated(mean_ice_p))     deallocate(mean_ice_p)     
+  ENDIF
   DEALLOCATE(stdev_p)
 
 END SUBROUTINE prepoststep_pdaf

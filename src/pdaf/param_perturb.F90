@@ -4,10 +4,11 @@ MODULE mod_perturbation_pdaf
    IMPLICIT NONE
    SAVE
    
-   LOGICAL :: perturb_parameters = .false.   ! whether to initialize with BGC parameter perturbation
-   REAL    :: perturb_scale     = 0.25       ! scaling factor for BGC parameter perturbation
-   REAL    :: perturb_scaleD    = 0.25       ! scaling factor for BGC parameter perturbation: for spread in DIC, DIN, Alk, O2
-   REAL    :: perturb_scaleMix  = 0.10       ! scaling factor for mixing perturbation
+   LOGICAL :: perturb_params_bio = .false.    ! whether to initialize REcoM with perturbed parameters
+   LOGICAL :: perturb_params_phy = .false.    ! whether to initialize FESOM with perturbed parameters
+   REAL    :: perturb_scale      = 0.25       ! scaling factor for BGC parameter perturbation
+   REAL    :: perturb_scaleD     = 0.25       ! scaling factor for BGC parameter perturbation: for spread in DIC, DIN, Alk, O2
+   REAL    :: perturb_scaleMix   = 0.10       ! scaling factor for mixing perturbation
    
    CONTAINS
 
@@ -39,11 +40,11 @@ subroutine perturb_lognormal(value, stddev, iseed)
 
 end subroutine perturb_lognormal
 
-! **************************
-! *** PERTURB PARAMETERS ***
-! **************************
+! ******************************
+! *** PERTURB PARAMETERS BIO ***
+! ******************************
 
-subroutine do_perturb_param()
+subroutine do_perturb_param_bio()
 
         USE mod_parallel_pdaf, &
             ONLY: mype_model, task_id
@@ -54,13 +55,10 @@ subroutine do_perturb_param()
             rho_N, rho_C1, lossN, lossN_d, lossC, lossC_d, reminN, &
             reminC, calc_prod_ratio, res_het, res_zoo2, &
             biosynth, calc_diss_rate, calc_diss_rate2
-       USE o_param, &
-            ONLY: K_ver
 
         implicit none
         
         INTEGER :: iseed(4)          ! Seed for random number generation to perturb BGC parameters
-
 
         ! Selected parameters to disturb chlorophyll and biomass:
         ! alfa       = 0.14   ! Initial slope of P I curve small phytoplankton
@@ -87,9 +85,6 @@ subroutine do_perturb_param()
         ! lossC, lossC_d
         ! reminN, reminC            ! Remineralization of detritus
         ! calc_prod_ratio           ! How much of small phytoplankton are calcifiers
-        
-        ! Selected parameters to disturb mixing:
-        ! K_Ver                     ! constant background diffusivity
 
         ! iseed is the seed of the random number generator
         ! be aware that elements must be between 0 and 4095,
@@ -392,6 +387,31 @@ subroutine do_perturb_param()
         CALL perturb_lognormal(calc_diss_rate2, perturb_scaleD, iseed)
         IF (mype_model==0) WRITE(*,'(a16,es14.4,a9,i3)') 'calc_diss_rate2 ', calc_diss_rate2, ' on task ', task_id
         
+end subroutine do_perturb_param_bio
+
+
+! ******************************
+! *** PERTURB PARAMETERS PHY ***
+! ******************************
+
+subroutine do_perturb_param_phy()
+
+        USE mod_parallel_pdaf, &
+            ONLY: mype_model, task_id
+       USE o_param, &
+            ONLY: K_ver
+
+        implicit none
+        
+        INTEGER :: iseed(4)          ! Seed for random number generation to perturb BGC parameters
+        
+        ! Selected parameters to disturb mixing:
+        ! K_Ver                     ! constant background diffusivity
+
+        ! iseed is the seed of the random number generator
+        ! be aware that elements must be between 0 and 4095,
+        ! and ISEED(4) must be odd.
+        
         ! K_ver
         IF (mype_model==0 .and. task_id==1) WRITE(*,'(a16,es14.4,a15)') 'K_ver', K_ver, ' NOT PERTURBED'
         iseed(1)=11
@@ -401,6 +421,6 @@ subroutine do_perturb_param()
         CALL perturb_lognormal(K_ver, perturb_scaleMix, iseed)
         IF (mype_model==0) WRITE(*,'(a16,es14.4,a9,i3)') 'K_ver', K_ver, ' on task ', task_id
         
-end subroutine do_perturb_param
+end subroutine do_perturb_param_phy
 
 END MODULE mod_perturbation_pdaf

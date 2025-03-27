@@ -49,8 +49,9 @@ SUBROUTINE init_pdaf(nsteps)
        state_p_init, ens_p_init
   ! BGC parameter perturbation:
   USE mod_perturbation_pdaf, &
-       ONLY: perturb_scale, perturb_parameters, perturb_lognormal, &
-       perturb_scaleD, do_perturb_param
+       ONLY: perturb_scale, perturb_params_bio, perturb_params_phy, &
+       perturb_lognormal, perturb_scaleD, &
+       do_perturb_param_bio, do_perturb_param_phy
   USE obs_sss_smos_pdafomi, &
        ONLY: assim_o_sss, rms_obs_sss, path_obs_sss, file_sss_prefix, file_sss_suffix, &
        sss_exclude_ice, sss_exclude_diff, bias_obs_sss, sss_fixed_rmse
@@ -389,55 +390,57 @@ SUBROUTINE init_pdaf(nsteps)
   id% a_ice  =  7 ! sea-ice concentration
   id% MLD1   =  8 ! boundary layer depth (criterion after Large et al., 1997)
   id% MLD2   =  9 ! mixed layer depth (density treshold)
+  id% sigma  = 10
   
-  id% PhyChl = 10 ! chlorophyll-a small phytoplankton
-  id% DiaChl = 11 ! chlorophyll-a diatoms
+  id% PhyChl = 11 ! chlorophyll-a small phytoplankton
+  id% DiaChl = 12 ! chlorophyll-a diatoms
   
-  id% DIC    = 12 ! dissolved tracers
-  id% DOC    = 13
-  id% Alk    = 14
-  id% DIN    = 15
-  id% DON    = 16
-  id% O2     = 17
+  id% DIC    = 13 ! dissolved tracers
+  id% DOC    = 14
+  id% Alk    = 15
+  id% DIN    = 16
+  id% DON    = 17
+  id% O2     = 18
   
-  id% pCO2s     = 18 ! surface carbon diags
-  id% CO2f      = 19
-  id% alphaCO2  = 20
-  id% PistonVel = 21
+  id% pCO2s     = 19 ! surface carbon diags
+  id% CO2f      = 20
+  id% alphaCO2  = 21
+  id% PistonVel = 22
     
-  id% PhyN   = 22 ! small phyto
-  id% PhyC   = 23
-  id% PhyCalc= 24
+  id% PhyN   = 23 ! small phyto
+  id% PhyC   = 24
+  id% PhyCalc= 25
   
-  id% DiaN   = 25 ! diatoms
-  id% DiaC   = 26
-  id% DiaSi  = 27
+  id% DiaN   = 26 ! diatoms
+  id% DiaC   = 27
+  id% DiaSi  = 28
   
-  id% Zo1N   = 28 ! zooplankton
-  id% Zo2C   = 29
-  id% Zo2N   = 30
-  id% Zo1C   = 31
+  id% Zo1N   = 29 ! zooplankton
+  id% Zo2C   = 30
+  id% Zo2N   = 31
+  id% Zo1C   = 32
   
-  id% DetC      = 32 ! detritus
-  id% DetCalc   = 33
-  id% DetSi     = 34
-  id% DetN      = 35
-  id% Det2C     = 36
-  id% Det2Calc  = 37
-  id% Det2Si    = 38
-  id% Det2N     = 39
+  id% DetC      = 33 ! detritus
+  id% DetCalc   = 34
+  id% DetSi     = 35
+  id% DetN      = 36
+  id% Det2C     = 37
+  id% Det2Calc  = 38
+  id% Det2Si    = 39
+  id% Det2N     = 40
 
-  id% PAR    = 40 ! diags
-  id% NPPn   = 41
-  id% NPPd   = 42
-  id% export = 43
+  id% PAR    = 41 ! diags
+  id% NPPn   = 42
+  id% NPPd   = 43
+  id% export = 44
   
-  nfields = 43
+  
+  nfields = 44
 
   phymin = 1
-  phymax = 9
+  phymax = 10
   
-  bgcmin = 10
+  bgcmin = 11
   bgcmax = nfields
   
   ! initialize fields
@@ -485,6 +488,7 @@ SUBROUTINE init_pdaf(nsteps)
   dim_fields(id% a_ice )   = myDim_nod2D           ! 7 a_ice
   dim_fields(id% MLD1  )   = myDim_nod2D
   dim_fields(id% MLD2  )   = myDim_nod2D
+  dim_fields(id% sigma )   = myDim_nod2D*(nlmax)
   
   ! dim_fields biogeochemistry:
   do b=bgcmin,bgcmax
@@ -507,6 +511,7 @@ SUBROUTINE init_pdaf(nsteps)
   offset(id% a_ice )   = offset(id% a_ice -1) + dim_fields(id% a_ice -1)  ! 7 a_ice
   offset(id% MLD1  )   = offset(id% MLD1  -1) + dim_fields(id% MLD1  -1)
   offset(id% MLD2  )   = offset(id% MLD2  -1) + dim_fields(id% MLD2  -1)
+  offset(id% sigma )   = offset(id% sigma -1) + dim_fields(id% sigma -1)
   
   ! offset biogeochemistry
   do b=bgcmin,bgcmax
@@ -542,6 +547,7 @@ SUBROUTINE init_pdaf(nsteps)
 	dim_fields_glob(id% a_ice ) = mesh_fesom%nod2D              ! a_ice
 	dim_fields_glob(id% MLD1  ) = mesh_fesom%nod2D
 	dim_fields_glob(id% MLD2  ) = mesh_fesom%nod2D
+	dim_fields_glob(id% sigma ) = mesh_fesom%nod2D * (nlmax)    
 	
 	! dim_fields biogeochemistry:
     do b=bgcmin,bgcmax
@@ -564,6 +570,7 @@ SUBROUTINE init_pdaf(nsteps)
 	offset_glob(id% a_ice ) = offset_glob(id% a_ice -1) + dim_fields_glob(id% a_ice -1)         ! a_ice
 	offset_glob(id% MLD1  ) = offset_glob(id% MLD1  -1) + dim_fields_glob(id% MLD1  -1)
 	offset_glob(id% MLD2  ) = offset_glob(id% MLD2  -1) + dim_fields_glob(id% MLD2  -1)
+	offset_glob(id% sigma ) = offset_glob(id% sigma -1) + dim_fields_glob(id% sigma -1)
 	
 	! offset_glob biogeochemistry
     do b=bgcmin,bgcmax
@@ -716,12 +723,21 @@ SUBROUTINE init_pdaf(nsteps)
 ! reminN, reminC            ! Remineralization of detritus
 ! calc_prod_ratio           ! How much of small phytoplankton are calcifiers
 
-IF (perturb_parameters) THEN
+IF (perturb_params_bio) THEN
    IF (dim_ens <= 1) THEN
         IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Ensemble Size 1: Not perturbing BGC parameters'
    ELSEIF (dim_ens>1) THEN
         IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Perturbing BGC parameters'
-        CALL do_perturb_param()
+        CALL do_perturb_param_bio()
+   ENDIF ! if (dim_ens>1)
+ENDIF ! if perturb_param
+
+IF (perturb_params_phy) THEN
+   IF (dim_ens <= 1) THEN
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Ensemble Size 1: Not perturbing PHY parameters'
+   ELSEIF (dim_ens>1) THEN
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Perturbing PHY parameters'
+        CALL do_perturb_param_phy()
    ENDIF ! if (dim_ens>1)
 ENDIF ! if perturb_param
 

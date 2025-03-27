@@ -2,7 +2,7 @@ MODULE mod_postprocess
 
 use mod_assim_pdaf, &
     only: nlmax, id, mesh_fesom, dim_state_p, offset, &
-    DAoutput_path
+    DAoutput_path, dim_fields
 use mod_parallel_pdaf, &
     only: writepe, COMM_filter, MPIerr, mype_filter
 use mod_nc_out_variables
@@ -14,6 +14,8 @@ use obs_o2_argo_pdafomi, &
     only: assim_o_o2_argo
 use obs_o2_merged_pdafomi, &
     only: assim_o_o2_merged
+use obs_n_merged_pdafomi, &
+    only: assim_o_n_merged
 
 use g_config, &
     only: dt
@@ -144,7 +146,9 @@ SUBROUTINE doPP(nsteps)
    
    ! init simulation data
    allocate(state_p(2,dim_state_p))
-   IF (assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo) allocate(forc_p(dim_state_p))
+   IF (assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo .or. &
+       assim_o_n_comf  .or. assim_o_n_merged  .or. assim_o_n_argo )     &
+       allocate(forc_p(dim_state_p))
    
    ! daily time loop
    do iday=1,ndaysim
@@ -155,8 +159,8 @@ SUBROUTINE doPP(nsteps)
       ! read simulation data
       call netCDF_getstate(FRRN,daynew)
       call netCDF_getstate(ASML,daynew)
-      ! read O2 forecast for InnoOmit
-      IF (assim_o_o2_comf) call netCDF_getforc (ASML,daynew)
+      ! read forecast for InnoOmit / observation exclusion criteria
+      call netCDF_getforc (ASML,daynew)
       
       ! call observation modules
       call PP_DIC_GLODAP()
@@ -190,7 +194,7 @@ SUBROUTINE doPP(nsteps)
       call check(nf90_close(fidobs(iNmerged)))
    endif
    deallocate(state_p)
-   IF (assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo) deallocate(forc_p)
+   IF (allocated(forc_p)) deallocate(forc_p)
 
 END SUBROUTINE doPP
 
@@ -303,11 +307,31 @@ SUBROUTINE netCDF_getforc(sim,ReadAtDay)
    REAL, allocatable          :: myData3(:,:)       ! Temporary array for pe-local 3D-fields
    REAL(kind=4), allocatable  :: data2_g(:)         ! Temporary array for global surface fields
    REAL(kind=4), allocatable  :: data3_g(:,:)       ! Temporary array for global 3D-fields
-   INTEGER, parameter         :: nfields_obs = 1
-   INTEGER                    :: observedfields(nfields_obs)
+   INTEGER                    :: nfields_obs
+   INTEGER, allocatable       :: observedfields(:)
    INTEGER                    :: varid
    
-   observedfields = (/ id% O2 /)   
+   
+   IF ((assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo) .and. &
+       (assim_o_n_comf  .or. assim_o_n_merged  .or. assim_o_n_argo ))      &
+       then
+          nfields_obs = 2
+          allocate(observedfields(nfields_obs))
+          observedfields = (/ id% O2, id% DIN /)
+   ELSEIF ((assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo))  &
+       then
+          nfields_obs = 1
+          allocate(observedfields(nfields_obs))
+          observedfields = (/ id% O2 /)
+   ELSEIF ((assim_o_n_comf .or. assim_o_n_merged .or. assim_o_n_argo))  &
+       then
+          nfields_obs = 1
+          allocate(observedfields(nfields_obs))
+          observedfields = (/ id% DIN /)
+   ELSE
+       nfields_obs = 0
+       allocate(observedfields(nfields_obs))
+   ENDIF
    
    do i=1,nfields_obs
       ifield=observedfields(i)
@@ -317,7 +341,7 @@ SUBROUTINE netCDF_getforc(sim,ReadAtDay)
          allocate(myData3(nlmax, myDim_nod2D+eDim_nod2D))
          ! read global state
          if (writepe) then
-            call check(nf90_inq_varid(fidbgcday(sim), TRIM(sfields(ifield)%variable)//'_ff', varid))
+            call check(nf90_inq_varid(fidbgcday(sim), TRIM(sfields(ifield)%variable)//'_mm', varid))
             call check(nf90_get_var(fidbgcday(sim),varid,data3_g,                &
                                     start=(/                1,     1, ReadAtDay /), &
                                     count=(/ mesh_fesom%nod2D, nlmax,      1    /) ))
@@ -337,7 +361,7 @@ SUBROUTINE netCDF_getforc(sim,ReadAtDay)
          allocate(data2_g(mesh_fesom%nod2D))
          allocate(myData2(myDim_nod2D+eDim_nod2D))
          if (writepe) then
-            call check(nf90_inq_varid(fidbgcday(sim), TRIM(sfields(ifield)%variable)//'_ff', varid))
+            call check(nf90_inq_varid(fidbgcday(sim), TRIM(sfields(ifield)%variable)//'_mm', varid))
             call check(nf90_get_var(fidbgcday(sim),varid,data2_g,          &
                                     start=(/                1, ReadAtDay /), &
                                     count=(/ mesh_fesom%nod2D,         1 /) ))
@@ -351,6 +375,9 @@ SUBROUTINE netCDF_getforc(sim,ReadAtDay)
          deallocate(data2_g,myData2)
       endif
    enddo ! i, ifield
+   
+   deallocate(observedfields)
+   
 END SUBROUTINE netCDF_getforc
 
 
@@ -400,7 +427,7 @@ SUBROUTINE PP_DIC_GLODAP()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -409,7 +436,7 @@ SUBROUTINE PP_DIC_GLODAP()
       allocate(thisobs_PP_f%lat       (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nz        (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%numrep    (thisobs%dim_obs_f), source = fill_value)
-      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f) ,source = 0.0)
+      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f), source = 0.0)
       
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%depth    , thisobs_PP_f%depth    , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%isExclObs, thisobs_PP_f%isExclObs, stats)
@@ -493,7 +520,7 @@ SUBROUTINE PP_Alk_GLODAP()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -502,7 +529,7 @@ SUBROUTINE PP_Alk_GLODAP()
       allocate(thisobs_PP_f%lat       (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nz        (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%numrep    (thisobs%dim_obs_f), source = fill_value)
-      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f) ,source = 0.0)
+      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f), source = 0.0)
       
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%depth    , thisobs_PP_f%depth    , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%isExclObs, thisobs_PP_f%isExclObs, stats)
@@ -587,7 +614,7 @@ SUBROUTINE PP_O2_COMFORT()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -596,7 +623,7 @@ SUBROUTINE PP_O2_COMFORT()
       allocate(thisobs_PP_f%lat       (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nz        (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%numrep    (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f) ,source = 0.0)
+      allocate(thisobs_PP_f%isInnoOmit(thisobs%dim_obs_f), source = 0.0)
       
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%depth    , thisobs_PP_f%depth    , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%isExclObs, thisobs_PP_f%isExclObs, stats)
@@ -691,7 +718,7 @@ SUBROUTINE PP_PCO2_SOCAT()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f), source = fill_value)
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -784,7 +811,7 @@ SUBROUTINE PP_DIN_COMFORT()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -877,7 +904,7 @@ SUBROUTINE PP_DIN_ARGO()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -971,7 +998,7 @@ SUBROUTINE PP_O2_ARGO()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -1027,14 +1054,18 @@ SUBROUTINE PP_DIN_MERGED()
    use obs_n_merged_pdafomi, &
        only: init_dim_obs_n_merged, &
        obs_op_n_merged, &
-       thisobs, thisobs_PP, thisobs_PP_f
+       thisobs, thisobs_PP, thisobs_PP_f, &
+       mean_n_p
    use PDAFomi_obs_f, &
        only: PDAFomi_gather_obs_f_flex
    use PDAFomi_obs_l, &
        only: PDAFomi_deallocate_obs
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
-       
+   
+   ! provide forecast data
+   allocate(mean_n_p(dim_fields(id%DIN)))
+   mean_n_p = forc_p(offset(id%DIN)+1 : offset(id%DIN)+dim_fields(id%DIN))
    ! init observation data
    call init_dim_obs_n_merged(-1, dim_obs_f)
    ! offset
@@ -1065,7 +1096,7 @@ SUBROUTINE PP_DIN_MERGED()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -1108,7 +1139,7 @@ SUBROUTINE PP_DIN_MERGED()
               thisobs_PP%nod2_g,thisobs_PP%nod3_g, &
               thisobs_PP%elem_g,thisobs_PP%lon, &
               thisobs_PP%lat,thisobs_PP%nz,thisobs_PP%depth, &
-              thisobs_PP%numrep)
+              thisobs_PP%numrep,mean_n_p)
    
 END SUBROUTINE PP_DIN_MERGED
 
@@ -1121,14 +1152,18 @@ SUBROUTINE PP_O2_MERGED()
    use obs_o2_merged_pdafomi, &
        only: init_dim_obs_o2_merged, &
        obs_op_o2_merged, &
-       thisobs, thisobs_PP, thisobs_PP_f
+       thisobs, thisobs_PP, thisobs_PP_f, &
+       mean_o2_p
    use PDAFomi_obs_f, &
        only: PDAFomi_gather_obs_f_flex
    use PDAFomi_obs_l, &
        only: PDAFomi_deallocate_obs
   USE PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
-       
+   
+   ! provide forecast data
+   allocate(mean_O2_p(dim_fields(id%O2)))
+   mean_O2_p = forc_p(offset(id%O2)+1 : offset(id%O2)+dim_fields(id%O2))
    ! init observation data
    call init_dim_obs_o2_merged(-1, dim_obs_f)
    ! offset
@@ -1159,7 +1194,7 @@ SUBROUTINE PP_O2_MERGED()
       
       ! gather further observation info
       allocate(thisobs_PP_f%depth     (thisobs%dim_obs_f))
-      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f))
+      allocate(thisobs_PP_f%isExclObs (thisobs%dim_obs_f), source = 0.0)
       allocate(thisobs_PP_f%nod1_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod2_g    (thisobs%dim_obs_f))
       allocate(thisobs_PP_f%nod3_g    (thisobs%dim_obs_f))
@@ -1202,7 +1237,7 @@ SUBROUTINE PP_O2_MERGED()
               thisobs_PP%nod2_g,thisobs_PP%nod3_g, &
               thisobs_PP%elem_g,thisobs_PP%lon, &
               thisobs_PP%lat,thisobs_PP%nz,thisobs_PP%depth, &
-              thisobs_PP%numrep)
+              thisobs_PP%numrep,mean_o2_p)
    
 END SUBROUTINE PP_O2_MERGED
 

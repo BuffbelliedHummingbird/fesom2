@@ -9,9 +9,12 @@ SUBROUTINE read_config_pdaf()
 ! 2019-11 - Longjiang Mu - Initial commit for AWI-CM3
 
 ! !USES:
+
+
+! general assimilation settings
   USE mod_parallel_pdaf, &
        ONLY: mype_model, n_modeltasks, task_id
-  USE mod_assim_pdaf, & ! Variables for assimilation
+  USE mod_assim_pdaf, &
        ONLY: dim_state, dim_state_p, dim_ens, dim_lag, &
        offset, screen, filtertype, subtype, &
        delt_obs_ocn, &
@@ -31,7 +34,19 @@ SUBROUTINE read_config_pdaf()
        perturb_DIC, perturb_Alk, perturb_DIN, perturb_O2, &
        ! Temp-Salt-Profiles:
        path_obs_rawprof, file_rawprof_prefix, file_rawprof_suffix, &
-       proffiles_o, start_year_o, end_year_o       
+       proffiles_o, start_year_o, end_year_o
+       ! output
+  USE mod_nc_out_variables, &
+       ONLY: setoutput
+       ! postprocessing
+  USE mod_postprocess, &
+       ONLY: isPP, yearPP, pathsim
+       ! clock
+  USE g_clock, &
+       ONLY: yearold, yearnew
+  
+  
+  ! physics observations
   USE obs_sst_pdafomi, &
        ONLY: assim_o_sst, rms_obs_sst, path_obs_sst, file_sst_prefix, file_sst_suffix, &
        sst_exclude_ice, sst_exclude_diff, bias_obs_sst, sst_fixed_rmse
@@ -49,9 +64,8 @@ SUBROUTINE read_config_pdaf()
        path_obs_prof, file_prof_prefix, file_prof_suffix, &
        rms_obs_S, rms_obs_T, &
        file_syntobs_prof, prof_exclude_diff, bias_obs_prof
-  USE mod_nc_out_variables, &
-       ONLY: setoutput
-       
+
+  ! biogeochem observations    
   USE obs_chl_cci_pdafomi, &
        ONLY: assim_o_chl_cci, rms_obs_chl_cci, path_obs_chl_cci, file_chl_cci_prefix, file_chl_cci_suffix, &
        chl_cci_exclude_ice, chl_cci_exclude_diff, bias_obs_chl_cci, chl_cci_fixed_rmse, chl_logarithmic, &
@@ -83,8 +97,10 @@ SUBROUTINE read_config_pdaf()
        o2_merged_excl_absolute, o2_merged_excl_relative
   USE obs_N_merged_pdafomi, &
        ONLY: assim_o_N_merged, path_obs_N_merged, &
-       rms_obs_N_merged, N_merged_exclude_diff
-       
+       rms_obs_N_merged, N_merged_exclude_diff, &
+       n_merged_excl_absolute, n_merged_excl_relative
+  
+  ! ensemble initialization    
   USE mod_atmos_ens_stochasticity, &
        ONLY: disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
@@ -93,13 +109,9 @@ SUBROUTINE read_config_pdaf()
        varscale_wind, varscale_tair, &
        varscale_humi, varscale_qlw
   USE mod_perturbation_pdaf, &
-       ONLY: perturb_scale, perturb_parameters
-       
-  USE mod_postprocess, &
-       ONLY: isPP, yearPP, pathsim
-       
-  USE g_clock, &
-       ONLY: yearold, yearnew
+       ONLY: perturb_scale, &
+       perturb_params_bio, perturb_params_phy
+  
 
 
   IMPLICIT NONE
@@ -151,8 +163,8 @@ SUBROUTINE read_config_pdaf()
        rms_obs_S, rms_obs_T, &
        path_obs_rawprof, file_rawprof_prefix, proffiles_o, &
        start_year_o, end_year_o, &
-       ! BGC parameter perturbation:
-       perturb_scale, perturb_parameters, &
+       ! parameter perturbation:
+       perturb_scale, perturb_params_bio, perturb_params_phy, &
        ! BioGeoChemistry:
        assimilateBGC, &
        ! Chl-a CCI:
@@ -188,7 +200,8 @@ SUBROUTINE read_config_pdaf()
        o2_merged_excl_absolute, o2_merged_excl_relative, &
        ! DIN MERGED:
        assim_o_n_merged, path_obs_n_merged, &
-       rms_obs_n_merged, n_merged_exclude_diff
+       rms_obs_n_merged, n_merged_exclude_diff, &
+       n_merged_excl_absolute, n_merged_excl_relative
 
   NAMELIST /atmos_stoch/ &
        path_atm_cov, &
@@ -399,11 +412,13 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'o2_merged_excl_absolute', o2_merged_excl_absolute
      WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'o2_merged_excl_relative', o2_merged_excl_relative
      
-     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_N_merged',      assim_o_n_merged
-     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_N_merged',     path_obs_n_merged
-     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_N_merged',      rms_obs_n_merged
-     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'N_merged_exclude_diff', n_merged_exclude_diff
-     
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_N_merged',       assim_o_n_merged
+     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_N_merged',      path_obs_n_merged
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_N_merged',       rms_obs_n_merged
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'N_merged_exclude_diff',  n_merged_exclude_diff
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'N_merged_excl_absolute', n_merged_excl_absolute
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'N_merged_excl_relative', n_merged_excl_relative
+          
      ! initial ensemble covariance
      WRITE (*,'(a,5x,a20,1x,1x,a)')     'FESOM-PDAF',   'path_init   ',         TRIM(path_init)
      WRITE (*,'(a,5x,a20,1x,1x,a)')     'FESOM-PDAF',   'file_init   ',         TRIM(file_init)
@@ -447,7 +462,8 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_tair ',       varscale_tair
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_humi ',       varscale_humi
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_qlw  ',       varscale_qlw
-     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'perturb_parameters',   perturb_parameters
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'perturb_params_bio',   perturb_params_bio
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'perturb_params_phy',   perturb_params_phy
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'perturb_scale',        perturb_scale
      
      ! Updated state variables
@@ -462,8 +478,6 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
 
      WRITE (*,'(a,1x,a)') 'FESOM-PDAF','-- End of PDAF configuration overview --'
      
-     
-
 
   END IF showconf
 

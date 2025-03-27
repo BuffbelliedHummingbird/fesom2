@@ -128,7 +128,8 @@ LOGICAL            :: upd_ssh , &           ! physics
                       upd_export   , &      ! diags
                       upd_PAR      , &
                       upd_NPPn     , &
-                      upd_NPPd
+                      upd_NPPd     , &
+                      upd_sigma
                       
 INTEGER            :: b,p,s,j ! counters
 
@@ -534,6 +535,14 @@ sfields(id% export) % units = 'mmol m-2 day-1'
 sfields(id% export) % updated = .false.
 sfields(id% export) % bgc = .true.
 
+! Potential density
+sfields(id% sigma) % ndims = 2
+sfields(id% sigma) % variable = 'sigma'
+sfields(id% sigma) % long_name = 'potential density'
+sfields(id% sigma) % units = 'kg liter-1'
+sfields(id% sigma) % updated = .false.
+sfields(id% sigma) % bgc = .false.
+
 
 
 !~ ! TChl
@@ -683,7 +692,8 @@ sfields(id% export) % bgc = .true.
      upd_export   , &      ! diags
      upd_PAR      , &
      upd_NPPn     , &
-     upd_NPPd
+     upd_NPPd     , &
+     upd_sigma
      
 
   OPEN  (20,file=nmlfile)
@@ -699,6 +709,7 @@ sfields(id% export) % bgc = .true.
   sfields(id% a_ice    ) % updated = upd_ice
   sfields(id% MLD1     ) % updated = upd_MLD1
   sfields(id% MLD2     ) % updated = upd_MLD2
+  sfields(id% sigma    ) % updated = upd_sigma
   
   sfields(id% PhyChl   ) % updated = upd_PhyChl
   sfields(id% DiaChl   ) % updated = upd_DiaChl
@@ -1088,19 +1099,15 @@ IF (setoutput(16)) THEN
 ENDIF
 
 ! ______________________________________________________________
-! ___ write daily forecast fields for oxygen/DIN if assimilated  ___
+! ___ write daily forecast fields for oxygen and DIN         ___
 ! (to reconstruct inno_omit)
 IF (setoutput(17)) THEN
    ! Oxygen
-   IF (assim_o_o2_comf .or. assim_o_o2_argo .or. assim_o_o2_merged) THEN
       sfields(id% O2) % output(ff,oo) = .True. ! activate
       sfields(id% O2) % output(ff,dd) = .True. ! daily
-   ENDIF
    ! DIN
-   IF (assim_o_n_comf .or. assim_o_n_argo) THEN
       sfields(id% DIN) % output(ff,oo) = .True. ! activate
       sfields(id% DIN) % output(ff,dd) = .True. ! daily
-   ENDIF
 ENDIF
 
 ! ________________________

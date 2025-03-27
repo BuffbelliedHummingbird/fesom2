@@ -345,6 +345,7 @@ DO j = 1, 8 ! ini / forc / ana / mean / ...
          call check( nf90_put_att(fileid, sfields(i)% varid(j), 'long_name', trim(sfields(i)% long_name)//' '//trim(IFA_long(j))))
          call check( nf90_put_att(fileid, sfields(i)% varid(j), 'units',     sfields(i)% units))
          call check( nf90_put_att(fileid, sfields(i)% varid(j), '_FillValue', REAL(fill_value,4)))
+         call check( nf90_put_att(fileid, sfields(i)% varid(j), 'CDI_grid_type', "unstructured"))
     
     ENDIF ! defthis
     

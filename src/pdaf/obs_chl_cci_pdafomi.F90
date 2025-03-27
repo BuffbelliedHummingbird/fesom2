@@ -554,7 +554,7 @@ CONTAINS
        ocoord_n2d_p(2,1)=0.0
        thisobs%id_obs_p(1,1)=offset(id% PhyChl)+1
        thisobs%id_obs_p(2,1)=offset(id% DiaChl)+1
-       WRITE(*,*) 'FESOM-PDAF: No Chlorophyll observations on PE ',mype_filter,' -  using fictional observations!'
+       ! WRITE(*,*) 'FESOM-PDAF: No Chlorophyll observations on PE ',mype_filter,' -  using fictional observations!'
        dim_obs_p=1
     ENDIF
 
@@ -707,14 +707,14 @@ CONTAINS
 !~        ELSE
 !~          CALL PDAFomi_set_debug_flag(0)
 !~        ENDIF
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% id_obs_l', thisobs_l% id_obs_l
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% distance_l', thisobs_l% distance_l
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: coords_l', coords_l
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: locweight', locweight
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: lradius_chl_cci', lradius_chl_cci
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: sradius_chl_cci', sradius_chl_cci
-       if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: dim_obs_l', dim_obs_l
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% id_obs_l', thisobs_l% id_obs_l
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: thisobs_l% distance_l', thisobs_l% distance_l
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: coords_l', coords_l
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: locweight', locweight
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: lradius_chl_cci', lradius_chl_cci
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: sradius_chl_cci', sradius_chl_cci
+!~        if (mype_filter==mype_debug .and. domain_p==node_debug) write(*,*) 'Frauke: dim_obs_l', dim_obs_l
        
        ! ************************************************************
        ! *** Adapt observation error for coupled DA (double loop) ***
@@ -735,7 +735,7 @@ CONTAINS
           elseif (domain_p==myDim_nod2D+1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                  '--- BIO sweep: set ivar_obs_f for CHL to normal'
+                  '--- BIO sweep: set ivar_obs_f for CHL to original'
              thisobs%ivar_obs_f(:) = ivariance_obs_g
           end if
        end if ! n_sweeps

@@ -1,4 +1,3 @@
-!$Id: obs_TSprof_EN4_pdafomi.F90 2543 2021-05-13 08:17:31Z lnerger $
 !> PDAF-OMI template observation module 
 !!
 !! This module handles operations for one data type (called 'module-type' below).
@@ -79,6 +78,13 @@ MODULE obs_DIC_glodap_pdafomi
   REAL, ALLOCATABLE :: mean_DIC_p (:)             ! ensemble mean for observation exclusion
   REAL, ALLOCATABLE :: loc_radius_DIC_glodap(:)   ! localization radius array
   REAL, ALLOCATABLE :: ivariance_obs_g(:)         ! global-earth inverse observation variances
+  
+  INTEGER, PARAMETER :: val1 =1
+  INTEGER, PARAMETER :: val2 =2
+  INTEGER, PARAMETER :: val3 =3
+  INTEGER, PARAMETER :: dens1=4
+  INTEGER, PARAMETER :: dens2=5
+  INTEGER, PARAMETER :: dens3=6
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -205,10 +211,12 @@ CONTAINS
 ! *** Local variables ***
     INTEGER :: i, s, k, j                     ! Counters
     INTEGER :: dim_obs_p                      ! Number of process local observations
-    CHARACTER(len=2) :: mype_string           ! String for process rank
-    CHARACTER(len=4) :: year_string           ! String for yearly observation data path
-    CHARACTER(len=2) :: mon_string            ! String for daily observation files
-    CHARACTER(len=2) :: day_string            ! String for daily observation files
+    CHARACTER(len=2)  :: mype_string          ! String for process rank
+    CHARACTER(len=4)  :: year_string          ! String for yearly observation data path
+    CHARACTER(len=2)  :: mon_string           ! String for daily observation files
+    CHARACTER(len=2)  :: day_string           ! String for daily observation files
+    LOGICAL           :: FileExists
+    CHARACTER(len=300):: filename             ! PE-local complete path+filename
     
     REAL, ALLOCATABLE :: obs_p(:)             ! PE-local observed observation values
     REAL, ALLOCATABLE :: ocoord_p(:,:)        ! PE-local coordinates of observations
@@ -283,35 +291,44 @@ CONTAINS
        IF (assim_o_DIC_glodap) thisobs%doassim = 1
     END IF
     
-    ! Open the pe-local NetCDF file for that day
-    ncstat = nf90_open(TRIM(path_obs_DIC_glodap)//year_string//'/dist72/'//file_DIC_glodap, nf90_nowrite, ncid)
-    if (ncstat /= nf90_noerr) then
-     print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error opening NetCDF file'
-    end if
-    
-    ! Get the number of observations
-    ! 1. Get the dimension ID
-    ncstat = nf90_inq_dimid(ncid, "index", dimid)
-    if (ncstat /= nf90_noerr) then
-       print *, "FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting dimension ID"
-    end if
-    ncstat = nf90_inquire_dimension(ncid,dimid,len=dim_obs_p)
-    if (ncstat /= nf90_noerr) then
-       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting number of observations from NetCDF file'
-    end if
+    ! complete path + filename
+    filename=TRIM(path_obs_DIC_glodap)//year_string//'/dist72/'//file_DIC_glodap
+    INQUIRE(file=TRIM(filename), exist=FileExists)
+    IF (FileExists) THEN
+       ! Exists: open the pe-local NetCDF file for that day
+       ncstat = nf90_open(TRIM(filename), nf90_nowrite, ncid)
+       if (ncstat /= nf90_noerr) then
+        print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error opening NetCDF file'
+       end if
+       
+       ! Get the number of observations
+       ! 1. Get the dimension ID
+       ncstat = nf90_inq_dimid(ncid, "index", dimid)
+       if (ncstat /= nf90_noerr) then
+          print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting dimension ID'
+       end if
+       ncstat = nf90_inquire_dimension(ncid,dimid,len=dim_obs_p)
+       if (ncstat /= nf90_noerr) then
+          print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error getting number of observations from NetCDF file'
+       end if
+    ELSE
+       ! Not existing:
+       dim_obs_p=0
+    ENDIF ! FileExists
     
     cnt_ex_dry_p = 0
     cnt_ex_dry   = 0
     
     IF (dim_obs_p <= 0) THEN
+    ! no observations
     
       allocate(obs_p(1))
       allocate(ivariance_obs_p(1))
       allocate(ocoord_p(2, 1))
-      allocate(thisobs%id_obs_p(3,1))
+      allocate(thisobs%id_obs_p(6,1))
       
       obs_p=0.0
-      ivariance_obs_p=0.0
+      ivariance_obs_p=1e-12
       ocoord_p=0.0
       thisobs%id_obs_p=0
       
@@ -324,9 +341,7 @@ CONTAINS
         allocate(thisobs_PP%isExclObs(0))
         allocate(thisobs_PP%lon(0),thisobs_PP%lat(0))
       endif
-      
-!~       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - No obs'
-      
+            
     ELSE ! (i.e. dim_obs_p > 0)
     
       ! Allocate memory before reading from netCDF
@@ -435,11 +450,18 @@ CONTAINS
       ! *** Initialize index vector of observed nodes ***
       ! This array has as many rows as required for the observation operator
       ! 1 if observations are at grid points; >1 if interpolation is required
-      allocate(thisobs%id_obs_p(3,dim_obs_p))
-      DO i = 1, dim_obs_p
-        thisobs%id_obs_p(1,i) = (nlmax) * (nod1_p(i)-1) + nl_p(i) + offset(id%DIC)
-        thisobs%id_obs_p(2,i) = (nlmax) * (nod2_p(i)-1) + nl_p(i) + offset(id%DIC)
-        thisobs%id_obs_p(3,i) = (nlmax) * (nod3_p(i)-1) + nl_p(i) + offset(id%DIC)
+      allocate(thisobs%id_obs_p(6,dim_obs_p))
+      DO i=1, dim_obs_p
+      
+      ! indeces of observed nodes
+        thisobs%id_obs_p(val1,i) = (nlmax) * (nod1_p(i)-1) + nl_p(i) + offset(id%DIC)
+        thisobs%id_obs_p(val2,i) = (nlmax) * (nod2_p(i)-1) + nl_p(i) + offset(id%DIC)
+        thisobs%id_obs_p(val3,i) = (nlmax) * (nod3_p(i)-1) + nl_p(i) + offset(id%DIC)
+        
+      ! indeces of potential density at observed nodes
+        thisobs%id_obs_p(dens1,i) = (nlmax) * (nod1_p(i)-1) + nl_p(i) + offset(id%sigma)
+        thisobs%id_obs_p(dens2,i) = (nlmax) * (nod2_p(i)-1) + nl_p(i) + offset(id%sigma)
+        thisobs%id_obs_p(dens3,i) = (nlmax) * (nod3_p(i)-1) + nl_p(i) + offset(id%sigma)
         
       ! *** exclude observations at dry nodes ***
       ! number of layers at nodes considering bottom topography: mesh_fesom% nlevels_nod2D
@@ -450,11 +472,24 @@ CONTAINS
            if (isPP) thisobs_PP%isExclObs(i) = 1
            ivariance_obs_p(i) = 1e-12
            cnt_ex_dry_p = cnt_ex_dry_p + 1
+           
+        ! invalid nodes:
+        ELSEIF (nod1_p(i)<0) THEN
+           if (isPP) thisobs_PP%isExclObs(i) = 1
+           ivariance_obs_p(i) = 1e-12
+           cnt_ex_dry_p = cnt_ex_dry_p + 1
+        ELSEIF (nod2_p(i)<0) THEN
+           if (isPP) thisobs_PP%isExclObs(i) = 1
+           ivariance_obs_p(i) = 1e-12
+           cnt_ex_dry_p = cnt_ex_dry_p + 1
+        ELSEIF (nod3_p(i)<0) THEN
+           if (isPP) thisobs_PP%isExclObs(i) = 1
+           ivariance_obs_p(i) = 1e-12
+           cnt_ex_dry_p = cnt_ex_dry_p + 1
         ENDIF
-      END DO
+        
+      END DO ! i=1,dim_obs_p
       
-!~       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
-
     ENDIF
     
     CALL MPI_Allreduce(cnt_ex_dry_p, cnt_ex_dry, 1, MPI_INTEGER, MPI_SUM, &
@@ -485,10 +520,12 @@ CONTAINS
     end if
 
     ! *** Clean-up ***
-    ncstat = nf90_close(ncid)
-    if (ncstat /= nf90_noerr) then
-       print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error closing NetCDF file'
-    end if
+    if (FileExists) THEN
+       ncstat = nf90_close(ncid)
+       if (ncstat /= nf90_noerr) then
+          print *, 'FESOM-PDAF - obs_DIC_glodap_pdafomi - Error closing NetCDF file'
+       end if
+    ENDIF
     
     deallocate(obs_p,ivariance_obs_p,ocoord_p)
     deallocate(nod1_p,nod2_p,nod3_p,nl_p,lon_p,lat_p) 
@@ -514,7 +551,7 @@ CONTAINS
 
     USE PDAFomi, &
          ONLY: PDAFomi_obs_op_gridavg, &
-               PDAFomi_set_debug_flag
+               PDAFomi_gather_obsstate
 
     IMPLICIT NONE
 
@@ -523,18 +560,68 @@ CONTAINS
     INTEGER, INTENT(in) :: dim_obs               !< Dimension of full observed state (all observed fields)
     REAL, INTENT(in)    :: state_p(dim_p)        !< PE-local model state
     REAL, INTENT(inout) :: ostate(dim_obs)       !< Full observed state
+    
+    REAL, ALLOCATABLE   :: ostate_p(:)           !< Pe-local observed state
+    INTEGER :: i                                 !< Counters
 
 ! ******************************************************
 ! *** Apply observation operator H on a state vector ***
 ! ******************************************************
 
-! For profile observations handled here, the observation
-! operator has to average the values of 3 grid points.
-! For this the observation operator OBS_OP_F_GRIDAVG is used.
-
     IF (thisobs%doassim == 1) THEN
-       CALL PDAFomi_obs_op_gridavg(thisobs, 3, state_p, ostate)
-    END IF
+
+       IF (thisobs%dim_obs_p>0) THEN
+       ! have obs
+          ALLOCATE(ostate_p(thisobs%dim_obs_p))
+          
+          IF (isPP) then
+            DO i = 1, thisobs%dim_obs_p
+                ! -- unit conversion:
+                !    from milli mol per m3 (model) --> micro mol per kg (observations)
+                ! -- average values of 3 grid points
+                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * 1.0 / 1.026 &
+                               + state_p(thisobs%id_obs_p(val2,i)) * 1.0 / 1.026 &
+                               + state_p(thisobs%id_obs_p(val3,i)) * 1.0 / 1.026 &
+                               ) *1.0/3.0
+            END DO
+          ELSE
+            ! initialize observed pe-local state vector
+            DO i = 1, thisobs%dim_obs_p
+                ! -- unit conversion:
+                !    from milli mol per m3 (model) --> micro mol per kg (observations)
+                ! -- average values of 3 grid points
+                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * 1.0 / state_p(thisobs%id_obs_p(dens1,i)) &
+                               + state_p(thisobs%id_obs_p(val2,i)) * 1.0 / state_p(thisobs%id_obs_p(dens2,i)) &
+                               + state_p(thisobs%id_obs_p(val3,i)) * 1.0 / state_p(thisobs%id_obs_p(dens3,i)) &
+                               ) *1.0/3.0
+                
+                if (i<3) then
+                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val1,i))= ', state_p(thisobs%id_obs_p(val1,i)), '  state_p(...(dens1,i))= ', state_p(thisobs%id_obs_p(dens1,i))
+                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val2,i))= ', state_p(thisobs%id_obs_p(val2,i)), '  state_p(...(dens2,i))= ', state_p(thisobs%id_obs_p(dens2,i))
+                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val3,i))= ', state_p(thisobs%id_obs_p(val3,i)), '  state_p(...(dens3,i))= ', state_p(thisobs%id_obs_p(dens3,i))
+                endif
+                
+            END DO
+          ENDIF ! isPP
+                    
+       ELSE
+       ! habe no obs
+          ALLOCATE(ostate_p(1))
+       END IF
+
+       ! *** Global: Gather full observed state vector
+       CALL PDAFomi_gather_obsstate(thisobs, ostate_p, ostate)
+       
+       ! clean up
+       deallocate(ostate_p)
+
+
+       ! For profile observations handled here, the observation
+       ! operator has to average the values of 3 grid points.
+       ! For this the observation operator OBS_OP_F_GRIDAVG is used.
+       ! CALL PDAFomi_obs_op_gridavg(thisobs, 3, state_p, ostate)
+    
+    END IF ! (thisobs%doassim == 1)
 
   END SUBROUTINE obs_op_DIC_glodap
 
@@ -597,7 +684,7 @@ CONTAINS
           elseif (domain_p==myDim_nod2D+1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                  '--- BIO sweep: set ivar_obs_f for DIC to normal'
+                  '--- BIO sweep: set ivar_obs_f for DIC to original'
              thisobs%ivar_obs_f(:) = ivariance_obs_g
           end if
        end if ! n_sweeps

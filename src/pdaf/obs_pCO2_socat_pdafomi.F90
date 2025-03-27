@@ -741,7 +741,7 @@ CONTAINS
           elseif (domain_p==myDim_nod2D+1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                  '--- BIO sweep: set ivar_obs_f for pCO2 to normal'
+                  '--- BIO sweep: set ivar_obs_f for pCO2 to original'
              thisobs%ivar_obs_f(:) = ivariance_obs_g
           end if
        end if ! n_sweeps

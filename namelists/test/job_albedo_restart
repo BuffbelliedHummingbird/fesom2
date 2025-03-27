@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --account=biogeo.p_recompdaf
 #SBATCH --partition=mpp
-#SBATCH --ntasks=2880
+#SBATCH --ntasks=144
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:30:00
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
 
-#SBATCH --job-name=debug
+#SBATCH --job-name=test
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -34,18 +34,18 @@ start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
 # Settings:
-NENS=40          # number of ensembles --> namelist.fesom.pdaf
+NENS=2           # number of ensembles --> namelist.fesom.pdaf
 fes_numproc=72   # ntasks divided by NENS
 
 NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2010-01-03"
+run_end_date="2010-01-09"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
-rst_freq="2 days"
+rst_freq="3 days"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:
@@ -157,22 +157,25 @@ do
             then
                 info "Bye bye, test data! Removing everything in run directory."
 		rm -fr ${run_dir}/*
+		info "Fetching compiled model executable from bin, overwriting existing."
+		cp -f ${start_dir}/../../bin/fesom.x ${start_dir}/
             else
                 error "Run directory not empty and \${force_run_from_scratch} not set."
             fi
         fi
         
-        # Set namelists from jobscript settings
+        info "Preparing start_dir."
+	# Set namelists from jobscript settings
         sed -i `grep -n dim_ens              ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                            ${start_dir}/namelist.fesom.pdaf
         
         sed -i `grep -n restart_length_unit  ${start_dir}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'"   ${start_dir}/namelist.config
         
-        sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
+        sed -i `grep -n restart_length=     ${start_dir}/namelist.config      | cut -d ':' -f 1`"c restart_length=${rst_freq_number}"        ${start_dir}/namelist.config
+        
+	sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
         
         sed -i `grep -n run_length_unit      ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"       ${start_dir}/namelist.config
-	   
-        sed -i `grep -n restart_length=     ${start_dir}/namelist.config      | cut -d ':' -f 1`"c restart_length=${rst_freq_number}"        ${start_dir}/namelist.config
-
+	    
 	# Set namelists based on DA start date
         sed -i `grep -n this_is_pdaf_restart ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."             ${start_dir}/namelist.fesom.pdaf
 	    
@@ -228,16 +231,19 @@ do
             
             cd ${run_dir}/${ENSstr}
     
-            # *** Link executable of model component
-	        cp ${start_dir}/../../bin/fesom.x ${start_dir}/
+            info "Link executable of model component from homedir to /work/"${ENSstr}
             ln -s ${start_dir}/fesom.x .
             
-            # *** Copy namelist files
+            info "Copy namelist files from homedir to /work/"${ENSstr}
             cp ${start_dir}/namelist.* .
             
+	    info "Adapt namelist files."
+	    timernamelist1=$SECONDS
             # adapt paths for ensemble members
             sed -i `grep -n ResultPath     ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             sed -i `grep -n DAoutput_path  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
+            timenamelist=$(echo $SECONDS - $timernamelist1 | bc)
+	    info $timenamelist
 
             # *** Restart files needed for FESOM-REcoM
             cp ../../restart_files/fesom.clock .
