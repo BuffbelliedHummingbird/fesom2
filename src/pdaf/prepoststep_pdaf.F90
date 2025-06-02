@@ -22,7 +22,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        ONLY: mype_filter, npes_filter, COMM_filter, writepe, mype_world
   USE mod_assim_pdaf, & ! Variables for assimilation
        ONLY: step_null, filtertype, dim_lag, eff_dim_obs, loctype, &
-       offset, proffiles_o, state_fcst, &
+       offset, proffiles_o, state_fcst, state_fcst_SSH_p, &
        monthly_state_f, monthly_state_a, monthly_state_m, &
        monthly_state_sf, monthly_state_sa, monthly_state_sm, &
        endday_of_month_in_year, startday_of_month_in_year, &
@@ -182,8 +182,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   END IF ! IF (mype_filter==0)
   
   ! variables allocated and saved during forecast; and deallocated after analysis
-  IF (.not. ALLOCATED(stdev_SSH_f_p)) ALLOCATE(stdev_SSH_f_p(dim_fields(id%SSH)))
-  IF (.not. ALLOCATED(state_fcst)) ALLOCATE(state_fcst(dim_p,dim_ens))
+  IF (.not. ALLOCATED(stdev_SSH_f_p))    ALLOCATE(stdev_SSH_f_p(dim_fields(id%SSH)))
+  IF (.not. ALLOCATED(state_fcst_SSH_p)) ALLOCATE(state_fcst_SSH_p(dim_fields(id%SSH),dim_ens))
   
   IF ((step-step_null)==0) THEN
   ! allocate monthly states at initial time; never de-allocated; monthly reset to zero
@@ -241,8 +241,12 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! ****************************
    
     IF ((step-step_null)<0) THEN
-    ! *** store forecast state fields temporarily to compare with analysis afterwards ***
-    state_fcst = ens_p
+    ! *** store forecast state fields temporarily to compare with analysis afterwards ***    
+      DO member = 1, dim_ens
+        DO i = 1, dim_fields(id% SSH)
+           state_fcst_SSH_p(i,member) = ens_p(i+offset(id% SSH),member)
+        ENDDO
+      ENDDO
     
     ELSE IF ((step-step_null)>0) THEN
    ! *** correcting assimilated state fields ***
@@ -269,12 +273,12 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    count_lim_ssh_p = 0
    
    DO member = 1, dim_ens
-   DO i = offset(id% SSH)+1, offset(id% SSH)+dim_fields(id% SSH)
+   DO i = 1, dim_fields(id% SSH)
        
-       diffm = ens_p(i,member) - state_fcst(i,member)
+       diffm = ens_p(offset(id% SSH)+i,member) - state_fcst_SSH_p(i,member)
    
-       IF (ABS(diffm) > 2.0*stdev_SSH_f_p(i-offset(id% SSH))) THEN
-           ens_p(i,member) = state_fcst(i,member) + SIGN(2.0*stdev_SSH_f_p(i-offset(id% SSH)),diffm)
+       IF (ABS(diffm) > 2.0*stdev_SSH_f_p(i)) THEN
+           ens_p(offset(id% SSH)+i,member) = state_fcst_SSH_p(i,member) + SIGN(2.0*stdev_SSH_f_p(i),diffm)
            count_lim_ssh_p(member) = count_lim_ssh_p(member)+1
        END IF
        
@@ -461,7 +465,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! save mean_n_p
      IF (((n_merged_excl_absolute > 0.0) .or. (n_merged_excl_relative > 0.0)) &
         .and. assim_o_n_merged) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast oxygen for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast DIN for observation exclusion'
         IF (ALLOCATED(mean_n_p)) DEALLOCATE(mean_n_p)
         ALLOCATE (mean_n_p(dim_fields(id%DIN)))
         mean_n_p = state_p(offset(id%DIN)+1 : offset(id%DIN)+dim_fields(id%DIN))
@@ -971,15 +975,16 @@ ENDIF ! now_to_write_monthly
 
   ! variables deallocated after analysis step
   IF ((step-step_null) >= 0) THEN
-     DEALLOCATE(stdev_SSH_f_p,state_fcst)
-     IF (allocated(mean_O2_p ))     deallocate(mean_O2_p )
-     IF (allocated(mean_n_p))       deallocate(mean_n_p)
-     IF (allocated(mean_chl_cci_p)) deallocate(mean_chl_cci_p)
-     IF (allocated(mean_temp_p))    deallocate(mean_temp_p)
-     IF (allocated(mean_sss_cci_p)) deallocate(mean_sss_cci_p)
-     IF (allocated(mean_sss_p))     deallocate(mean_sss_p)     
-     IF (allocated(mean_sst_p))     deallocate(mean_sst_p)     
-     IF (allocated(mean_ice_p))     deallocate(mean_ice_p)     
+     IF (allocated(stdev_SSH_f_p))    deallocate(stdev_SSH_f_p)
+     IF (allocated(state_fcst_SSH_p)) deallocate(state_fcst_SSH_p)
+     IF (allocated(mean_O2_p ))       deallocate(mean_O2_p )
+     IF (allocated(mean_n_p))         deallocate(mean_n_p)
+     IF (allocated(mean_chl_cci_p))   deallocate(mean_chl_cci_p)
+     IF (allocated(mean_temp_p))      deallocate(mean_temp_p)
+     IF (allocated(mean_sss_cci_p))   deallocate(mean_sss_cci_p)
+     IF (allocated(mean_sss_p))       deallocate(mean_sss_p)     
+     IF (allocated(mean_sst_p))       deallocate(mean_sst_p)     
+     IF (allocated(mean_ice_p))       deallocate(mean_ice_p)     
   ENDIF
   DEALLOCATE(stdev_p)
 

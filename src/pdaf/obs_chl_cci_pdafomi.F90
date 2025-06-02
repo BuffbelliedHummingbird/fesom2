@@ -256,7 +256,8 @@ CONTAINS
     ! set localization radius
     lradius_chl_cci = local_range
     sradius_chl_cci = srange
-    IF (.NOT.ALLOCATED(loc_radius_chl_cci)) ALLOCATE(loc_radius_chl_cci(mydim_nod2d))
+    if (allocated(loc_radius_chl_cci)) deallocate(loc_radius_chl_cci)
+    allocate(loc_radius_chl_cci(mydim_nod2d))
     loc_radius_chl_cci(:) = lradius_chl_cci
 
 
@@ -543,9 +544,9 @@ CONTAINS
 		
 	ENDIF haveobs
 
-! ******************************************
-! *** No global observations? - Fake it! ***
-! ******************************************
+! *******************************************
+! *** No global observations? - Fictional ***
+! *******************************************
 
     IF (dim_obs_p==0) THEN
        obs_p=1.0
@@ -554,22 +555,12 @@ CONTAINS
        ocoord_n2d_p(2,1)=0.0
        thisobs%id_obs_p(1,1)=offset(id% PhyChl)+1
        thisobs%id_obs_p(2,1)=offset(id% DiaChl)+1
-       ! WRITE(*,*) 'FESOM-PDAF: No Chlorophyll observations on PE ',mype_filter,' -  using fictional observations!'
        dim_obs_p=1
     ENDIF
 
 ! **************************************
 ! *** Gather full observation arrays ***
 ! **************************************
-
-!~     IF (writepe) THEN
-!~     write(*,*) 'Frauke', 'dim_obs_p', dim_obs_p
-!~     write(*,*) 'Frauke', 'obs_p', obs_p
-!~     write(*,*) 'Frauke', 'ivariance_obs_p', ivariance_obs_p
-!~     write(*,*) 'Frauke', 'ocoord_n2d_p', ocoord_n2d_p
-!~     write(*,*) 'Frauke', 'lradius_chl_cci', lradius_chl_cci
-!~     write(*,*) 'Frauke', 'dim_obs', dim_obs
-!~     ENDIF
 
     CALL PDAFomi_gather_obs(thisobs, dim_obs_p, obs_p, ivariance_obs_p, ocoord_n2d_p, &
          thisobs%ncoord, lradius_chl_cci, dim_obs)
@@ -589,7 +580,8 @@ CONTAINS
 ! ********************
 
     ! Clean up arrays
-    DEALLOCATE(all_obs_p, obs_error_p, all_std_p, all_bias_p)
+    DEALLOCATE(all_obs_p, all_std_p, all_bias_p)
+    DEALLOCATE(obs_error_p)
     DEALLOCATE(obs_p, ocoord_n2d_p, ivariance_obs_p)
     if (allocated(obs_include_index)) deallocate(obs_include_index)
 

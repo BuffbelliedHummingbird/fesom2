@@ -480,24 +480,6 @@ CONTAINS
 		
 	ENDIF haveobs
 
-!~ ! ******************************************
-!~ ! *** No global observations? - Fake it! ***
-!~ ! ******************************************
-
-!~     CALL MPI_allreduce(dim_obs_p,dim_obs_f,1,MPI_INTEGER,MPI_SUM,COMM_filter,MPIerr)
-    
-!~     ! to avoid zero-allocation error,
-!~     ! make up a fictional observation with HUGE uncertainty
-!~     IF (dim_obs_f==0) THEN
-!~        obs_p=35
-!~        ivariance_obs_p=1E-12
-!~        ocoord_n2d_p(1,1)=1.57
-!~        ocoord_n2d_p(2,1)=0
-!~        thisobs%id_obs_p=offset(id% salt)+1
-!~        IF (mype_filter==0) WRITE(*,*) 'FESOM-PDAF: No SSS observations, using fictional observations!'
-!~        dim_obs_p=1
-!~     ENDIF
-
 ! **************************************
 ! *** Gather full observation arrays ***
 ! **************************************

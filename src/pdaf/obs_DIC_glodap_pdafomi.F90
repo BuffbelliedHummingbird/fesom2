@@ -79,6 +79,10 @@ MODULE obs_DIC_glodap_pdafomi
   REAL, ALLOCATABLE :: loc_radius_DIC_glodap(:)   ! localization radius array
   REAL, ALLOCATABLE :: ivariance_obs_g(:)         ! global-earth inverse observation variances
   
+  REAL, parameter   :: refdens  = 1.026        ! reference density of water for unit conversion
+  REAL, parameter   :: irefdens = 0.975        ! inverse """
+  REAL, parameter   :: third = 0.3333333333333333
+
   INTEGER, PARAMETER :: val1 =1
   INTEGER, PARAMETER :: val2 =2
   INTEGER, PARAMETER :: val3 =3
@@ -251,6 +255,11 @@ CONTAINS
     ! set localization radius, everywhere the same
     lradius_DIC_glodap = 1.0e6 ! 1000 km
     sradius_DIC_glodap = 1.0e6
+    
+    ! set limit factor for omitted observation due to high innovation
+    ! omit observation if innovation larger than this factor times
+    ! observation error (only active for >0)
+    thisobs%inno_omit =  DIC_glodap_exclude_diff / rms_obs_DIC_glodap
 
 
 ! **********************************
@@ -332,7 +341,12 @@ CONTAINS
       ocoord_p=0.0
       thisobs%id_obs_p=0
       
-      allocate(nod1_p(0),nod2_p(0),nod3_p(0),nl_p(0),lon_p(0),lat_p(0))
+      allocate(nod1_p(0))
+      allocate(nod2_p(0))
+      allocate(nod3_p(0))
+      allocate(nl_p(0))
+      allocate(lon_p(0))
+      allocate(lat_p(0))
       
       if (isPP) then
         allocate(thisobs_PP%nod1_g(0),thisobs_PP%nod2_g(0),thisobs_PP%nod3_g(0))
@@ -472,22 +486,16 @@ CONTAINS
            if (isPP) thisobs_PP%isExclObs(i) = 1
            ivariance_obs_p(i) = 1e-12
            cnt_ex_dry_p = cnt_ex_dry_p + 1
-           
-        ! invalid nodes:
-        ELSEIF (nod1_p(i)<0) THEN
-           if (isPP) thisobs_PP%isExclObs(i) = 1
-           ivariance_obs_p(i) = 1e-12
-           cnt_ex_dry_p = cnt_ex_dry_p + 1
-        ELSEIF (nod2_p(i)<0) THEN
-           if (isPP) thisobs_PP%isExclObs(i) = 1
-           ivariance_obs_p(i) = 1e-12
-           cnt_ex_dry_p = cnt_ex_dry_p + 1
-        ELSEIF (nod3_p(i)<0) THEN
-           if (isPP) thisobs_PP%isExclObs(i) = 1
-           ivariance_obs_p(i) = 1e-12
-           cnt_ex_dry_p = cnt_ex_dry_p + 1
-        ENDIF
-        
+        ! further exclusion criteria
+        elseif ((obs_p(i) == -999) .or. &
+            (obs_p (i) <=   0) .or. &
+            (nod1_p(i) <=   0) .or. &
+            (nod2_p(i) <=   0) .or. &
+            (nod3_p(i) <=   0)) then
+               if (isPP) thisobs_PP%isExclObs(i) = 1
+               ivariance_obs_p(i) = 1e-12
+               cnt_ex_dry_p = cnt_ex_dry_p + 1
+        endif
       END DO ! i=1,dim_obs_p
       
     ENDIF
@@ -529,7 +537,6 @@ CONTAINS
     
     deallocate(obs_p,ivariance_obs_p,ocoord_p)
     deallocate(nod1_p,nod2_p,nod3_p,nl_p,lon_p,lat_p) 
-    ! this_obs%id_obs_p is deallocated in PDAFomi_obs_l.F90
     
   END SUBROUTINE init_dim_obs_DIC_glodap
 
@@ -579,10 +586,10 @@ CONTAINS
                 ! -- unit conversion:
                 !    from milli mol per m3 (model) --> micro mol per kg (observations)
                 ! -- average values of 3 grid points
-                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * 1.0 / 1.026 &
-                               + state_p(thisobs%id_obs_p(val2,i)) * 1.0 / 1.026 &
-                               + state_p(thisobs%id_obs_p(val3,i)) * 1.0 / 1.026 &
-                               ) *1.0/3.0
+                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * irefdens &
+                               + state_p(thisobs%id_obs_p(val2,i)) * irefdens &
+                               + state_p(thisobs%id_obs_p(val3,i)) * irefdens &
+                               ) * third
             END DO
           ELSE
             ! initialize observed pe-local state vector
@@ -590,17 +597,17 @@ CONTAINS
                 ! -- unit conversion:
                 !    from milli mol per m3 (model) --> micro mol per kg (observations)
                 ! -- average values of 3 grid points
-                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * 1.0 / state_p(thisobs%id_obs_p(dens1,i)) &
-                               + state_p(thisobs%id_obs_p(val2,i)) * 1.0 / state_p(thisobs%id_obs_p(dens2,i)) &
-                               + state_p(thisobs%id_obs_p(val3,i)) * 1.0 / state_p(thisobs%id_obs_p(dens3,i)) &
-                               ) *1.0/3.0
-                
-                if (i<3) then
-                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val1,i))= ', state_p(thisobs%id_obs_p(val1,i)), '  state_p(...(dens1,i))= ', state_p(thisobs%id_obs_p(dens1,i))
-                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val2,i))= ', state_p(thisobs%id_obs_p(val2,i)), '  state_p(...(dens2,i))= ', state_p(thisobs%id_obs_p(dens2,i))
-                write(*,*) 'i= ', i, '  ostate_p(i)= ', ostate_p(i), '  state_p(...(val3,i))= ', state_p(thisobs%id_obs_p(val3,i)), '  state_p(...(dens3,i))= ', state_p(thisobs%id_obs_p(dens3,i))
+                if   ((state_p(thisobs%id_obs_p(dens1,i))>0) &
+                .and. (state_p(thisobs%id_obs_p(dens2,i))>0) &
+                .and. (state_p(thisobs%id_obs_p(dens3,i))>0)) then ! avoid division by zero
+                   ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) / state_p(thisobs%id_obs_p(dens1,i)) &
+                                  + state_p(thisobs%id_obs_p(val2,i)) / state_p(thisobs%id_obs_p(dens2,i)) &
+                                  + state_p(thisobs%id_obs_p(val3,i)) / state_p(thisobs%id_obs_p(dens3,i)) &
+                                  ) * third
+                else
+                ! invalid / excluded model value: still, need to initialize with any value
+                   ostate_p(i) = 2300
                 endif
-                
             END DO
           ENDIF ! isPP
                     

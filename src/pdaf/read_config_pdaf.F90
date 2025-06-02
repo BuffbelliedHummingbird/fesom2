@@ -72,13 +72,13 @@ SUBROUTINE read_config_pdaf()
        path_bias, file_bias_prefix
   USE obs_DIC_glodap_pdafomi, &
        ONLY: assim_o_DIC_glodap, path_obs_DIC_glodap, &
-       rms_obs_DIC_glodap
+       rms_obs_DIC_glodap, DIC_glodap_exclude_diff
   USE obs_Alk_glodap_pdafomi, &
        ONLY: assim_o_Alk_glodap, path_obs_Alk_glodap, &
-       rms_obs_Alk_glodap
+       rms_obs_Alk_glodap, Alk_glodap_exclude_diff
   USE obs_pco2_SOCAT_pdafomi, &
        ONLY: assim_o_pCO2_SOCAT, path_obs_pCO2_SOCAT, &
-       rms_obs_pCO2_SOCAT
+       rms_obs_pCO2_SOCAT, pCO2_SOCAT_exclude_diff
   USE obs_o2_comf_pdafomi, &
        ONLY: assim_o_o2_comf, path_obs_o2_comf, &
        rms_obs_o2_comf, o2_comf_exclude_diff
@@ -175,13 +175,13 @@ SUBROUTINE read_config_pdaf()
        path_bias, file_bias_prefix, &
        ! DIC GLODAP:
        assim_o_DIC_glodap, path_obs_DIC_glodap, &
-       rms_obs_DIC_glodap, &
+       rms_obs_DIC_glodap, DIC_glodap_exclude_diff, &
        ! Alk GLODAP:
        assim_o_Alk_glodap, path_obs_Alk_glodap, &
-       rms_obs_Alk_glodap, &
+       rms_obs_Alk_glodap, Alk_glodap_exclude_diff, &
        ! pCO2 SOCAT:
        assim_o_pCO2_SOCAT, path_obs_pCO2_SOCAT, &
-       rms_obs_pCO2_SOCAT, &
+       rms_obs_pCO2_SOCAT, pCO2_SOCAT_exclude_diff, &
        ! O2 COMFORT:
        assim_o_o2_comf, path_obs_o2_comf, &
        rms_obs_o2_comf, o2_comf_exclude_diff, &
@@ -373,17 +373,20 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_bias',            TRIM(path_bias)
      WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'file_bias_prefix',     TRIM(file_bias_prefix)
      
-     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_DIC_glodap',   assim_o_DIC_glodap
-     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_DIC_glodap',  path_obs_DIC_glodap
-     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_DIC_glodap',   rms_obs_DIC_glodap
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_DIC_glodap',      assim_o_DIC_glodap
+     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_DIC_glodap',     path_obs_DIC_glodap
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_DIC_glodap',      rms_obs_DIC_glodap
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'DIC_glodap_exclude_diff', DIC_glodap_exclude_diff
      
-     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_Alk_glodap',   assim_o_Alk_glodap
-     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_Alk_glodap',  path_obs_Alk_glodap
-     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_Alk_glodap',   rms_obs_Alk_glodap
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_Alk_glodap',      assim_o_Alk_glodap
+     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_Alk_glodap',     path_obs_Alk_glodap
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_Alk_glodap',      rms_obs_Alk_glodap
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'Alk_glodap_exclude_diff', Alk_glodap_exclude_diff
      
-     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_pCO2_SOCAT',   assim_o_pCO2_SOCAT
-     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_pCO2_SOCAT',  path_obs_pCO2_SOCAT
-     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_pCO2_SOCAT',   rms_obs_pCO2_SOCAT
+     WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_pCO2_SOCAT',      assim_o_pCO2_SOCAT
+     WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_pCO2_SOCAT',     path_obs_pCO2_SOCAT
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'rms_obs_pCO2_SOCAT',      rms_obs_pCO2_SOCAT
+     WRITE (*,'(a,5x,a20,1x,f11.3)') 'FESOM-PDAF',   'pCO2_SOCAT_exclude_diff', pCO2_SOCAT_exclude_diff
      
      WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'assim_o_n_comf',       assim_o_n_comf
      WRITE (*,'(a,5x,a20,1x,a)')     'FESOM-PDAF',   'path_obs_n_comf',      path_obs_n_comf

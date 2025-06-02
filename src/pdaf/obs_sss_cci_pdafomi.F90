@@ -250,7 +250,8 @@ CONTAINS
     ! set localization radius
     lradius_sss_cci = local_range
     sradius_sss_cci = srange
-    IF (.NOT.ALLOCATED(loc_radius_sss_cci)) ALLOCATE(loc_radius_sss_cci(mydim_nod2d))
+    IF (allocated(loc_radius_sss_cci)) deallocate(loc_radius_sss_cci)
+    ALLOCATE(loc_radius_sss_cci(mydim_nod2d))
     loc_radius_sss_cci(:) = lradius_sss_cci
 
 
@@ -476,31 +477,12 @@ CONTAINS
 		ALLOCATE(ocoord_n2d_p(2, 1))
 		ALLOCATE(thisobs%id_obs_p(1,1))
 		thisobs%id_obs_p = 0
+		ivariance_obs_p  = 1e-12
 		
 		ALLOCATE(obs_include_index(1))
 		ALLOCATE(obs_error_p(1))
-		
-!~ 		WRITE(*,*) 'FESOM-PDAF (SSS): dim_obs_p=0, allocating with 1, pe: ', mype_filter
-		
+				
 	ENDIF haveobs
-
-!~ ! ******************************************
-!~ ! *** No global observations? - Fake it! ***
-!~ ! ******************************************
-
-!~     CALL MPI_allreduce(dim_obs_p,dim_obs_f,1,MPI_INTEGER,MPI_SUM,COMM_filter,MPIerr)
-    
-!~     ! to avoid zero-allocation error,
-!~     ! make up a fictional observation with HUGE uncertainty
-!~     IF (dim_obs_f==0) THEN
-!~        obs_p=35
-!~        ivariance_obs_p=1E-12
-!~        ocoord_n2d_p(1,1)=1.57
-!~        ocoord_n2d_p(2,1)=0
-!~        thisobs%id_obs_p=offset(id% salt)+1
-!~        IF (mype_filter==0) WRITE(*,*) 'FESOM-PDAF: No SSS observations, using fictional observations!'
-!~        dim_obs_p=1
-!~     ENDIF
 
 ! **************************************
 ! *** Gather full observation arrays ***

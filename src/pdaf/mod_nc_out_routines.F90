@@ -584,6 +584,7 @@ IF (writepe) THEN
          ! gather global field
          allocate(data2_g(mesh_fesom% nod2D))
          CALL gather_nod(myData2, data2_g)
+         deallocate(myData2)
          
          IF (writepe) THEN
            ! Inquire variable ID
@@ -598,7 +599,7 @@ IF (writepe) THEN
                                    ! (dims: 1-nod2, 2-time)
            ENDIF ! writetype
          ENDIF ! writepe
-         deallocate(myData2, data2_g)
+         deallocate(data2_g)
        
        ! ---------
        ! 3D fields
@@ -621,6 +622,7 @@ IF (writepe) THEN
          allocate(data3_g(nlmax,mesh_fesom% nod2D))
          CALL gather_nod(myData3, data3_g)
          WHERE (topography3D_g == 0) data3_g = fill_value
+         deallocate(myData3)
          
          IF (writepe) THEN
            ! Inquire variable ID
@@ -635,7 +637,7 @@ IF (writepe) THEN
                                       ! dims: 1-nod2, 2-nz / nz1, 3-iter
            ENDIF ! writetype
          ENDIF ! writepe
-         deallocate(myData3, data3_g)
+         deallocate(data3_g)
          
        ENDIF ! surface / 3D-fields  
     ENDIF ! writethisnow

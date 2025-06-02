@@ -602,6 +602,7 @@ ELSEIF (dim_ens>1) THEN
 IF (write_atmos_st) THEN
 
 ! --- open file:
+write(mype_string,'(i4.4)') mype_model
 fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 IF (mype_world==0) THEN
@@ -679,6 +680,7 @@ ENDIF ! write_atmos_st
 ! ****************************************
 
 ! --- open file:
+write(mype_string,'(i4.4)') mype_model
 fname_restart = TRIM(DAoutput_path)//'pdafrestart/pdafrestart_'//mype_string//'_'//cyearnew//'.nc'
 
 IF (mype_world==0) THEN
@@ -808,6 +810,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity to netCD
 END IF
     
 ! --- open file:
+write(mype_string,'(i4.4)') mype_model
 fname_atm = TRIM(DAoutput_path)//'/atmos/atmos_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
@@ -933,6 +936,7 @@ WRITE (*, '(/a, 1x, a)') 'FESOM-PDAF', 'Write atmospheric stochasticity restart 
 END IF
     
 ! --- open file:
+write(mype_string,'(i4.4)') mype_model
 fname_restart = TRIM(DAoutput_path)//'/pdafrestart/pdafrestart_'//mype_string//'_'//cyearnew//'.nc'
 
 s=1
@@ -1056,6 +1060,7 @@ IF (dim_ens<=1) THEN
 ELSEIF (dim_ens>1) THEN
 
 ! --- open file:
+write(mype_string,'(i4.4)') mype_model
 fname_restart = TRIM(DAoutput_path)//'/pdafrestart/pdafrestart_'//mype_string//'_'//cyearold//'.nc'
 
 IF (mype_world==0) THEN

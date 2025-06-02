@@ -225,7 +225,6 @@ CONTAINS
     
     ! unique observation data: for each element, sorted array holds sum of all samples
     REAL, ALLOCATABLE :: obs_p_sorted(:)
-!~     REAL, ALLOCATABLE :: lon_p_sorted(:),lat_p_sorted(:)
     REAL, ALLOCATABLE :: x_p(:), y_p(:), z_p(:)
     INTEGER, ALLOCATABLE :: nod1_p_sorted(:), &
                             nod2_p_sorted(:), &
@@ -274,7 +273,12 @@ CONTAINS
 
     ! set localization radius, everywhere the same
     lradius_pCO2_SOCAT = 5.0e5 ! 500 km
-    sradius_pCO2_SOCAT = 5.0e5
+    sradius_pCO2_SOCAT = 5.0e5 ! 500 km
+    
+    ! set limit factor for omitted observation due to high innovation
+    ! omit observation if innovation larger than this factor times
+    ! observation error (only active for >0)
+    thisobs%inno_omit =  pCO2_SOCAT_exclude_diff / rms_obs_pCO2_SOCAT
 
 
 ! **********************************
@@ -351,7 +355,7 @@ CONTAINS
       allocate(thisobs%id_obs_p(3,1))
       
       obs_p=0.0
-      ivariance_obs_p=0.0
+      ivariance_obs_p=1e-12
       ocoord_p=0.0
       thisobs%id_obs_p=0
       
@@ -367,17 +371,18 @@ CONTAINS
     
       ! Allocate memory before reading from netCDF
       allocate(obs_p_reps(dim_obs_p_reps))
-      allocate(nod1_p_reps(dim_obs_p_reps),nod2_p_reps(dim_obs_p_reps),nod3_p_reps(dim_obs_p_reps))
+      allocate(nod1_p_reps(dim_obs_p_reps))
+      allocate(nod2_p_reps(dim_obs_p_reps))
+      allocate(nod3_p_reps(dim_obs_p_reps))
       allocate(elem_p_reps(dim_obs_p_reps))
-      allocate(lon_p_reps(dim_obs_p_reps),lat_p_reps(dim_obs_p_reps))
+      allocate(lon_p_reps(dim_obs_p_reps))
+      allocate(lat_p_reps(dim_obs_p_reps))
       
       if (isPP) then
          allocate(nod1_g_reps(dim_obs_p_reps),nod2_g_reps(dim_obs_p_reps),nod3_g_reps(dim_obs_p_reps))
          allocate(elem_g_reps(dim_obs_p_reps))
       endif
-      
-!~       print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - dim_obs_p_reps: ', dim_obs_p_reps
-      
+            
       ! Reading observations
       ncstat = nf90_inq_varid(ncid,'OBS', id_obs)
       if (ncstat /= nf90_noerr) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - Error getting id_obs from netCDF'
@@ -446,9 +451,6 @@ CONTAINS
       ! * Finding duplicates *
       ! **********************
       
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - size(elem_p_reps)', size(elem_p_reps)
-!~       if (mype_filter==2) print *, 'FESOM-PDAF - obs_pCO2_SOCAT_pdafomi - elem_p_reps', elem_p_reps
-      
       dim_obs_p = 0 ! Number of observations without duplicates
       
       ALLOCATE(obs_p_sorted(dim_obs_p_reps))
@@ -478,6 +480,13 @@ CONTAINS
       
       ! go through observations one-by-one:
       do_elem_p_reps: DO e_reps=1, dim_obs_p_reps
+      
+         ! observation exclusion
+         if ((.not. (obs_p_reps(e_reps) == -999)) .and. &
+             (.not. (obs_p_reps(e_reps) <=    0)) .and. &
+             (.not. (nod1_p_reps(e_reps) <=   0)) .and. &
+             (.not. (nod2_p_reps(e_reps) <=   0)) .and. &
+             (.not. (nod3_p_reps(e_reps) <=   0))) then
          
          is_unique = .true.
          
@@ -532,7 +541,13 @@ CONTAINS
             endif ! isPP
 
          ENDIF
+         endif ! observation exclusion
       ENDDO do_elem_p_reps
+      
+      if (isPP) then
+        deallocate(nod1_g_reps,nod2_g_reps,nod3_g_reps)
+        deallocate(elem_g_reps)
+      endif
       
       ! Averaging repetitive samples
       allocate(obs_p(dim_obs_p))
@@ -576,6 +591,9 @@ CONTAINS
           
           thisobs_PP%isExclObs = 0
           
+          deallocate(nod1_g_sorted,nod2_g_sorted,nod3_g_sorted)
+          deallocate(elem_g_sorted)
+          
       endif ! isPP
       
       ! *** Set constant observation error *** 
@@ -595,9 +613,12 @@ CONTAINS
         thisobs%id_obs_p(3,i) = nod3_p_sorted(i) + offset(id%pCO2s)       
       END DO
       
-!~       WRITE (*,*) 'Pe-local inverse observation error variance: ', ivariance_obs_p
-      
-    ENDIF
+      ! clean up
+      deallocate(numrep_p)
+      deallocate(x_p,y_p,z_p)
+            
+    ENDIF ! ( dim_obs_p > 0)
+    ! continue with what needs to be done no matter if we have observations
     
     ! **************************************
     ! *** Gather full observation arrays ***
@@ -626,10 +647,11 @@ CONTAINS
     end if
     
     deallocate(ivariance_obs_p,ocoord_p,obs_p)
+    
     IF (dim_obs_p_reps>0) THEN
-    deallocate(lat_p,lon_p)
-    deallocate(nod1_p_sorted,nod2_p_sorted,nod3_p_sorted,obs_p_sorted,elem_p_sorted)
-    deallocate(nod1_p_reps,nod2_p_reps,nod3_p_reps,lon_p_reps,lat_p_reps,obs_p_reps,elem_p_reps)
+       deallocate(lat_p,lon_p)
+       deallocate(nod1_p_sorted,nod2_p_sorted,nod3_p_sorted,obs_p_sorted,elem_p_sorted)
+       deallocate(nod1_p_reps,nod2_p_reps,nod3_p_reps,lon_p_reps,lat_p_reps,obs_p_reps,elem_p_reps)
     ENDIF
     ! this_obs%id_obs_p is deallocated in PDAFomi_obs_l.F90
 

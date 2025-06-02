@@ -262,7 +262,8 @@ CONTAINS
     lradius_prof = local_range
     sradius_prof = srange
     
-    IF (.NOT.ALLOCATED(loc_radius_prof)) ALLOCATE(loc_radius_prof(mydim_nod2d))
+    IF (allocated(loc_radius_prof)) deallocate(loc_radius_prof)
+    ALLOCATE(loc_radius_prof(mydim_nod2d))
     loc_radius_prof(:) = lradius_prof
 
 
@@ -451,6 +452,9 @@ CONTAINS
              IF (stat(i) /= NF_NOERR) &
                   WRITE(*, *) 'NetCDF error in reading profile variable --- temperature, no.', i
           END DO
+          
+          deallocate(n2d_temp)
+          deallocate(nl1_temp)
         
        END IF havetemp
      
@@ -511,6 +515,9 @@ CONTAINS
              IF (stat(i) /= NF_NOERR) &
                   WRITE(*, *) 'NetCDF error in reading profile variable --- salinity, no.', i
           END DO
+          
+          deallocate(n2d_sal)
+          deallocate(nl1_sal)
 
        END IF havesal
  
@@ -575,7 +582,7 @@ CONTAINS
           DO i = 1, cnt_temp
              IF( (((mean_temp_p(thisobs%id_obs_p(1,i)) + mean_temp_p(thisobs%id_obs_p(2,i)) &
                   + mean_temp_p(thisobs%id_obs_p(3,i))) / 3.0 ) - obs_p(i)) > prof_exclude_diff) THEN
-                ivariance_obs_p(i) = 1.0 / 1.0E12
+                ivariance_obs_p(i) = 1.0E-12
                 cnt_ex_T_diff_p = cnt_ex_T_diff_p+1
              END IF
           END DO
@@ -584,14 +591,19 @@ CONTAINS
     ELSE haveobs  ! IF (dim_obs_p > 0)
        ! No valid observations
      
-       ALLOCATE(ocoord_n2d_p(2,1), obs_depth_p(1), thisobs%id_obs_p(3,1), obs_p(1), &
-            ivariance_obs_p(1))
+       ALLOCATE(ocoord_n2d_p(2,1))
+       ALLOCATE(obs_depth_p(1))
+       ALLOCATE(obs_p(1))
+       ALLOCATE(ivariance_obs_p(1))
+       
+       ALLOCATE(thisobs%id_obs_p(3,1))
+
 
        ocoord_n2d_p = 0.0 
        obs_depth_p = 0.0
        thisobs%id_obs_p = 0
        obs_p = 0.0 
-       ivariance_obs_p = 0.0
+       ivariance_obs_p = 1.0e-12
        cnt_ex_T_diff_p = 0
 
     END IF haveobs ! IF (dim_obs_p > 0)

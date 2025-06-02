@@ -123,8 +123,7 @@ SUBROUTINE init_dim_obs_pdafomi(step, dim_obs)
   ! The routines are independent, so it is not relevant
   ! in which order they are called
   
-  ! No domain_p, thus no debugging call.
-!~   CALL PDAFomi_set_debug_flag(1)
+  ! No domain_p, thus no debugging call from here
   
   IF (assim_o_sst)     CALL init_dim_obs_sst(step, dim_obs_sst)
   IF (assim_o_sss)     CALL init_dim_obs_sss(step, dim_obs_sss)
@@ -205,7 +204,7 @@ SUBROUTINE obs_op_pdafomi(step, dim_p, dim_obs, state_p, ostate)
   REAL, INTENT(in)    :: state_p(dim_p)       !< PE-local model state
   REAL, INTENT(inout) :: ostate(dim_obs)      !< PE-local full observed state
 
-! No domain_p, thus no debugging call.
+! No domain_p, thus no debugging call from here
 
 ! ******************************************************
 ! *** Apply observation operator H on a state vector ***
@@ -262,7 +261,7 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   ! General modules:
   USE PDAFomi, ONLY: PDAFomi_set_debug_flag
   USE mod_parallel_pdaf, ONLY: mype_filter
-  USE g_parsup, ONLY: myList_nod2D
+  USE g_parsup, ONLY: myList_nod2D, myDim_nod2D
   USE mod_assim_pdaf, ONLY: debug_id_nod2, mype_debug, node_debug
 
   IMPLICIT NONE
@@ -274,15 +273,17 @@ SUBROUTINE init_dim_obs_l_pdafomi(domain_p, step, dim_obs, dim_obs_l)
   INTEGER, INTENT(out) :: dim_obs_l  !< Local dimension of observation vector
    
    ! Debugging:
-!~    IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
-!~    IF ( (mype_filter==65 .AND. domain_p==915) .OR. &
-!~         (mype_filter==65 .AND. domain_p==885) .OR. &
-!~         (mype_filter==65 .AND. domain_p==268)      &
-!~       ) THEN
-!~    CALL PDAFomi_set_debug_flag(domain_p)
-!~    ELSE
-!~    CALL PDAFomi_set_debug_flag(0)
-!~    ENDIF
+!  IF (mype_filter==mype_debug .AND. modulo(domain_p,myDim_nod2D)==node_debug) THEN
+!   IF ( (mype_filter==57 .AND. modulo(domain_p,myDim_nod2D)==23)  .OR. &
+!        (mype_filter==56 .AND. modulo(domain_p,myDim_nod2D)==129) .OR. &
+!        (mype_filter==56 .AND. modulo(domain_p,myDim_nod2D)==802) .OR. &
+!        (mype_filter==56 .AND. modulo(domain_p,myDim_nod2D)==880)      &
+!        ) THEN
+!    CALL PDAFomi_set_debug_flag(domain_p)
+!    ELSE
+!   CALL PDAFomi_set_debug_flag(0)
+!   ENDIF
+
 
 
 ! **********************************************

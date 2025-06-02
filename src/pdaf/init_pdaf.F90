@@ -587,7 +587,7 @@ SUBROUTINE init_pdaf(nsteps)
     ! 1 -- valid model value
     ! 0 -- invalid because of topography
     
-    ! array dimnsions as pe-local model tracer fields
+    ! array dimensions as pe-local model tracer fields
     allocate(topography3D(nlmax,myDim_nod2D))
     DO i=1, nlmax
       DO n=1, myDim_nod2D
@@ -873,14 +873,14 @@ ENDIF
     ! create stochasticity file
     !    - at beginning of every new year
     !    - at first start of assimilation experiment
-    IF ((.not. this_is_pdaf_restart) .or. (yearnew .ne. yearold)) THEN
+    IF ((.not. (this_is_pdaf_restart .or. start_from_ENS_spinup)) .or. (yearnew .ne. yearold)) THEN
        call init_atmos_stochasticity_output()
     ENDIF
   ENDIF
   
   ! resetforget scheme: in case of restart, reset forget to 0.99 or 1.00
   ! note: at restarts, forgetting factor is saved and read with atmospheric stochasticity
-  IF (resetforget .and. this_is_pdaf_restart) THEN
+  IF (resetforget .and. (this_is_pdaf_restart .or. start_from_ENS_spinup)) THEN
     CALL PDAF_reset_forget(forget)
   ENDIF
     

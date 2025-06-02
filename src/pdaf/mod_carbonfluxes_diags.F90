@@ -607,12 +607,11 @@ SUBROUTINE carbonfluxes_diags_output_timemean_asml()
       ELSEIF (cfoutfreq_unit=='d') then
          weights = 1.0
       ENDIF
-      
-      ! DO i=1, size(cffieldsasml)
-      !    ids = cffieldsasml(i)
-      !    cffields(ids)%ensmconc = cffields(ids)%ensmconc * weights
-      !    cffields(ids)%ensmmass = cffields(ids)%ensmmass * weights
-      ! ENDDO 
+      DO i=1, size(cffieldsasml)
+         ids = cffieldsasml(i)
+         cffields(ids)%ensmconc = cffields(ids)%ensmconc * weights
+         cffields(ids)%ensmmass = cffields(ids)%ensmmass * weights
+      ENDDO 
 
       ! write time mean output
       IF (filterpe) call write_carbonfluxes_diags_out_asml()

@@ -66,6 +66,10 @@ integer, parameter :: nobs=9         ! number of observation types
 character(len=20)  :: cobstype(nobs) ! filename
 integer            :: fidobs(nobs)   ! file ID
 
+! model-observation difference exclusion
+real :: o2_merged_excl_absolutePP, o2_merged_excl_relativePP
+real :: n_merged_excl_absolutePP,  n_merged_excl_relativePP
+
 ! output
 integer, allocatable :: offset_day(:,:)       ! specifies where to write
 REAL, parameter      :: fill_value = -999.0
@@ -82,6 +86,8 @@ CONTAINS
 ! ************
 
 SUBROUTINE doPP(nsteps)
+
+   implicit none
 
    ! arguments
    integer, intent(inout) :: nsteps ! number of model time steps
@@ -112,6 +118,9 @@ SUBROUTINE doPP(nsteps)
    write(cyearnew,'(i4)') yearnew
    call clock
    
+   ! reset observation exclusion criteria
+   call reset_exclusion_limits
+   
    ! open model file
    if (writepe) then
       do isim=1,2
@@ -135,20 +144,21 @@ SUBROUTINE doPP(nsteps)
    if (writepe) then
       call create_ncfile(cobstype(iDIC    ), fidobs(iDIC    ))
       call create_ncfile(cobstype(iAlk    ), fidobs(iAlk    ))
-      ! call create_ncfile(cobstype(iO2comf ), fidobs(iO2comf ))
+      ! removed: call create_ncfile(cobstype(iO2comf ), fidobs(iO2comf ))
       call create_ncfile(cobstype(ipCO2s  ), fidobs(ipCO2s  ))
-      ! call create_ncfile(cobstype(iNcomf  ), fidobs(iNcomf  ))
-      ! call create_ncfile(cobstype(iOargo  ), fidobs(iOargo  ))
-      ! call create_ncfile(cobstype(iNargo  ), fidobs(iNargo  ))
+      ! removed: call create_ncfile(cobstype(iNcomf  ), fidobs(iNcomf  ))
+      ! removed: call create_ncfile(cobstype(iOargo  ), fidobs(iOargo  ))
+      ! removed: call create_ncfile(cobstype(iNargo  ), fidobs(iNargo  ))
       call create_ncfile(cobstype(iOmerged), fidobs(iOmerged))
       call create_ncfile(cobstype(iNmerged), fidobs(iNmerged))
    endif
    
    ! init simulation data
    allocate(state_p(2,dim_state_p))
-   IF (assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo .or. &
-       assim_o_n_comf  .or. assim_o_n_merged  .or. assim_o_n_argo )     &
-       allocate(forc_p(dim_state_p))
+   allocate(forc_p(dim_state_p))
+   ! removed: IF (assim_o_o2_comf .or. assim_o_o2_merged .or. assim_o_o2_argo .or. &
+   ! removed:    assim_o_n_comf  .or. assim_o_n_merged  .or. assim_o_n_argo )     &
+   ! removed:    allocate(forc_p(dim_state_p))
    
    ! daily time loop
    do iday=1,ndaysim
@@ -159,8 +169,10 @@ SUBROUTINE doPP(nsteps)
       ! read simulation data
       call netCDF_getstate(FRRN,daynew)
       call netCDF_getstate(ASML,daynew)
-      ! read forecast for InnoOmit / observation exclusion criteria
-      call netCDF_getforc (ASML,daynew)
+      ! use for InnoOmit / observation exclusion criteria; strictly, these are not forecast data.
+      forc_p(:)=state_p(ASML,:)
+      ! removed: read forecast for InnoOmit / observation exclusion criteria
+      ! removed: call netCDF_getforc (ASML,daynew)
       
       ! call observation modules
       call PP_DIC_GLODAP()
@@ -197,6 +209,35 @@ SUBROUTINE doPP(nsteps)
    IF (allocated(forc_p)) deallocate(forc_p)
 
 END SUBROUTINE doPP
+
+
+! ******************************
+! *** reset exclusion limits ***
+! ******************************
+! observations which are excluded in the observation model due to model-observation differences,
+! nevertheless should, for evaluation purposes, be included in the postprocessing
+
+SUBROUTINE reset_exclusion_limits()
+   use obs_o2_merged_pdafomi, &
+       only: o2_merged_excl_absolute, o2_merged_excl_relative
+   use obs_n_merged_pdafomi, &
+       only: n_merged_excl_absolute, n_merged_excl_relative
+       
+   save
+
+   ! save original limits
+   o2_merged_excl_absolutePP  = o2_merged_excl_absolute
+   o2_merged_excl_relativePP  = o2_merged_excl_relative
+   n_merged_excl_absolutePP   = n_merged_excl_absolute
+   n_merged_excl_relativePP   = n_merged_excl_relative
+   
+   ! reset limits used in observation module to zero
+   o2_merged_excl_absolute = 0
+   o2_merged_excl_relative = 0
+   n_merged_excl_absolute  = 0
+   n_merged_excl_relative  = 0
+   
+END SUBROUTINE reset_exclusion_limits
 
 
 ! ***********************
@@ -388,7 +429,7 @@ SUBROUTINE PP_DIC_GLODAP()
 
    use obs_DIC_glodap_pdafomi, &
        only: init_dim_obs_DIC_glodap, &
-       obs_op_DIC_glodap, &
+       obs_op_DIC_glodap, DIC_glodap_exclude_diff, &
        thisobs, thisobs_PP, thisobs_PP_f
    use PDAFomi_obs_f, &
        only: PDAFomi_gather_obs_f_flex
@@ -448,12 +489,19 @@ SUBROUTINE PP_DIC_GLODAP()
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%lat      , thisobs_PP_f%lat      , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%nz       , thisobs_PP_f%nz       , stats)
       
+      if (DIC_glodap_exclude_diff > 0.0) then
+         allocate(oforc_f(thisobs%dim_obs_f))
+         call obs_op_DIC_glodap(dim_state_p, thisobs%dim_obs_f, forc_p, oforc_f)
+         WHERE (ABS(oforc_f-thisobs%obs_f)>DIC_glodap_exclude_diff) &
+            thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      
       ! write output
       if (writepe) call write_ncfile(fidobs(iDIC),offset_day(iDIC,iday),thisobs,thisobs_PP_f, &
                                      ostate_f,   diff_f,   impr_f,   diffAF_f)
 
       ! clean up after have_obs
-      deallocate(ostate_f,diff_f,impr_f,diffAF_f)
+      deallocate(ostate_f,diff_f,impr_f,diffAF_f, oforc_f)
       deallocate(thisobs_PP_f%isExclObs,thisobs_PP_f%nod1_g, &
                  thisobs_PP_f%nod2_g,thisobs_PP_f%nod3_g, &
                  thisobs_PP_f%elem_g,thisobs_PP_f%lon, &
@@ -481,7 +529,7 @@ SUBROUTINE PP_Alk_GLODAP()
 
    use obs_Alk_glodap_pdafomi, &
        only: init_dim_obs_Alk_glodap, &
-       obs_op_Alk_glodap, &
+       obs_op_Alk_glodap, Alk_glodap_exclude_diff, &
        thisobs, thisobs_PP, thisobs_PP_f
    use PDAFomi_obs_f, &
        only: PDAFomi_gather_obs_f_flex
@@ -541,12 +589,19 @@ SUBROUTINE PP_Alk_GLODAP()
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%lat      , thisobs_PP_f%lat      , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%nz       , thisobs_PP_f%nz       , stats)
       
+      if (Alk_glodap_exclude_diff > 0.0) then
+            allocate(oforc_f(thisobs%dim_obs_f))
+            call obs_op_Alk_glodap(dim_state_p, thisobs%dim_obs_f, forc_p, oforc_f)
+            WHERE (ABS(oforc_f-thisobs%obs_f)>Alk_glodap_exclude_diff) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      
       ! write output
       if (writepe) call write_ncfile(fidobs(iAlk),offset_day(iAlk,iday),thisobs,thisobs_PP_f, &
                                      ostate_f,   diff_f,   impr_f,   diffAF_f)
 
       ! clean up after have_obs
-      deallocate(ostate_f,diff_f,impr_f,diffAF_f)
+      deallocate(ostate_f,diff_f,impr_f,diffAF_f, oforc_f)
       deallocate(thisobs_PP_f%isExclObs,thisobs_PP_f%nod1_g, &
                  thisobs_PP_f%nod2_g,thisobs_PP_f%nod3_g, &
                  thisobs_PP_f%elem_g,thisobs_PP_f%lon, &
@@ -679,7 +734,7 @@ SUBROUTINE PP_PCO2_SOCAT()
 
    use obs_pCO2_SOCAT_pdafomi, &
        only: init_dim_obs_pCO2_SOCAT, &
-       obs_op_pCO2_SOCAT, &
+       obs_op_pCO2_SOCAT, pCO2_SOCAT_exclude_diff, &
        thisobs, thisobs_PP, thisobs_PP_f
    use PDAFomi_obs_f, &
        only: PDAFomi_gather_obs_f_flex
@@ -738,12 +793,19 @@ SUBROUTINE PP_PCO2_SOCAT()
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%lat      , thisobs_PP_f%lat      , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%numrep   , thisobs_PP_f%numrep   , stats)
       
+      if (pCO2_SOCAT_exclude_diff > 0.0) then
+            allocate(oforc_f(thisobs%dim_obs_f))
+            call obs_op_pCO2_SOCAT(dim_state_p, thisobs%dim_obs_f, forc_p, oforc_f)
+            WHERE (ABS(oforc_f-thisobs%obs_f)>pCO2_SOCAT_exclude_diff) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      
       ! write output
       if (writepe) call write_ncfile(fidobs(ipCO2s),offset_day(ipCO2s,iday),thisobs,thisobs_PP_f, &
                                      ostate_f,   diff_f,   impr_f,   diffAF_f)
 
       ! clean up after have_obs
-      deallocate(ostate_f,diff_f,impr_f,diffAF_f)
+      deallocate(ostate_f,diff_f,impr_f,diffAF_f, oforc_f)
       deallocate(thisobs_PP_f%isExclObs,thisobs_PP_f%nod1_g, &
                  thisobs_PP_f%nod2_g,thisobs_PP_f%nod3_g, &
                  thisobs_PP_f%elem_g,thisobs_PP_f%lon, &
@@ -1060,8 +1122,16 @@ SUBROUTINE PP_DIN_MERGED()
        only: PDAFomi_gather_obs_f_flex
    use PDAFomi_obs_l, &
        only: PDAFomi_deallocate_obs
-  USE PDAFomi, &
-       ONLY: PDAFomi_set_debug_flag
+   use PDAFomi, &
+       only: PDAFomi_set_debug_flag
+       
+   implicit none
+   REAL :: excl_relative_upper, excl_relative_lower ! relative upper and lower limits for exclusion
+   
+   if (n_merged_excl_relativePP > 0.0) then
+      excl_relative_lower = 1.0 - n_merged_excl_relativePP
+      excl_relative_upper = 1.0 / excl_relative_lower
+   endif
    
    ! provide forecast data
    allocate(mean_n_p(dim_fields(id%DIN)))
@@ -1117,12 +1187,28 @@ SUBROUTINE PP_DIN_MERGED()
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%lat      , thisobs_PP_f%lat      , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%nz       , thisobs_PP_f%nz       , stats)
       
+      ! InnoOmit from global observed forecast
+      allocate(oforc_f(thisobs%dim_obs_f))
+      call obs_op_n_merged(dim_state_p, thisobs%dim_obs_f, forc_p, oforc_f)
+      ! absolute crit:
+      if (n_merged_excl_absolutePP > 0.0) then
+         WHERE (ABS(oforc_f-thisobs%obs_f)>n_merged_excl_absolutePP) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      ! relative crit:
+      if (n_merged_excl_relativePP > 0.0) then
+         WHERE (thisobs%obs_f>(excl_relative_upper*oforc_f)) &
+               thisobs_PP_f%isInnoOmit = 1.0
+         WHERE (thisobs%obs_f<(excl_relative_lower*oforc_f)) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      
       ! write output
       if (writepe) call write_ncfile(fidobs(iNmerged),offset_day(iNmerged,iday),thisobs,thisobs_PP_f, &
                                      ostate_f,   diff_f,   impr_f,   diffAF_f)
 
       ! clean up after have_obs
-      deallocate(ostate_f,diff_f,impr_f,diffAF_f)
+      deallocate(ostate_f,diff_f,impr_f,diffAF_f,oforc_f)
       deallocate(thisobs_PP_f%isExclObs,thisobs_PP_f%nod1_g, &
                  thisobs_PP_f%nod2_g,thisobs_PP_f%nod3_g, &
                  thisobs_PP_f%elem_g,thisobs_PP_f%lon, &
@@ -1158,8 +1244,16 @@ SUBROUTINE PP_O2_MERGED()
        only: PDAFomi_gather_obs_f_flex
    use PDAFomi_obs_l, &
        only: PDAFomi_deallocate_obs
-  USE PDAFomi, &
+   use PDAFomi, &
        ONLY: PDAFomi_set_debug_flag
+       
+   implicit none
+   REAL :: excl_relative_upper, excl_relative_lower ! relative upper and lower limits for exclusion
+   
+   if (o2_merged_excl_relativePP > 0.0) then
+      excl_relative_lower = 1.0 - o2_merged_excl_relativePP
+      excl_relative_upper = 1.0 / excl_relative_lower
+   endif
    
    ! provide forecast data
    allocate(mean_O2_p(dim_fields(id%O2)))
@@ -1215,12 +1309,28 @@ SUBROUTINE PP_O2_MERGED()
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%lat      , thisobs_PP_f%lat      , stats)
       CALL PDAFomi_gather_obs_f_flex(thisobs%dim_obs_p, thisobs_PP%nz       , thisobs_PP_f%nz       , stats)
       
+      ! InnoOmit from global observed forecast
+      allocate(oforc_f(thisobs%dim_obs_f))
+      call obs_op_O2_merged(dim_state_p, thisobs%dim_obs_f, forc_p, oforc_f)
+      ! absolute crit:
+      if (o2_merged_excl_absolutePP > 0.0) then
+         WHERE (ABS(oforc_f-thisobs%obs_f)>o2_merged_excl_absolutePP) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      ! relative crit:
+      if (o2_merged_excl_relativePP > 0.0) then
+         WHERE (thisobs%obs_f>(excl_relative_upper*oforc_f)) &
+               thisobs_PP_f%isInnoOmit = 1.0
+         WHERE (thisobs%obs_f<(excl_relative_lower*oforc_f)) &
+               thisobs_PP_f%isInnoOmit = 1.0
+      endif
+      
       ! write output
       if (writepe) call write_ncfile(fidobs(iOmerged),offset_day(iOmerged,iday),thisobs,thisobs_PP_f, &
                                      ostate_f,   diff_f,   impr_f,   diffAF_f)
 
       ! clean up after have_obs
-      deallocate(ostate_f,diff_f,impr_f,diffAF_f)
+      deallocate(ostate_f,diff_f,impr_f,diffAF_f,oforc_f)
       deallocate(thisobs_PP_f%isExclObs,thisobs_PP_f%nod1_g, &
                  thisobs_PP_f%nod2_g,thisobs_PP_f%nod3_g, &
                  thisobs_PP_f%elem_g,thisobs_PP_f%lon, &

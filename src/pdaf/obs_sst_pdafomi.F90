@@ -68,7 +68,6 @@ MODULE obs_sst_pdafomi
   CHARACTER(len=100) :: path_obs_sst  = ''      ! Path to SST observations
   CHARACTER(len=110) :: file_sst_prefix  = ''   ! file name prefix for SST observations 
   CHARACTER(len=110) :: file_sst_suffix  = '.nc'! file name suffix for SST observations 
-!~   CHARACTER(len=110) :: file_syntobs_sst = 'syntobs_sst.nc' ! File name for synthetic observations
 
   REAL    :: rms_obs_sst      ! Observation error standard deviation
   REAL    :: bias_obs_sst     ! SST observation bias
@@ -248,7 +247,8 @@ CONTAINS
     ! set localization radius
     lradius_sst = local_range
     sradius_sst = srange
-    IF (.NOT.ALLOCATED(loc_radius_sst)) ALLOCATE(loc_radius_sst(mydim_nod2d))
+    IF (allocated(loc_radius_sst)) deallocate(loc_radius_sst)
+    ALLOCATE(loc_radius_sst(mydim_nod2d))
     loc_radius_sst(:) = lradius_sst
 
 

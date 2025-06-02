@@ -194,16 +194,16 @@ INTEGER, ALLOCATABLE :: depth_excl(:)          ! nodes excluded in each pe
 
 ! File output and input - available as as namelist read-in
 LOGICAL :: read_inistate = .false.            ! Whether to read initial state from separate file
-CHARACTER(len=120) :: DAoutput_path  = '.'    ! Path of DAoutput
-CHARACTER(len=120) :: path_init = '.'         ! Path to initialization files
-CHARACTER(len=120) :: file_init = 'covar_'    ! netcdf file holding distributed initial
+CHARACTER(len=150) :: DAoutput_path  = '.'    ! Path of DAoutput
+CHARACTER(len=150) :: path_init = '.'         ! Path to initialization files
+CHARACTER(len=150) :: file_init = 'covar_'    ! netcdf file holding distributed initial
                                               ! state and covariance matrix (added is _XX.nc)
-CHARACTER(len=120) :: file_inistate = 'state_ini_' ! netcdf file holding distributed initial
+CHARACTER(len=150) :: file_inistate = 'state_ini_' ! netcdf file holding distributed initial
                                                    ! state (added is _XX.nc)
-CHARACTER(len=120) :: file_syntobs = 'syntobs.nc'  ! File name for synthetic observations
-CHARACTER(len=120) :: path_obs_rawprof  = ''       ! Path to profile observations
-CHARACTER(len=120) :: file_rawprof_prefix  = ''    ! file name prefix for profile observations 
-CHARACTER(len=120) :: file_rawprof_suffix  = '.nc' ! file name suffix for profile observations 
+CHARACTER(len=150) :: file_syntobs = 'syntobs.nc'  ! File name for synthetic observations
+CHARACTER(len=150) :: path_obs_rawprof  = ''       ! Path to profile observations
+CHARACTER(len=150) :: file_rawprof_prefix  = ''    ! file name prefix for profile observations 
+CHARACTER(len=150) :: file_rawprof_suffix  = '.nc' ! file name suffix for profile observations 
 LOGICAL :: ASIM_START_USE_CLIM_STATE = .true.
 
 ! Initial ensemble covariance
@@ -219,7 +219,7 @@ LOGICAL :: perturb_Alk   = .true.
 LOGICAL :: perturb_DIN   = .true.
 LOGICAL :: perturb_O2    = .true.
 
-CHARACTER(len=120) :: path_atm_cov
+CHARACTER(len=150) :: path_atm_cov
 
 ! Restart information - set in slurm-job-script:
 LOGICAL :: this_is_pdaf_restart = .false.            ! init_pdaf:        - at every start, initialize PDAF-netCDF-output
@@ -246,8 +246,9 @@ REAL                 :: coords_l(2)        ! Coordinates of local analysis domai
 INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (i.e. field of vertical water column at 1 node)
 INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
-REAL, ALLOCATABLE :: state_fcst(:,:)    ! state prior to assimilation, saved to use for correction
-REAL, ALLOCATABLE :: stdev_SSH_f_p(:)   ! forecast ensemble standard deviation at grid points for SSH field, saved to use for correction
+REAL, ALLOCATABLE :: state_fcst(:,:)       ! state prior to assimilation, saved to use for correction
+REAL, ALLOCATABLE :: state_fcst_SSH_p(:,:) ! state prior to assimilation, saved to use for correction
+REAL, ALLOCATABLE :: stdev_SSH_f_p(:)      ! forecast ensemble standard deviation at grid points for SSH field, saved to use for correction
 REAL, ALLOCATABLE :: monthly_state_f(:)       ! forecasted monthly state
 REAL, ALLOCATABLE :: monthly_state_a(:)       ! analyzed monthly state
 REAL, ALLOCATABLE :: monthly_state_m(:)       ! monthly time-mean state

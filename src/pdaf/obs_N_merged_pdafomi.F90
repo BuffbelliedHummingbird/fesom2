@@ -80,7 +80,17 @@ MODULE obs_n_merged_pdafomi
   REAL, ALLOCATABLE :: loc_radius_n_merged(:)   ! localization radius array
   
   REAL, ALLOCATABLE :: ivariance_obs_g(:)      ! global-earth inverse observation variances
+  
+  REAL, parameter   :: refdens  = 1.026        ! reference density of water for unit conversion
+  REAL, parameter   :: irefdens = 0.975        ! inverse """
+  REAL, parameter   :: third = 0.3333333333333333
 
+  INTEGER, PARAMETER :: val1 =1
+  INTEGER, PARAMETER :: val2 =2
+  INTEGER, PARAMETER :: val3 =3
+  INTEGER, PARAMETER :: dens1=4
+  INTEGER, PARAMETER :: dens2=5
+  INTEGER, PARAMETER :: dens3=6
 
 ! ***********************************************************************
 ! *** The following two data types are used in PDAFomi                ***
@@ -480,7 +490,7 @@ CONTAINS
       allocate(obs_p(1))
       allocate(ivariance_obs_p(1))
       allocate(ocoord_p(2, 1))
-      allocate(thisobs%id_obs_p(3,1))
+      allocate(thisobs%id_obs_p(6,1))
       
       obs_p=0.0
       ivariance_obs_p=1e-12
@@ -715,7 +725,7 @@ CONTAINS
          elseif (dep_p_reps(e_reps) <=    0) then
             is_included = .false.
             ncntex_dneg_p = ncntex_dneg_p +1
-         ! Node info is invalid
+         ! Invalid Node
          elseif (nod1_p_reps(e_reps) <=   0) then
             is_included = .false.
             ncntex_halo_p = ncntex_halo_p +1
@@ -973,9 +983,10 @@ CONTAINS
          esa=0
          DO e2=1, dim_obs_p_sort2
            ! model forecast at observed element
-           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           emean_fcst = irefdens * third * &
+                        (  mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
            ! loop observations at element
            num_obs = num_obs_p_sort2(e2)
            nsa=0
@@ -1061,9 +1072,10 @@ CONTAINS
          esa=0
          DO e2=1, dim_obs_p_sort2
            ! model forecast at observed element
-           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           emean_fcst = irefdens * third * &
+                        (  mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
            ! loop observations at element
            num_obs = num_obs_p_sort2(e2)
            nsa=0
@@ -1143,9 +1155,10 @@ CONTAINS
          esa=0
          DO e2=1, dim_obs_p_sort2
            ! model forecast at observed element
-           emean_fcst = 1.0/3.0 * (    mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
-                                    +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
+           emean_fcst = irefdens * third * &
+                        (  mean_n_p((nlmax) * (nod1_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod2_p_sort2(e2)-1) + nlay_p_sort2(e2)) &
+                        +  mean_n_p((nlmax) * (nod3_p_sort2(e2)-1) + nlay_p_sort2(e2)))
            ! loop observations at element
            num_obs = num_obs_p_sort2(e2)
            nsa=0
@@ -1374,11 +1387,16 @@ CONTAINS
       ! *** Initialize index vector of observed surface nodes ***
       ! This array has as many rows as required for the observation operator
       ! 1 if observations are at grid points; >1 if interpolation is required
-      allocate(thisobs%id_obs_p(3,dim_obs_p))
+      allocate(thisobs%id_obs_p(6,dim_obs_p))
       DO i = 1, dim_obs_p
-        thisobs%id_obs_p(1,i) = (nlmax) * (nod1_p(i)-1) + nlay_p(i) + offset(id%DIN)
-        thisobs%id_obs_p(2,i) = (nlmax) * (nod2_p(i)-1) + nlay_p(i) + offset(id%DIN)
-        thisobs%id_obs_p(3,i) = (nlmax) * (nod3_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        ! observed tracer
+        thisobs%id_obs_p(val1,i) = (nlmax) * (nod1_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        thisobs%id_obs_p(val2,i) = (nlmax) * (nod2_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        thisobs%id_obs_p(val3,i) = (nlmax) * (nod3_p(i)-1) + nlay_p(i) + offset(id%DIN)
+        ! density for unit conversion
+        thisobs%id_obs_p(dens1,i) = (nlmax) * (nod1_p(i)-1) + nlay_p(i) + offset(id%sigma)
+        thisobs%id_obs_p(dens2,i) = (nlmax) * (nod2_p(i)-1) + nlay_p(i) + offset(id%sigma)
+        thisobs%id_obs_p(dens3,i) = (nlmax) * (nod3_p(i)-1) + nlay_p(i) + offset(id%sigma)
       END DO
       
     ENDIF ! IF (dim_obs_p = 0) ELSEIF (dim_obs_p > 0)
@@ -1520,7 +1538,7 @@ CONTAINS
 
     USE PDAFomi, &
          ONLY: PDAFomi_obs_op_gridavg, &
-               PDAFomi_set_debug_flag
+               PDAFomi_gather_obsstate
 
     IMPLICIT NONE
 
@@ -1529,18 +1547,60 @@ CONTAINS
     INTEGER, INTENT(in) :: dim_obs               !< Dimension of full observed state (all observed fields)
     REAL, INTENT(in)    :: state_p(dim_p)        !< PE-local model state
     REAL, INTENT(inout) :: ostate(dim_obs)       !< Full observed state
+    
+    REAL, ALLOCATABLE   :: ostate_p(:)           !< Pe-local observed state
+    INTEGER :: i                                 !< Counters
 
 ! ******************************************************
 ! *** Apply observation operator H on a state vector ***
 ! ******************************************************
 
-! For profile observations handled here, the observation
-! operator has to average the values of 3 grid points.
-! For this the observation operator OBS_OP_F_GRIDAVG is used.
-
     IF (thisobs%doassim == 1) THEN
-       CALL PDAFomi_obs_op_gridavg(thisobs, 3, state_p, ostate)
-    END IF
+
+       IF (thisobs%dim_obs_p>0) THEN
+       ! have obs
+          ALLOCATE(ostate_p(thisobs%dim_obs_p))
+          
+          IF (isPP) then
+            DO i = 1, thisobs%dim_obs_p
+                ! -- unit conversion:
+                !    from milli mol per m3 (model) --> micro mol per kg (observations)
+                ! -- average values of 3 grid points
+                ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) * irefdens &
+                               + state_p(thisobs%id_obs_p(val2,i)) * irefdens &
+                               + state_p(thisobs%id_obs_p(val3,i)) * irefdens &
+                               ) * third
+            END DO
+          ELSE
+            ! initialize observed pe-local state vector
+            DO i = 1, thisobs%dim_obs_p
+                ! -- unit conversion:
+                !    from milli mol per m3 (model) --> micro mol per kg (observations)
+                ! -- average values of 3 grid points
+                   ostate_p(i) =  ( state_p(thisobs%id_obs_p(val1,i)) / state_p(thisobs%id_obs_p(dens1,i)) &
+                                  + state_p(thisobs%id_obs_p(val2,i)) / state_p(thisobs%id_obs_p(dens2,i)) &
+                                  + state_p(thisobs%id_obs_p(val3,i)) / state_p(thisobs%id_obs_p(dens3,i)) &
+                                  ) * third
+            END DO
+          ENDIF ! isPP
+                    
+       ELSE
+       ! habe no obs
+          ALLOCATE(ostate_p(1))
+       END IF
+
+       ! *** Global: Gather full observed state vector
+       CALL PDAFomi_gather_obsstate(thisobs, ostate_p, ostate)
+       
+       ! clean up
+       deallocate(ostate_p)
+
+       ! For profile observations handled here, the observation
+       ! operator has to average the values of 3 grid points.
+       ! For this the observation operator OBS_OP_F_GRIDAVG is used.
+       ! CALL PDAFomi_obs_op_gridavg(thisobs, 3, state_p, ostate)
+    
+    END IF ! (thisobs%doassim == 1)
 
   END SUBROUTINE obs_op_n_merged
 

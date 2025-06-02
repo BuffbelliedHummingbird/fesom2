@@ -76,7 +76,7 @@ INTEGER, PARAMETER :: ff=1, aa=2, mm=3, ii=4 ! forecast (ff), analysis (aa), mea
 INTEGER, PARAMETER :: sf=5, sa=6, si=7, sm=8 ! ensemble standard deviation snapshots: forecast (sf), analysis (sa), initial (si) and mean (sm)
 INTEGER, PARAMETER :: oo=1, ee=2, dd=3       ! any output (oo), ensemble members (ee) and daily values (dd)
 
-LOGICAL :: setoutput(17)
+LOGICAL :: setoutput(18)
                                              
 CONTAINS
 
@@ -1109,6 +1109,28 @@ IF (setoutput(17)) THEN
       sfields(id% DIN) % output(ff,oo) = .True. ! activate
       sfields(id% DIN) % output(ff,dd) = .True. ! daily
 ENDIF
+
+! ___________________________________________________________________________
+! ___ write daily analysis of assimilate-able BGC variables ensemble mean ___
+IF (setoutput(18)) THEN
+  ! activate m-field output
+  sfields(id% PhyChl) % output(aa,oo) = .True.
+  sfields(id% DiaChl) % output(aa,oo) = .True.
+  sfields(id% DIC)    % output(aa,oo) = .True.
+  sfields(id% Alk)    % output(aa,oo) = .True.
+  sfields(id% pCO2s)  % output(aa,oo) = .True.
+  sfields(id% O2)     % output(aa,oo) = .True.
+  sfields(id% DIN)    % output(aa,oo) = .True.
+  ! set to daily
+  sfields(id% PhyChl) % output(aa,dd) = .True.
+  sfields(id% DiaChl) % output(aa,dd) = .True.
+  sfields(id% DIC)    % output(aa,dd) = .True.
+  sfields(id% Alk)    % output(aa,dd) = .True.
+  sfields(id% pCO2s)  % output(aa,dd) = .True.
+  sfields(id% O2)     % output(aa,dd) = .True.
+  sfields(id% DIN)    % output(aa,dd) = .True.
+ENDIF
+
 
 ! ________________________
 ! ___ FINALIZE        ____
