@@ -7,7 +7,7 @@
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
 
-#SBATCH --job-name=test
+#SBATCH --job-name=BGCJan10
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -476,6 +476,12 @@ done # loop over legs
         # Need to go to dir to find the run script
         cd ${start_dir}
         # Submit command
+        sbatch job_albedo_restart
+    elif [ ${IsInLine} -eq 1 ]
+     then
+	# submit post processing
+	cd ${start_dir}
+        cd ../PP_test
         sbatch job_albedo_restart
     fi
 

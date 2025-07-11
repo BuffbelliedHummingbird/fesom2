@@ -110,14 +110,17 @@ file_bias_prefix = 'chlobsdiff.runmean.smooth.core2.dist72_'
 assim_o_DIC_glodap = .true.
 path_obs_DIC_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/DIC_molkg/'
 rms_obs_DIC_glodap = 4
+DIC_glodap_exclude_diff = 200
 
 assim_o_Alk_glodap = .true.
 path_obs_Alk_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/Alk_molkg/'
 rms_obs_Alk_glodap = 4
+Alk_glodap_exclude_diff = 250
 
 assim_o_pCO2_SOCAT = .true.
 path_obs_pCO2_SOCAT = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/SOCAT/pCO2/'
 rms_obs_pCO2_SOCAT = 5
+pCO2_SOCAT_exclude_diff = 700
 
 assim_o_O2_comf = .false.
 path_obs_O2_comf = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/COMFORT/O2/'
@@ -140,14 +143,14 @@ rms_obs_N_argo = 0.3
 N_argo_exclude_diff = 20
 
 assim_o_O2_merged = .true.
-path_obs_O2_merged = '/albedo/work/user/frbunsen/data/BGC/O2/'
+path_obs_O2_merged = '/albedo/work/user/frbunsen/data/BGC/O2_molkg/'
 rms_obs_O2_merged = 10
 o2_merged_exclude_diff = 0
 o2_merged_excl_absolute = 125
 o2_merged_excl_relative = 0.9
 
 assim_o_N_merged = .true.
-path_obs_N_merged = '/albedo/work/user/frbunsen/data/BGC/DIN/'
+path_obs_N_merged = '/albedo/work/user/frbunsen/data/BGC/DIN_molkg/'
 rms_obs_N_merged = 2
 N_merged_exclude_diff = 0
 N_merged_excl_absolute = 20

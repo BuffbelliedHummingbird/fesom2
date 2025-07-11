@@ -7,7 +7,7 @@
 #SBATCH --hint=nomultithread
 #SBATCH --qos=12h
 
-#SBATCH --job-name=addDIN
+#SBATCH --job-name=BGCJan10
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -29,7 +29,7 @@ info "Let's get started."
 JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 
 # Directories:
-exp_name='test_COM-ALKDICpCO2CHLAnoO2DIN2'
+exp_name='test_COM-ALKDICpCO2CHLAnoO2DIN'
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
@@ -41,7 +41,7 @@ NENSstr=`printf %02d $NENS`
 
 # Simulation start and end date. Use any (reasonable) syntax you want.
 run_start_date="2010-01-01"
-run_end_date="2012-01-01"
+run_end_date="2021-01-01"
 
 # Restart frequency. Use any (reasonable) number and time unit you want.
 # For runs without restart, leave this variable empty.
@@ -128,6 +128,7 @@ do
     leg_start_date_yyyymmdd=$(date -u -d "${leg_start_date}" +%Y%m%d)
     leg_start_date_yyyy=$(date -u -d "${leg_start_date}" +%Y)
     leg_end_date_yyyy=$(date -u -d "${leg_end_date}" +%Y)
+    nextjob=$(date -u -d "${leg_end_date}" +%b%y)
     
     leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
     step_null=$((32*(10#${leg_start_dayofyear}-1))) # 32 is number of time steps per day
@@ -157,8 +158,8 @@ do
             then
                 info "Bye bye, test data! Removing everything in run directory."
 		rm -fr ${run_dir}/*
-		info "NOT fetching compiled model executable from bin."
-		# cp ${start_dir}/../../bin/fesom.x ${start_dir}/
+		# info "Fetching compiled model executable from bin, overwriting existing."
+		# cp -f ${start_dir}/../../bin/fesom.x ${start_dir}/
             else
                 error "Run directory not empty and \${force_run_from_scratch} not set."
             fi
@@ -231,19 +232,19 @@ do
             
             cd ${run_dir}/${ENSstr}
     
-            info "Link executable of model component."
-            time ln -s ${start_dir}/fesom.x .
+            info "Link executable of model component from homedir to /work/"${ENSstr}
+            ln -s ${start_dir}/fesom.x .
             
-            info "Copy namelist files."
+            info "Copy namelist files from homedir to /work/"${ENSstr}
             cp ${start_dir}/namelist.* .
             
 	    info "Adapt namelist files."
-	    timernamelist1=$SECONDS
+	    #timernamelist1=$SECONDS
             # adapt paths for ensemble members
             sed -i `grep -n ResultPath     ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             sed -i `grep -n DAoutput_path  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
-            timenamelist=$(echo $timernamelist + $SECONDS | bc)
-	    info $timenamelist
+	    #timenamelist=$(echo $SECONDS - $timernamelist1 | bc)
+	    #info $timenamelist
 
             # *** Restart files needed for FESOM-REcoM
             cp ../../restart_files/fesom.clock .
@@ -251,9 +252,9 @@ do
 	    if $BGC_init_ens
 	    then
 		    echo 'Preparing individual restart files for member '${ENS4str}
-		    time ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
-		    time ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).oce.restart.nc .
-		    time ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).ice.restart.nc .
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).oce.restart.nc .
+		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).ice.restart.nc .
                     
 		    for((pe=0;pe<$fes_numproc;pe++))
 	            do
@@ -262,7 +263,7 @@ do
 		    done
 	    else
 		    echo 'Copy identical restart files for member '${ENS4str}
-		    time ln -fs ../../restart_files/*.nc .
+		    ln -fs ../../restart_files/*.nc .
 	    fi
          done
     
@@ -475,6 +476,8 @@ done # loop over legs
         info "Resubmitting job for leg $((leg_number+1))"
         # Need to go to dir to find the run script
         cd ${start_dir}
+
+	sed -i "$(grep -n '#SBATCH --job-name=' job_albedo_restart | cut -d ':' -f 1)c #SBATCH --job-name=BGC${nextjob}" job_albedo_restart
         # Submit command
         sbatch job_albedo_restart
     fi
