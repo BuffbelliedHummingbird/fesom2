@@ -437,9 +437,11 @@ SUBROUTINE init_pdaf(nsteps)
   
   nfields = 44
 
+  ! physics part of state vector, specify start and end:
   phymin = 1
   phymax = 10
   
+  ! BGC part of state vector, specify start and end:
   bgcmin = 11
   bgcmax = nfields
   

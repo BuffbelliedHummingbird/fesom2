@@ -774,7 +774,7 @@ sfields(id% sigma) % bgc = .false.
   
   ! ___________
   ! ___2D/3D___
-  ! count number of 3D and 2D fields
+  ! count number of 3D and 2D fields (tracers and diagnostics)
   nfields_3D = 0
   nfields_2D = 0
   DO b=1,nfields
@@ -817,7 +817,7 @@ sfields(id% sigma) % bgc = .false.
   
   ! ________________________
   ! ___ model 3D tracers ___
-  ! count number of 3D model tracer fields in state vector
+  ! count number of 3D model tracer fields in state vector (only tracers)
   nfields_tr3D = 0
   DO b=1,nfields
    IF (sfields(b)% trnumfesom > 0) nfields_tr3D = nfields_tr3D + 1
@@ -895,8 +895,7 @@ sfields(id% sigma) % bgc = .false.
 !      False  - monthly
 
 ! Defaults: False
-
-! activate one (or multiple if not contradictory) of the following:
+! activate one (or multiple if not contradictory - think!) of the following predefined output schemes:
 
 ! ___________________________________________________________
 ! ___ write daily forecast and analysis ensemble members  ___

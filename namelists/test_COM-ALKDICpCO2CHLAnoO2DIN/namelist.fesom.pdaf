@@ -84,7 +84,7 @@ file_prof_suffix='.nc'
 rms_obs_T=0.8
 rms_obs_S=0.5
 
-! if "proffiles_o" is activated, the programme does not enter the model time stepping loop. Instead, a routine is called that processes EN4 raw data and distributes the observations to the model grid. The programm ends afterwards, aborting the simulation.
+! if "proffiles_o=1", a routine is called that processes EN4 raw data and distributes the observations to the model grid. The programme ends afterwards without entering the main model time stepping loop (no simulation). 
  
 path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/'
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
@@ -245,6 +245,7 @@ write_atmos_st = .false. ! whether to protocol perturbed atmospheric fields (eve
 /
 
 ! Namelist for postprocessing:
+! if "isPP=True", a routine is called that compares existing output and observations. The programme does not run a simulation.
 &pp
 isPP = .false.
 yearPP = 2010
@@ -252,18 +253,18 @@ pathsim(1)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_B
 pathsim(2)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/test_DIC/work/01/'
 /
 
-! Namelist for output frequency:
+! Namelist for output frequency, predefined cases:
 &pdafoutput
-setoutput( 1)=.false. ! daily forecast and analysis ensemble members
-setoutput( 2)=.false. ! daily forecast and analysis ensemble mean
-setoutput( 3)=.true.  ! monthly forecast and analysis ensemble mean of updated variables
-setoutput( 4)=.false. ! daily m-fields ensemble mean
-setoutput( 5)=.false. ! initial fields ensemble mean
-setoutput( 6)=.false. ! initial fields ensemble members
-setoutput( 7)=.true.  ! monthly m-fields ensemble mean
-setoutput( 8)=.false. ! daily m-fields of assimilated variables ensemble mean
-setoutput( 9)=.true.  ! daily m-fields of assimilate-able BGC variables ensemble mean
-setoutput(10)=.true.  ! daily m-fields of CO2 flux and pCO2 ensemble mean
+setoutput( 1)=.false. ! daily forecast and analysis, ensemble members
+setoutput( 2)=.false. ! daily forecast and analysis, ensemble mean
+setoutput( 3)=.true.  ! monthly forecast and analysis, ensemble mean of updated variables
+setoutput( 4)=.false. ! daily m-fields, ensemble mean
+setoutput( 5)=.false. ! initial fields, ensemble mean
+setoutput( 6)=.false. ! initial fields, ensemble members
+setoutput( 7)=.true.  ! monthly m-fields, ensemble mean
+setoutput( 8)=.false. ! daily m-fields of assimilated variables, ensemble mean
+setoutput( 9)=.true.  ! daily m-fields of assimilate-able BGC variables, ensemble mean
+setoutput(10)=.true.  ! daily m-fields of CO2 flux and pCO2, ensemble mean
 setoutput(11)=.true.  ! daily m-fields of variables defining the CO2 flux
 setoutput(12)=.false. ! initial fields standard deviation
 setoutput(13)=.false. ! daily forecast of standard deviation
@@ -271,6 +272,6 @@ setoutput(14)=.false. ! monthly forecast of standard deviation
 setoutput(15)=.true.  ! monthly forecast and analysis of standard deviation for updated fields
 setoutput(16)=.true.  ! monthly m-fields of standard deviation
 setoutput(17)=.false. ! if O2 and/or DIN assimilated: daily forecasts
-setoutput(18)=.false. ! daily analysis of assimilate-able BGC variables ensemble mean
+setoutput(18)=.false. ! daily analysis of assimilate-able BGC variables, ensemble mean
 /
 
