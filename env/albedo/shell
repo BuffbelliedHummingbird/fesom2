@@ -1,7 +1,8 @@
 # make the contents as shell agnostic as possible so we can include them with bash, zsh and others
 # module load intel-oneapi-compilers
-module load intel-oneapi-compilers/2024.1.0 
-export FC="mpiifort -qmkl" CC=mpiicc CXX=mpiicpc
+module load intel-oneapi-compilers/2024.1.0
+# export FC="mpiifort -qmkl" CC=mpiicc CXX=mpiicpc # standard compiler options
+export FC="mpiifort -qmkl -check bounds -diag-disable=10448 -diag-disable=10121" CC=mpiicc CXX=mpiicpc # debugging compiler options (frauke)
 module load intel-oneapi-mpi/2021.6.0
 
 module load intel-oneapi-mkl/2022.1.0
@@ -9,7 +10,7 @@ module load netcdf-fortran/4.5.4-intel-oneapi-mpi2021.6.0-oneapi2022.1.0
 module load netcdf-c/4.8.1-intel-oneapi-mpi2021.6.0-oneapi2022.1.0
 
 # from DKRZ recommented environment variables on levante
-# (https://docs.dkrz.de/doc/levante/running-jobs/runtime-settings.html) 
+# (https://docs.dkrz.de/doc/levante/running-jobs/runtime-settings.html)
 export HCOLL_ENABLE_MCAST_ALL="0"
 export HCOLL_MAIN_IB=mlx5_0:1
 export UCX_IB_ADDR_TYPE=ib_global

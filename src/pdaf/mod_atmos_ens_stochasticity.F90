@@ -117,6 +117,8 @@ LOGICAL :: write_atmos_st = .false. ! wether to protocol the perturbed atmospher
 
 REAL :: stable_rmse = 0 ! (ocean temperature) ensemble spread after 16 months of assimilation
 
+LOGICAL :: debugging = .FALSE.
+
 CONTAINS
 
 ! ************************************
@@ -378,6 +380,8 @@ IF (mype_model==0) THEN
    END DO
 
    Omega_v = Omega(task_id,:)
+   
+   IF ((mype_world==0) .and. debugging) WRITE (*,'(a,8x,a,g0)') 'FESOM-PDAF', 'Random omega_v(1) for atmosphere: ', Omega_v(1)
 
 END IF
 
