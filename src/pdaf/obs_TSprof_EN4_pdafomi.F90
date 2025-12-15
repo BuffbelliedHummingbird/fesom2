@@ -777,24 +777,23 @@ CONTAINS
 
     IF (thisobs%doassim == 1) THEN
     
-       lradius_prof = loc_radius_prof(modulo(domain_p,myDim_nod2D))
+       lradius_prof = loc_radius_prof(mod(domain_p-1,myDim_nod2D)+1)
        
        ! ************************************************************
        ! *** Adapt observation error for coupled DA (double loop) ***
        ! ************************************************************
     
-       if (n_sweeps>1) then
-       
+       if (n_sweeps>1) then   
           ! Physics observations sweep.
           if (domain_p==1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                   '--- PHY sweep: leave ivar_obs_f for SST as it is'
+                   '--- PHY sweep: leave ivar_obs_f for EN4 as it is'
           ! BGC observations sweep.
           elseif (domain_p==myDim_nod2D+1) then
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
-                  '--- BIO sweep: set ivar_obs_f for SST to 1.0e-12'
+                  '--- BIO sweep: set ivar_obs_f for EN4 to 1.0e-12'
              thisobs%ivar_obs_f = 1.0e-12
           end if
        end if ! n_sweeps

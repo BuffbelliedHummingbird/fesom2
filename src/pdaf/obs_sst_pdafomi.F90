@@ -601,9 +601,9 @@ CONTAINS
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
-          CALL get_adaptive_lradius_pdaf(domain_p, lradius_sst, loc_radius_sst)
+          CALL get_adaptive_lradius_pdaf(mod(domain_p-1,myDim_nod2D)+1, lradius_sst, loc_radius_sst)
        END IF
-       lradius_sst = loc_radius_sst(modulo(domain_p,myDim_nod2D))
+       lradius_sst = loc_radius_sst(mod(domain_p-1,myDim_nod2D)+1)
 
 !~        if (mype_filter==0) &
 !~                   write (*,'(a,4x,a,4x,i5,4x,i5)') 'FESOM-PDAF', &

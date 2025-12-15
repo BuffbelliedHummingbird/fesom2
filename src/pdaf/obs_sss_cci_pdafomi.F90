@@ -598,9 +598,9 @@ CONTAINS
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
-          CALL get_adaptive_lradius_pdaf(domain_p, lradius_sss_cci, loc_radius_sss_cci)
+          CALL get_adaptive_lradius_pdaf(mod(domain_p-1,myDim_nod2D)+1, lradius_sss_cci, loc_radius_sss_cci)
        END IF
-       lradius_sss_cci = loc_radius_sss_cci(modulo(domain_p,myDim_nod2D))
+       lradius_sss_cci = loc_radius_sss_cci(mod(domain_p-1,myDim_nod2D)+1)
 
 !~        if (mype_filter==44) CALL PDAFomi_set_debug_flag(1)
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l

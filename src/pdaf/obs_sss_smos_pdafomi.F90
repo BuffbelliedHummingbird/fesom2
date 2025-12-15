@@ -54,7 +54,9 @@ MODULE obs_sss_smos_pdafomi
   USE PDAFomi, &
        ONLY: obs_f, obs_l, & ! Declaration of observation data types
        PDAFomi_set_debug_flag
-
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps        ! Variables for coupled data assimilation
+       
   IMPLICIT NONE
   SAVE
 
@@ -590,9 +592,25 @@ CONTAINS
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
-          CALL get_adaptive_lradius_pdaf(domain_p, lradius_sss, loc_radius_sss)
+          CALL get_adaptive_lradius_pdaf(mod(domain_p-1,myDim_nod2D)+1, lradius_sss, loc_radius_sss)
        END IF
-       lradius_sss = loc_radius_sss(modulo(domain_p,myDim_nod2D))
+       lradius_sss = loc_radius_sss(mod(domain_p-1,myDim_nod2D)+1)
+       
+       ! adapt observation error for coupled DA (double loop)
+       if (n_sweeps>1) then
+          ! Physics observations sweep.
+          if (domain_p==1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: leave ivar_obs_f for SSS (SMOS) as it is'
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for SSS (SMOS) to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+          end if
+       end if ! n_sweeps
 
 !~        if (mype_filter==44) CALL PDAFomi_set_debug_flag(1)
 !~        if (mype_filter==44 .and. domain_p==1) write(*,*) 'Frauke: thisobs_l% dim_obs_l', thisobs_l% dim_obs_l

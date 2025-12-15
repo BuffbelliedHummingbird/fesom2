@@ -53,6 +53,8 @@ MODULE obs_ssh_cmems_pdafomi
        ONLY: mype_filter     ! Rank of filter process
   USE PDAFomi, &
        ONLY: obs_f, obs_l    ! Declaration of observation data types
+  USE mod_assim_pdaf, &
+       ONLY: n_sweeps        ! Variables for coupled data assimilation
 
   IMPLICIT NONE
   SAVE
@@ -542,9 +544,10 @@ CONTAINS
 
     ! Include PDAFomi function
     USE PDAFomi, ONLY: PDAFomi_init_dim_obs_l
-
     ! Include localization radius and local coordinates
     USE mod_assim_pdaf, ONLY: coords_l, locweight, loctype
+    ! Number of domains per sweep:
+    USE g_parsup, ONLY: myDim_nod2D
 
     IMPLICIT NONE
 
@@ -562,11 +565,26 @@ CONTAINS
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
-          CALL get_adaptive_lradius_pdaf(domain_p, lradius_ssh, loc_radius_ssh)
+          CALL get_adaptive_lradius_pdaf(mod(domain_p-1,myDim_nod2D)+1, lradius_ssh, loc_radius_ssh)
        END IF
-       lradius_ssh = loc_radius_ssh(domain_p)
+       lradius_ssh = loc_radius_ssh(mod(domain_p-1,myDim_nod2D)+1)
 
-
+       ! adapt observation error for coupled DA (double loop)
+       if (n_sweeps>1) then
+          ! Physics observations sweep.
+          if (domain_p==1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                   '--- PHY sweep: leave ivar_obs_f for SSH as it is'
+          ! BGC observations sweep.
+          elseif (domain_p==myDim_nod2D+1) then
+             if (mype_filter==0) &
+                  write (*,'(a,4x,a)') 'FESOM-PDAF', &
+                  '--- BIO sweep: set ivar_obs_f for SSH to 1.0e-12'
+             thisobs%ivar_obs_f = 1.0e-12
+          end if
+       end if ! n_sweeps
+       
        CALL PDAFomi_init_dim_obs_l(thisobs_l, thisobs, coords_l, &
             locweight, lradius_ssh, sradius_ssh, dim_obs_l)
     END IF

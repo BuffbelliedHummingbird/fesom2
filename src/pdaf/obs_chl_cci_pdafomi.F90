@@ -690,9 +690,9 @@ CONTAINS
     IF (thisobs%doassim == 1) THEN
        IF (loctype == 1) THEN
           ! *** Variable localization radius for fixed effective observation dimension ***
-          CALL get_adaptive_lradius_pdaf(domain_p, lradius_chl_cci, loc_radius_chl_cci)
+          CALL get_adaptive_lradius_pdaf(mod(domain_p-1,myDim_nod2D)+1, lradius_chl_cci, loc_radius_chl_cci)
        END IF
-       lradius_chl_cci = loc_radius_chl_cci(modulo(domain_p,myDim_nod2D))
+       lradius_chl_cci = loc_radius_chl_cci(mod(domain_p-1,myDim_nod2D)+1)
 
 !~        IF (mype_filter==mype_debug .AND. domain_p==node_debug) THEN
 !~          CALL PDAFomi_set_debug_flag(domain_p)
