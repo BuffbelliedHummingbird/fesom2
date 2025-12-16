@@ -262,13 +262,13 @@ REAL, ALLOCATABLE :: monthly_state_sm(:)       ! monthly time-mean standard devi
 REAL, ALLOCATABLE :: timemean_s(:)
 
 ! whether to compute monthly means:
-LOGICAL :: compute_monthly_ff
-LOGICAL :: compute_monthly_aa
-LOGICAL :: compute_monthly_mm
+LOGICAL :: compute_monthly_ff = .false.
+LOGICAL :: compute_monthly_aa = .false.
+LOGICAL :: compute_monthly_mm = .false.
 
-LOGICAL :: compute_monthly_sf
-LOGICAL :: compute_monthly_sa
-LOGICAL :: compute_monthly_sm
+LOGICAL :: compute_monthly_sf = .false.
+LOGICAL :: compute_monthly_sa = .false.
+LOGICAL :: compute_monthly_sm = .false.
 
 
 ! Julian-Gregorian date transformation of EN4 raw data 
