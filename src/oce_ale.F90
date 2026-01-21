@@ -2554,13 +2554,6 @@ subroutine oce_timestep_ale(n, mesh)
     real(kind=8)      :: t0,t1, t2, t30, t3, t4, t5, t6, t7, t8, t9, t10, loc, glo
     integer           :: n, node
     type(t_mesh), intent(in) , target :: mesh
-    
-!~ #ifdef use_PDAF
-!~     ! mod_carbon_fluxes_diags
-!~     real, allocatable :: wlayers(:,:)
-!~     integer, allocatable :: tracerlist(:)
-!~     integer :: trcounter
-!~ #endif
 
 #include "associate_mesh.h"
 

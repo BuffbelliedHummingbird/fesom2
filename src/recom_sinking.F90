@@ -184,6 +184,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting
          vd_flux(nz)= - tv*area(nz,n)
          
 #ifdef use_PDAF
+        IF (.not. simplify_debug17) THEN ! simplify_debug-17
         IF ((nz>1) .and. (nz<=nlmax+1)) THEN
         ! mod_carbonfluxes_diags
         ! sum of tracers here; at begin of tracer loop in oce_ale_tracer.F90, sum is set to zero
@@ -205,6 +206,7 @@ if (1) then ! 3rd Order DST Sceheme with flux limiting
             cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) = cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) + (-tv)
         endif
        ENDIF ! (nz<=nlmax)
+       ENDIF ! simplify_debug-17
 #endif
          
       end do
@@ -235,6 +237,7 @@ if (0) then ! simple upwind
          vd_flux(nz)= tv*area(nz,n)
 
 #ifdef use_PDAF
+        IF (.not. simplify_debug18) THEN ! simplify_debug-18
         IF ((nz>1) .and. (nz<=nlmax+1)) THEN
         ! mod_carbonfluxes_diags
         ! sum of tracers here; at begin of tracer loop in oce_ale_tracer.F90, sum is set to zero
@@ -256,6 +259,7 @@ if (0) then ! simple upwind
             cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) = cffields(id_t_sink_livingmatter)% instantconc(nz-1,n) + (-tv)
         endif
        ENDIF ! (nz<=nlmax)
+       ENDIF ! simplify_debug-18
 #endif
 
       end do
@@ -271,6 +275,7 @@ end if ! simple upwind
          vert_sink(nz,n) = vert_sink(nz,n) + (vd_flux(nz)-vd_flux(nz+1))*dt/areasvol(nz,n)/hnode(nz,n) !/hnode_new(nz,n) !/(zbar_3d_n(nz,n)-zbar_3d_n(nz+1,n))
          
 #ifdef use_PDAF
+        IF (.not. simplify_debug19) THEN ! simplify_debug-19
         IF (nz<=nlmax) THEN
         ! mod_carbonfluxes_diags
         ! sum of tracers here; at begin of tracer loop in oce_ale_tracer.F90, sum is set to zero
@@ -299,10 +304,13 @@ end if ! simple upwind
                cffields(id_s_sink_livingmatter)% instantmass(nz,n) = cffields(id_s_sink_livingmatter)% instantmass(nz,n) + vert_sink(nz,n)/dt*areasvol(nz,n)*hnode(nz,n)
         endif
        ENDIF ! (nz<=nlmax)
+       ENDIF ! simplify_debug-19
 #endif
          
       end do
-      
+
+#ifdef use_PDAF      
+      IF (.not. simplify_debug20) THEN ! simplify_debug-20
       ! sum of detritus tracers export at 200m for state vector (at begin of tracer loop in oce_ale_tracer.F90, sum is zero)
         if (tracer_id(tr_num) == 1008 .or.    &   ! idetc
             tracer_id(tr_num) == 1021 .or.    &   ! idetcal
@@ -313,14 +321,18 @@ end if ! simple upwind
               export(n) = export(n) + vd_flux(16)/area(16,n) ! nz=16 at depth of 190m
             endif
         endif
+      ENDIF ! simplify_debug-20
+#endif
       
    end do ! do n = 1,myDim_nod2D
    
 #ifdef use_PDAF
+   IF (.not. simplify_debug21) THEN ! simplify_debug-21
    if (cfdiags_debug) then
       vname_cfdiags = 's_export'
       call debug_vert(vname_cfdiags,cffields(id_s_sink_deadmatter)% instantmass)
    endif
+   ENDIF ! simplify_debug-21
 #endif
 
 end if ! Vsink .gt. 0.1

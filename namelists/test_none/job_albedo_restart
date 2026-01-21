@@ -7,7 +7,7 @@
 #SBATCH --hint=nomultithread
 #SBATCH --qos=30min
 
-#SBATCH --job-name=tSST
+#SBATCH --job-name=tNON
 #SBATCH -o slurm-out.out
 #SBATCH -e slurm-err.out
 
@@ -36,7 +36,7 @@ JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
 #    path/exp_name/start/             # model logfile will be written here
                                       # contents of this directory (modified namelists and executable fesom.x) will be copied to path/exp_name/start
 
-exp_name='test_sst'  # name of experiment
+exp_name='test_none'  # name of experiment
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
@@ -57,7 +57,7 @@ NENSstr=`printf %02d $NENS`
 #   run_end_date="2020-01-04"
 
 run_start_date="2010-01-01"
-run_end_date="2010-01-02"
+run_end_date="2010-01-03"
 
 # Set restart frequency. Examples:
 # Multiple restarts for 10-year-experiment:
@@ -65,7 +65,7 @@ run_end_date="2010-01-02"
 # Run 3-day experiment in one go without restarts:
 # rst_freq="3 days"
 
-rst_freq="1 day"
+rst_freq="2 days"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:

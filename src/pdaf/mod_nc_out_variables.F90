@@ -54,6 +54,7 @@ type state_field
    integer :: trnumfesom = -999           ! Tracer index in FESOM-REcoM
    integer :: tridfesom = -999            ! Tracer ID in FESOM-REcoM
    integer :: id_tr = -999                ! Field index in list of 3D model tracer fields
+   logical :: IsInStateL = .false.
 end type state_field
 
 type(state_field), allocatable :: sfields(:) ! Type variable holding the
@@ -754,10 +755,14 @@ sfields(id% sigma) % bgc = .false.
   sfields(id% NPPd     ) % updated = upd_NPPd
   sfields(id% export   ) % updated = upd_export
   
+  do b=1,nfields
+     sfields(p) % IsInStateL = sfields(p) % updated
+     sfields(b) % IsInStateL = sfields(b) % updated
+  enddo
   
   ! Physics not assimilated and coupling weak: No update to physics
   IF ((.not. assimilatePHY) .and. (cda_phy=='weak')) THEN
-     do p=phymin,phymax
+     do p=phymin,phymax 
        sfields(p) % updated = .false.
      enddo
   ENDIF

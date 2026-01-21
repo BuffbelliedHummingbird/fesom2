@@ -71,6 +71,12 @@ SUBROUTINE assimilate_pdaf(istep)
        init_dim_obs_l_pdafomi        ! Get dimension of obs. vector for local analysis domain
   ! Subroutines used for generating observations
   EXTERNAL :: get_obs_f_pdaf         ! Get vector of synthetic observations from PDAF
+  
+  ! Variables for debugging:
+  LOGICAL :: simplify_assim = .false.
+  
+  ! Possibility to reduce functionality for debugging purposes
+  simplify_assim = .true.
 
 ! *********************************
 ! *** Call assimilation routine ***
@@ -130,6 +136,7 @@ SUBROUTINE assimilate_pdaf(istep)
      IF ( .not. ALLOCATED(ensm_p ))            ALLOCATE(ensm_p (dim_state_p))
      IF ( .not. ALLOCATED(stdev_p) .and. w_sm) ALLOCATE(stdev_p(dim_state_p))
      
+     IF (.not. simplify_assim) THEN ! simplify_assim-01
      ! *** in between assimilation steps, add forecast steps to m-fields ***
      ! note: assimilation step is at first time step of day
      IF (assim_flag == 0) THEN
@@ -148,7 +155,9 @@ SUBROUTINE assimilate_pdaf(istep)
            IF (w_sm) timemean_s  = timemean_s  + stdev_p / delt_obs_ocn
         ENDIF ! filterpe
      ENDIF ! assim_flag
+     ENDIF ! simplify_assim-01
      
+     IF (.not. simplify_assim) THEN ! simplify_assim-02
      ! *** compute monthly means ***
      IF (filterpe) THEN
      IF (IsLastStepDay) THEN
@@ -162,26 +171,37 @@ SUBROUTINE assimilate_pdaf(istep)
         IF (compute_monthly_mm) monthly_state_m  = monthly_state_m  * weights
         IF (compute_monthly_sm) monthly_state_sm = monthly_state_sm * weights
      ENDIF
+     ENDIF ! simplify_assim-02
      
      ! *** write output and reset to zero ***
      IF (IsLastStepMonth) THEN
+        IF (.not. simplify_assim) THEN ! simplify_assim-03
         ! monthly and daily output
         IF (w_dayensm .or. w_monensm) CALL netCDF_out('mm',timemean  , int0, IsLastStepMonth, m_state_p=monthly_state_m )
         IF (w_dayensm .or. w_monensm) CALL netCDF_out('sm',timemean_s, int0, IsLastStepMonth, m_state_p=monthly_state_sm)
+        ENDIF ! simplify_assim-03
+        IF (.not. simplify_assim) THEN ! simplify_assim-04
         ! reset monthly and daily
         timemean = 0
         if (w_sm) timemean_s = 0
         if (compute_monthly_mm) monthly_state_m = 0
         if (compute_monthly_sm) monthly_state_sm = 0
+        ENDIF ! simplify_assim-04
      ELSEIF (IsLastStepDay) THEN
+        IF (.not. simplify_assim) THEN ! simplify_assim-05
         ! daily output
         IF (w_dayensm)            CALL netCDF_out('mm',timemean,   int0, IsLastStepMonth)
         IF (w_dayensm .and. w_sm) CALL netCDF_out('sm',timemean_s, int0, IsLastStepMonth)
+        ENDIF ! simplify_assim-05
+        IF (.not. simplify_assim) THEN ! simplify_assim-06
         ! reset daily
         timemean = 0
         if (w_sm) timemean_s = 0
+        ENDIF ! simplify_assim-06
      ENDIF
      ENDIF ! filterpe
   ENDIF ! w_mm
+  
+  
 
 END SUBROUTINE assimilate_pdaf

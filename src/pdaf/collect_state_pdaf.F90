@@ -165,7 +165,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
            state_p(s) = 1e-3 * sigma0(k, i)
         ENDDO
    ENDDO
-   
+      
    ! ________________
    ! model 3D tracers
    ! ________________

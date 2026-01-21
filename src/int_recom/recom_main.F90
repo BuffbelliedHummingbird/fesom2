@@ -149,6 +149,8 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> bio_fluxes'
      Diags3Dloc(:,:) = 0.d0
      
 #ifdef use_PDAF
+IF (.not. simplify_debug23) THEN ! simplify_debug-23
+
      nlay = min(nzmax,nlmax)
      ! initialize local carbon flux diags
      allocate(cffields(id_s_bio_dic)         %loc(nlay))
@@ -159,6 +161,8 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> bio_fluxes'
      cffields(id_s_bio_livingmatter)%loc = 0.d0
      cffields(id_s_bio_deadmatter)  %loc = 0.d0
      cffields(id_s_bio_alk)         %loc = 0.d0
+     
+ENDIF ! simplify_debug-23
 #endif
 
 if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forcing'//achar(27)//'[0m'
@@ -203,6 +207,8 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
      end do
      deallocate(Diags3Dloc)
 #ifdef use_PDAF
+IF (.not. simplify_debug24) THEN ! simplify_debug-24
+
      ! local diagnostics to global field
      
      cffields(id_s_bio_dic         )%instantconc(1:nlay,n) = cffields(id_s_bio_dic)         %loc(1:nlay)          
@@ -213,6 +219,7 @@ if (recom_debug .and. mype==0) print *, achar(27)//'[36m'//'     --> REcoM_Forci
      deallocate(cffields(id_s_bio_livingmatter)%loc )
      deallocate(cffields(id_s_bio_deadmatter)  %loc )
      deallocate(cffields(id_s_bio_alk)         %loc )
+ENDIF ! simplify_debug-24
 #endif
 
   end do

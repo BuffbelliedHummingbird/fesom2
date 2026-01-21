@@ -123,7 +123,8 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
             do nz=nu12, nl12
                 fct_LO(nz, enodes(1))=fct_LO(nz, enodes(1))+adv_flux_hor(nz, e)
                 fct_LO(nz, enodes(2))=fct_LO(nz, enodes(2))-adv_flux_hor(nz, e)
-#ifdef use_PDAF        
+#ifdef use_PDAF 
+                IF (.not. simplify_debug13) THEN ! simplify_debug-13       
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
@@ -156,6 +157,7 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
                    cffields(idcf)%instantmass(nz, enodes(1)) = cffields(idcf)%instantmass(nz, enodes(1)) + adv_flux_hor(nz, e)
                    cffields(idcf)%instantmass(nz, enodes(2)) = cffields(idcf)%instantmass(nz, enodes(2)) - adv_flux_hor(nz, e)
                 ENDIF
+                ENDIF ! simplify_debug-13
 #endif
             end do
         end do
@@ -171,7 +173,8 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
             !!PS do  nz=1, nlevels_nod2D(n)-1
             do  nz= nu1, nl1-1
                 fct_LO(nz,n)=(ttf(nz,n)*hnode(nz,n)+(fct_LO(nz,n)+(adv_flux_ver(nz, n)-adv_flux_ver(nz+1, n)))*dt/areasvol(nz,n))/hnode_new(nz,n)
-#ifdef use_PDAF        
+#ifdef use_PDAF 
+                IF (.not. simplify_debug14) THEN ! simplify_debug-14       
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
@@ -202,6 +205,7 @@ subroutine do_oce_adv_tra(ttf, ttfAB, vel, w, wi, we, do_Xmoment, dttf_h, dttf_v
                    ! mass
                    cffields(idcf)%instantmass(nz,n) = cffields(idcf)%instantmass(nz,n) + (adv_flux_ver(nz,n)-adv_flux_ver(nz+1,n))
                 ENDIF
+                ENDIF ! simplify_debug-14
 #endif
             end do
         end do
@@ -333,7 +337,8 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
         nl1 = nlevels_nod2D(n)
         do nz=nu1,nl1-1  
             dttf_v(nz,n)=dttf_v(nz,n) + (flux_v(nz,n)-flux_v(nz+1,n))*dt/areasvol(nz,n)
-#ifdef use_PDAF        
+#ifdef use_PDAF 
+                IF (.not. simplify_debug15) THEN ! simplify_debug-15       
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
@@ -364,6 +369,7 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
                    ! mass
                    cffields(idcf)%instantmass(nz,n) = cffields(idcf)%instantmass(nz,n) + (flux_v(nz,n)-flux_v(nz+1,n))
                 ENDIF
+                ENDIF ! simplify_debug-15
 #endif
         end do
     end do
@@ -391,7 +397,8 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
         do nz=nu12, nl12
             dttf_h(nz,enodes(1))=dttf_h(nz,enodes(1))+flux_h(nz,edge)*dt/areasvol(nz,enodes(1))
             dttf_h(nz,enodes(2))=dttf_h(nz,enodes(2))-flux_h(nz,edge)*dt/areasvol(nz,enodes(2))
-#ifdef use_PDAF        
+#ifdef use_PDAF 
+                IF (.not. simplify_debug16) THEN ! simplify_debug-16       
                 ! select tracer ID for SMS diagnostics
                 thistracer = .true.
                 IF      (tr_num== 5) THEN
@@ -424,6 +431,7 @@ subroutine oce_tra_adv_flux2dtracer(dttf_h, dttf_v, flux_h, flux_v, mesh, tr_num
                    cffields(idcf)%instantmass(nz, enodes(1)) = cffields(idcf)%instantmass(nz, enodes(1)) + flux_h(nz, edge)
                    cffields(idcf)%instantmass(nz, enodes(2)) = cffields(idcf)%instantmass(nz, enodes(2)) - flux_h(nz, edge)
                 ENDIF
+                ENDIF ! simplify_debug-16
 #endif
         end do
     end do

@@ -49,7 +49,7 @@ ssh_fixed_rmse=.true.
 bias_obs_ssh=0.5
 lradius_ssh=3.0e5
 
-ASSIM_O_sst = .true.
+ASSIM_O_sst = .false.
 path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
 file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist72_'
 file_sst_suffix ='.nc'
@@ -161,7 +161,7 @@ perturb_params_bio= .true.
 perturb_params_phy= .true.
 perturb_scale=0.25
 
-assimilateBGC=.false.
+assimilateBGC=.true.
 assimilatePHY=.true.
 /
 

@@ -84,7 +84,7 @@ file_prof_suffix='.nc'
 rms_obs_T=0.8
 rms_obs_S=0.5
 
-! if "proffiles_o" is activated, the programme does not enter the model time stepping loop. Instead, a routine is called that processes EN4 raw data and distributes the observations to the model grid. The programm ends afterwards, aborting the simulation.
+! if "proffiles_o=1", a routine is called that processes EN4 raw data and distributes the observations to the model grid. The programme ends afterwards without entering the main model time stepping loop (no simulation). 
  
 path_obs_rawprof='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/Temp-Salt-3D/EN4/'
 file_rawprof_prefix='EN.4.2.2.f.profiles.c14.'
@@ -93,7 +93,7 @@ proffiles_o=0  ! 0: No processing of EN4 raw profile data.
 start_year_o = 2016
 end_year_o   = 2016
 
-assim_o_chl_cci = .true.
+assim_o_chl_cci = .false.
 rms_obs_chl_cci = 0.3
 path_obs_chl_cci = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/chlsurf_OC-CCI/CORE2_daily/dist_72/'
 file_chl_cci_prefix = ''
@@ -107,17 +107,17 @@ chl_logarithmic = .true.
 path_bias = '/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/FREE/work/01/chlobsdiff_dist72/'
 file_bias_prefix = 'chlobsdiff.runmean.smooth.core2.dist72_'
 
-assim_o_DIC_glodap = .true.
+assim_o_DIC_glodap = .false.
 path_obs_DIC_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/DIC_molkg/'
 rms_obs_DIC_glodap = 4
 DIC_glodap_exclude_diff = 200
 
-assim_o_Alk_glodap = .true.
+assim_o_Alk_glodap = .false.
 path_obs_Alk_glodap = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/GLODAP/Alk_molkg/'
 rms_obs_Alk_glodap = 4
 Alk_glodap_exclude_diff = 250
 
-assim_o_pCO2_SOCAT = .true.
+assim_o_pCO2_SOCAT = .false.
 path_obs_pCO2_SOCAT = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/SOCAT/pCO2/'
 rms_obs_pCO2_SOCAT = 5
 pCO2_SOCAT_exclude_diff = 700
@@ -142,33 +142,33 @@ path_obs_N_argo = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/ARGO/DIN/
 rms_obs_N_argo = 0.3
 N_argo_exclude_diff = 20
 
-assim_o_O2_merged = .true.
+assim_o_O2_merged = .false.
 path_obs_O2_merged = '/albedo/work/user/frbunsen/data/BGC/O2_molkg/'
 rms_obs_O2_merged = 10
 o2_merged_exclude_diff = 0
 o2_merged_excl_absolute = 125
 o2_merged_excl_relative = 0.9
 
-assim_o_N_merged = .true.
+assim_o_N_merged = .false.
 path_obs_N_merged = '/albedo/work/user/frbunsen/data/BGC/DIN_molkg/'
 rms_obs_N_merged = 2
 N_merged_exclude_diff = 0
 N_merged_excl_absolute = 20
-N_merged_excl_relative = 0
+N_merged_excl_relative = 0 
 
 ! Wether to perturb BGC parameters:
-perturb_params_bio=.false.
+perturb_params_bio=.true.
 perturb_params_phy=.true.
 perturb_scale=0.25
 
-assimilateBGC=.true.
+assimilateBGC=.false.
 assimilatePHY=.true.
 /
 
 ! Settings for Parallelization:
 &pdaf_parallel
 
-dim_ens=2
+dim_ens=02
 /
 
 ! Which state variables to be affected by the assimilation:
@@ -183,7 +183,7 @@ upd_salt  =.true.
 upd_ice   =.false.      ! required for observation exclusion criterion; not affected by assimilation
 upd_MLD1  =.false.      ! diagnostic
 upd_MLD2  =.false.      ! diagnostic
-upd_sigma =.false.      ! required for unit conversion
+upd_sigma =.false.      ! required for unit conversion 
 
 upd_PhyChl    = .true.
 upd_DiaChl    = .true.
@@ -245,6 +245,7 @@ write_atmos_st = .false. ! whether to protocol perturbed atmospheric fields (eve
 /
 
 ! Namelist for postprocessing:
+! if "isPP=True", a routine is called that compares existing output and observations. The programme does not run a simulation.
 &pp
 isPP = .false.
 yearPP = 2010
@@ -252,24 +253,25 @@ pathsim(1)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_B
 pathsim(2)='/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/test_DIC/work/01/'
 /
 
-! Namelist for output frequency:
+! Namelist for output frequency, predefined cases:
 &pdafoutput
-setoutput( 1)=.false. ! daily forecast and analysis ensemble members
-setoutput( 2)=.false. ! daily forecast and analysis ensemble mean
-setoutput( 3)=.true.  ! monthly forecast and analysis ensemble mean of updated variables
-setoutput( 4)=.true.  ! daily m-fields ensemble mean
-setoutput( 5)=.false. ! initial fields ensemble mean
-setoutput( 6)=.false. ! initial fields ensemble members
-setoutput( 7)=.false. ! monthly m-fields ensemble mean
-setoutput( 8)=.false. ! daily m-fields of assimilated variables ensemble mean
-setoutput( 9)=.true.  ! daily m-fields of assimilate-able BGC variables ensemble mean
-setoutput(10)=.true.  ! daily m-fields of CO2 flux and pCO2 ensemble mean
+setoutput( 1)=.false. ! daily forecast and analysis, ensemble members
+setoutput( 2)=.false. ! daily forecast and analysis, ensemble mean
+setoutput( 3)=.false. ! monthly forecast and analysis, ensemble mean of updated variables
+setoutput( 4)=.false. ! daily m-fields, ensemble mean
+setoutput( 5)=.false. ! initial fields, ensemble mean
+setoutput( 6)=.false. ! initial fields, ensemble members
+setoutput( 7)=.true.  ! monthly m-fields, ensemble mean
+setoutput( 8)=.false. ! daily m-fields of assimilated variables, ensemble mean
+setoutput( 9)=.false. ! daily m-fields of assimilate-able BGC variables, ensemble mean
+setoutput(10)=.true.  ! daily m-fields of CO2 flux and pCO2, ensemble mean
 setoutput(11)=.true.  ! daily m-fields of variables defining the CO2 flux
 setoutput(12)=.false. ! initial fields standard deviation
 setoutput(13)=.false. ! daily forecast of standard deviation
 setoutput(14)=.false. ! monthly forecast of standard deviation
-setoutput(15)=.true.  ! monthly forecast and analysis of standard deviation for updated fields
+setoutput(15)=.false. ! monthly forecast and analysis of standard deviation for updated fields
 setoutput(16)=.true.  ! monthly m-fields of standard deviation
-setoutput(17)=.true.  ! if COMF-O2 assimilated: daily O2 forecast
+setoutput(17)=.false. ! if O2 and/or DIN assimilated: daily forecasts
+setoutput(18)=.false. ! daily analysis of assimilate-able BGC variables, ensemble mean
 /
 

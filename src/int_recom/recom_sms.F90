@@ -1761,6 +1761,8 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
 ! Diagnostics: Carbon fluxes
 
 #ifdef use_PDAF
+IF (.not. simplify_debug22) THEN ! simplify_debug-22
+
   if (k<=nlmax) then
 ! ***************
 ! *** s_bio_dic
@@ -1896,6 +1898,8 @@ subroutine REcoM_sms(n,Nn,state,thick,recipthick,SurfSR,sms,Temp,SinkVel,zF,PAR,
     cffields(id_s_bio_alk)% loc(k) =  sms(k,ialk)
 
   endif ! (k<=nlmax)
+  
+ENDIF ! simplify_debug-22
 #endif
 
   end do ! Main vertikal loop ends

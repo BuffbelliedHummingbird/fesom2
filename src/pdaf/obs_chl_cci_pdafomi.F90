@@ -439,6 +439,9 @@ CONTAINS
 ! *** and initialize index and coordinate arrays.         ***
 ! ***********************************************************
 
+    ! make all observations invalid for debugging purposes
+    ! all_obs_p = 1.0e6
+
     ! *** Count PE-local number of observations ***
     dim_obs_p = 0
     DO i = 1, myDim_nod2d
@@ -533,14 +536,23 @@ CONTAINS
 		
 	ELSE ! (i.e. dim_obs_p==0)
 	
-		ALLOCATE(obs_p(1))
-		ALLOCATE(ivariance_obs_p(1))
-		ALLOCATE(ocoord_n2d_p(2, 1))
-		ALLOCATE(thisobs%id_obs_p(2,1))
-		thisobs%id_obs_p = 0
+		! ALLOCATE(obs_p(1))
+		! ALLOCATE(ivariance_obs_p(1))
+		! ALLOCATE(ocoord_n2d_p(2, 1))
+		! ALLOCATE(thisobs%id_obs_p(2,1))
+		! thisobs%id_obs_p = 0
+		! 
+		! ALLOCATE(obs_include_index(1))
+		! ALLOCATE(obs_error_p(1))
 		
-		ALLOCATE(obs_include_index(1))
-		ALLOCATE(obs_error_p(1))
+		ALLOCATE(obs_p(0))
+		ALLOCATE(ivariance_obs_p(0))
+		ALLOCATE(ocoord_n2d_p(2, 0))
+		ALLOCATE(thisobs%id_obs_p(2,0))
+		! thisobs%id_obs_p = 0
+		
+		ALLOCATE(obs_include_index(0))
+		ALLOCATE(obs_error_p(0))
 		
 	ENDIF haveobs
 
@@ -548,15 +560,15 @@ CONTAINS
 ! *** No global observations? - Fictional ***
 ! *******************************************
 
-    IF (dim_obs_p==0) THEN
-       obs_p=1.0
-       ivariance_obs_p=1E-12
-       ocoord_n2d_p(1,1)=1.57
-       ocoord_n2d_p(2,1)=0.0
-       thisobs%id_obs_p(1,1)=offset(id% PhyChl)+1
-       thisobs%id_obs_p(2,1)=offset(id% DiaChl)+1
-       dim_obs_p=1
-    ENDIF
+!    IF (dim_obs_p==0) THEN
+!       obs_p=1.0
+!       ivariance_obs_p=TINY(rms_obs_chl_cci) !1E-12
+!       ocoord_n2d_p(1,1)=1.57
+!       ocoord_n2d_p(2,1)=0.0
+!       thisobs%id_obs_p(1,1)=offset(id% PhyChl)+1
+!       thisobs%id_obs_p(2,1)=offset(id% DiaChl)+1
+!       dim_obs_p=1
+!    ENDIF
 
 ! **************************************
 ! *** Gather full observation arrays ***
@@ -628,7 +640,8 @@ CONTAINS
        IF (thisobs%dim_obs_p>0) THEN
           ALLOCATE(ostate_p(thisobs%dim_obs_p))
        ELSE
-          ALLOCATE(ostate_p(1))
+          ! ALLOCATE(ostate_p(1))
+          ALLOCATE(ostate_p(0))
        END IF
        
        ! Initialize observed pe-local state vector by sum of rows 1 and 2 (DiaChl and PhyChl)
@@ -721,7 +734,7 @@ CONTAINS
              if (mype_filter==0) &
                   write (*,'(a,4x,a)') 'FESOM-PDAF', &
                    '--- PHY sweep: set ivar_obs_f for CHL to 1.0e-12'
-             thisobs%ivar_obs_f = 1.0e-12
+             thisobs%ivar_obs_f = TINY(rms_obs_chl_cci) ! 1.0e-12
              
           ! BGC observations sweep.
           elseif (domain_p==myDim_nod2D+1) then

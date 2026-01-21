@@ -1,27 +1,70 @@
+#!/bin/bash
+#SBATCH --account=biogeo_model.p_recompdaf
+#SBATCH --partition=mpp
+#SBATCH --ntasks=288
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:15:00
+#SBATCH --hint=nomultithread
+#SBATCH --qos=30min
+
+#SBATCH --job-name=tSSTCHL
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+
+# Note: If this is not a PDAF-Restart, remove the
+# "rm work/ece.info"
+# file from previous test runs manually!
+
+#set -x
+#ulimit -s unlimited
+
 export OMP_NUM_THREADS=1
 source ../../env/albedo/shell
 source ./librunscript.sh # librunscript defines some helper functions
 module load cdo
 
-info "Let's get started."
+echo "Let's get started."
 
-# Directories:
-exp_name='test'
+# determine JOBID
+JOBID=`echo $SLURM_JOB_ID |cut -d"." -f1`
+
+# Set the result path here. run_dir must end with '/work'
+# The directory structure is:
+#    path/exp_name/restart_files/     # create this directoty and place the initial restart files here
+#    path/exp_name/work/              # model output will be written here
+#    path/exp_name/work/01/           # ensemble member output will be written to subdirectories
+#    path/exp_name/start/             # model logfile will be written here
+                                      # contents of this directory (modified namelists and executable fesom.x) will be copied to path/exp_name/start
+
+exp_name='test_sstchl'  # name of experiment
 start_dir=${PWD}
 run_dir=/albedo/work/projects/p_recompdaf/frbunsen/modelruns/fesom2/update_BGC_tests/${exp_name}/work
 
+echo "The output directory (rundir) is: $run_dir"
+
 # Settings:
-NENS=40          # number of ensembles --> namelist.fesom.pdaf
-fes_numproc=72   # ntasks divided by NENS
+NENS=04          # number of ensembles
+fes_numproc=72   # ntasks must be: multiplication of NENS and fes_numproc
 
 NENSstr=`printf %02d $NENS`
 
-# Simulation start and end date. Use any (reasonable) syntax you want.
+# Set simulation start and end date. Examples:
+# 10-year experiment:
+#   run_start_date="2010-01-01"
+#   run_end_date="2021-01-01"
+# 3-day experiment:
+#   run_start_date="2010-01-01"
+#   run_end_date="2020-01-04"
+
 run_start_date="2010-01-01"
 run_end_date="2010-01-02"
 
-# Restart frequency. Use any (reasonable) number and time unit you want.
-# For runs without restart, leave this variable empty.
+# Set restart frequency. Examples:
+# Multiple restarts for 10-year-experiment:
+#   rst_freq="6 months"
+# Run 3-day experiment in one go without restarts:
+# rst_freq="3 days"
+
 rst_freq="1 day"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
@@ -29,16 +72,26 @@ rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 run_num_legs=1
 
 # Set $force_run_from_scratch to 'true' if you want to remove files
-# from previous test runs from $run_dir.
-# NOTE: If set to 'true', the run directory $run_dir is cleaned!
+# from previous test runs from $run_dir and do a clean start.
+# NOTE: If set to 'true', the run directory $run_dir is cleared and data deleted!
 force_run_from_scratch=true
 
-# This file is used to store information about restarts
+# This file is used to save information about restarts:
 ece_info_file="ece.info"
 
-# For a fresh start:
-# Whether to start from a perturbed BGC ensemble and initialize the restart files accordingly:
+# Type of initial restart:
+# set true to start from an ensemble of restart files
+# set false to start from a single restart file
 BGC_init_ens=true
+
+# ----------------------------------------------------------------------
+# *** Read platform dependent configuration
+# ----------------------------------------------------------------------
+
+# Resubmit this job for automatic restarts? [true/false]
+# Also, add options for the resubmit command here.
+resubmit_job=true
+resubmit_opt=""
 
 # ----------------------------------------------------------------------
 # *** Create the run dir if necessary and go there
@@ -57,19 +110,20 @@ cd ${run_dir}
 run_start_date=$(date -uR -d "${run_start_date}")
 run_end_date=$(date -uR -d "${run_end_date}")
 
-# Loop over the number of legs, counting downwards (we put 1).
+# Loop over the number of restart legs, counting downwards (we put 1).
 for (( ; run_num_legs>0 ; run_num_legs-- ))
 do
 
     # Check for restart information file and set the current leg start date
-
     if ! [ -r ${ece_info_file} ]; then
+        # have no information from previous restart legs
         leg_is_restart=false
         leg_start_date=${run_start_date}
         leg_number=1
     else
+        # read information from previous restart legs
         leg_is_restart=true
-	BGC_init_ens=false
+	    BGC_init_ens=false
         . ./${ece_info_file} # set leg start and end date from ece.info file
         leg_start_date=${leg_end_date}
         leg_number=$((leg_number+1))
@@ -86,13 +140,14 @@ do
         leg_end_date=${run_end_date}
     fi
 
-    # Some time variables needed later
+    # Some time and date variables needed later
     leg_length_sec=$(( $(date -d "${leg_end_date}" +%s) - $(date -d "${leg_start_date}" +%s) ))
     leg_start_sec=$(( $(date -d "${leg_start_date}" +%s) - $(date -d "${run_start_date}" +%s) ))
     leg_end_sec=$(( $(date -d "${leg_end_date}" +%s) - $(date -d "${run_start_date}" +%s) ))
     leg_start_date_yyyymmdd=$(date -u -d "${leg_start_date}" +%Y%m%d)
     leg_start_date_yyyy=$(date -u -d "${leg_start_date}" +%Y)
     leg_end_date_yyyy=$(date -u -d "${leg_end_date}" +%Y)
+    nextjob=$(date -u -d "${leg_end_date}" +%b%y)
     
     leg_start_dayofyear=$(date -d "${leg_start_date}" +%j)
     step_null=$((32*(10#${leg_start_dayofyear}-1))) # 32 is number of time steps per day
@@ -100,10 +155,22 @@ do
     # Compute days since beginning of first leg:
     days_since_DAstart=$(( ($(date -d "${leg_start_date}" +%s) - $(date -d "${run_start_date}" +%s))/86400+1))
 
+    echo "Simulation period:"
+    echo "Now pending restart simulation - same as the full experiment if there are no restarts:"
+    echo "   leg_end_date        =$leg_end_date"
+    echo "   leg_start_date      =$leg_start_date"
+    echo "   restart_length      =${rst_freq_number}"
+    echo "   restart_length_unit ='${rst_freq_unit}'"
+    echo "Full experiment:"
+    echo "   run_start_date      =$run_start_date"
+    echo "   run_end_date        =$run_end_date"
+    echo "   run_length          =${rst_freq_number}"
+    echo "   run_length_unit     ='${rst_freq_unit}'"
+
     # Check whether there's actually time left to simulate - exit otherwise
     if [ ${leg_length_sec} -le 0 ]; then
-        info "Leg start date equal to or after end of simulation."
-        info "Nothing left to do. Exiting."
+        echo "Leg start date equal to or after end of simulation."
+        echo "Nothing left to do. Exiting."
         exit 0
     fi
 
@@ -120,24 +187,27 @@ do
 	    then
             if ${force_run_from_scratch} 
             then
-                info "Bye bye, test data! Removing everything in run directory."
+                echo "\${force_run_from_scratch}: Deleting everything in run directory."
 		rm -fr ${run_dir}/*
+		echo "\${force_run_from_scratch}: Fetching most recently compiled model executable from bin and overwriting existing."
+		cp -f ${start_dir}/../../bin/fesom.x ${start_dir}/
             else
                 error "Run directory not empty and \${force_run_from_scratch} not set."
             fi
         fi
         
-        # Set namelists from jobscript settings
+        echo "Preparing start_dir. Editing namelist.fesom.pdaf and namelist.config."
+	# Set namelists from jobscript settings
         sed -i `grep -n dim_ens              ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c dim_ens=$NENS"                            ${start_dir}/namelist.fesom.pdaf
         
         sed -i `grep -n restart_length_unit  ${start_dir}/namelist.config     | cut -d ':' -f 1`"c restart_length_unit='${rst_freq_unit}'"   ${start_dir}/namelist.config
         
-        sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
+        sed -i `grep -n restart_length=     ${start_dir}/namelist.config      | cut -d ':' -f 1`"c restart_length=${rst_freq_number}"        ${start_dir}/namelist.config
+        
+	    sed -i `grep -n run_length=          ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length=${rst_freq_number}"            ${start_dir}/namelist.config
         
         sed -i `grep -n run_length_unit      ${start_dir}/namelist.config     | cut -d ':' -f 1`"c run_length_unit='${rst_freq_unit}'"       ${start_dir}/namelist.config
-	   
-        sed -i `grep -n restart_length=     ${start_dir}/namelist.config      | cut -d ':' -f 1`"c restart_length=${rst_freq_number}"        ${start_dir}/namelist.config
-
+	    
 	# Set namelists based on DA start date
         sed -i `grep -n this_is_pdaf_restart ${start_dir}/namelist.fesom.pdaf | cut -d ':' -f 1`"c this_is_pdaf_restart=.false."             ${start_dir}/namelist.fesom.pdaf
 	    
@@ -155,13 +225,13 @@ do
         # Path to JRA forcing
         yearnew=$leg_start_date_yyyy
         if (( yearnew >= 2020 && yearnew <= 2023 )); then
-          info "Setting to JRA 1.5 forcing"
+          echo "Setting to JRA 1.5 forcing. Editing namelist.forcing."
           jrapath='/albedo/work/projects/p_pool_recom/forcing/JRA55-do-v1.5.0.1/'
         elif (( yearnew >= 1958 && yearnew <= 2019 )); then
-          info "Setting to JRA 1.4 forcing"
+          echo "Setting to JRA 1.4 forcing. Editing namelist.forcing."
           jrapath='/albedo/work/projects/p_pool_fesom1/forcing/JRA55-do-v1.4.0/'
         else
-          info "No atmospheric forcing for this year!"
+          error "No atmospheric forcing for this year! Writing empty path to namelist.forcing."
         fi
         
         sed -i `grep -n  nm_xwind_file  ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_xwind_file ='${jrapath}/uas.'"  ${start_dir}/namelist.forcing
@@ -175,7 +245,7 @@ do
         sed -i `grep -n  nm_mslp_file   ${start_dir}/namelist.forcing | cut -d ':' -f 1`"c  nm_mslp_file  ='${jrapath}/psl.'"  ${start_dir}/namelist.forcing
 
         # Prepare the run directory
-	    info "Preparing a new run directory."
+	    echo "Preparing a new run directory."
 	    mkdir -p ${run_dir}/../start
 	    cp -r ${start_dir}/* ${run_dir}/../start
 
@@ -183,7 +253,7 @@ do
         do
             ENSstr=`printf %02d $i`
             ENS4str=`printf %04d $i`
-            echo 'Preparing files for member '${ENS4str}
+            echo ${ENS4str}': Preparing files for member '${ENS4str}
 
             if [ ! -d ${run_dir}/${ENSstr} ]; then
                 mkdir -p ${run_dir}/${ENSstr}
@@ -193,13 +263,13 @@ do
             
             cd ${run_dir}/${ENSstr}
     
-            # *** Link executable of model component
-	        cp ${start_dir}/../../bin/fesom.x ${start_dir}/
+            echo ${ENS4str}": Linking executable of model component from this directory to /work/"${ENSstr}
             ln -s ${start_dir}/fesom.x .
             
-            # *** Copy namelist files
+            echo ${ENS4str}": Copying namelist files from homedir to /work/"${ENSstr}
             cp ${start_dir}/namelist.* .
             
+	        echo ${ENS4str}": Editing namelist.config for ensemble member output."
             # adapt paths for ensemble members
             sed -i `grep -n ResultPath     ${run_dir}/${ENSstr}/namelist.config     | cut -d ':' -f 1`"c ResultPath='${run_dir}/${ENSstr}/'"     ${run_dir}/${ENSstr}/namelist.config
             sed -i `grep -n DAoutput_path  ${run_dir}/${ENSstr}/namelist.fesom.pdaf | cut -d ':' -f 1`"c DAoutput_path='${run_dir}/${ENSstr}/'"  ${run_dir}/${ENSstr}/namelist.fesom.pdaf
@@ -209,7 +279,7 @@ do
 
 	    if $BGC_init_ens
 	    then
-		    echo 'Preparing individual restart files for member '${ENS4str}
+		    echo ${ENS4str}': Init from an ensemble of restart files. Linking restart files for member '${ENS4str}.
 		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).bio.restart.nc .
 		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).oce.restart.nc .
 		    ln -fs ../../restart_files/ens${NENSstr}/${ENSstr}/fesom.$((${leg_start_date_yyyy}-1)).ice.restart.nc .
@@ -220,18 +290,19 @@ do
 	                ln -fs ../../../restart_files/ens${NENSstr}/${ENSstr}/pdafrestart/pdafrestart_00${pe2str}_$((${leg_start_date_yyyy}-1)).nc pdafrestart/
 		    done
 	    else
-		    echo 'Copy identical restart files for member '${ENS4str}
+		    echo ${ENS4str}': Init from a single restart file. Linking the restart files for member '${ENS4str}
 		    ln -fs ../../restart_files/*.nc .
 	    fi
          done
     
     else # if ! $leg_is_restart
     
+            echo "This is a PDAF-restart."
             for((i=1;i<=$NENS;i++))
             do
                 ENSstr=`printf %02d $i`
                 ENS4str=`printf %04d $i`
-                echo 'preparing namelists...'${ENS4str}
+                echo ${ENS4str}': Preparing namelists at restart...'${ENS4str}
                 cd ${run_dir}/${ENSstr}
                 
                 # update namelists for restart date
@@ -246,13 +317,13 @@ do
                # update path to JRA forcing for restart year
                yearnew=$leg_start_date_yyyy
                if (( yearnew >= 2020 && yearnew <= 2023 )); then
-                 info "Setting to JRA 1.5 forcing"
+                 info ${ENS4str}": Editing namelist.forcing at restart. Setting to JRA 1.5 forcing."
                  jrapath='/albedo/work/projects/p_pool_recom/forcing/JRA55-do-v1.5.0.1/'
                elif (( yearnew >= 1958 && yearnew <= 2019 )); then
-                 info "Setting to JRA 1.4 forcing"
+                 info ${ENS4str}": Editing namelist.forcing at restart. Setting to JRA 1.4 forcing."
                  jrapath='/albedo/work/projects/p_pool_fesom1/forcing/JRA55-do-v1.4.0/'
                else
-                 info "No atmospheric forcing for this year!"
+                 error ${ENS4str}": Editing namelist.forcing at restart to empty: No atmospheric forcing for this year!"
                fi
                
                sed -i `grep -n  nm_xwind_file  ${run_dir}/${ENSstr}/namelist.forcing | cut -d ':' -f 1`"c  nm_xwind_file ='${jrapath}/uas.'"  ${run_dir}/${ENSstr}/namelist.forcing
@@ -271,6 +342,78 @@ do
     
     #-------------------------------------------------------------------
     # continue with what needs to be done whether it is a restart or not:
+
+    # -------------------------------------------------------------------------
+    # *** Setting up MPI and OMP
+    # -------------------------------------------------------------------------
+    
+    #  Mailbox size
+	# export MBX_SIZE=128000000
+
+	# Increase per processor buffers to reduce retries
+	# export MPI_BUFS_PER_PROC=256
+
+	#  Bind your OpenMP threads
+	export OMP_NUM_THREADS=1
+	# export KMP_AFFINITY=noverbose,granularity=thread,compact,1
+	# Limit stacksize - adjust to your programs need
+	# export KMP_STACKSIZE=64m
+
+	# Enable ATP on ECMWF HPCF (recommended)
+	# export ATP_ENABLED=1
+
+	ulimit -c unlimited
+
+	# Environment settings to run a MPI/OpenMP parallel program compiled with Intel MPI
+	# export I_MPI_FABRICS=shm:dapl
+	# export I_MPI_FALLBACK=disable
+	# export I_MPI_SLURM_EXT=1
+	# export I_MPI_LARGE_SCALE_THRESHOLD=8192
+	# export I_MPI_FABRICS=ofi # for infini-band
+	# export I_MPI_DEBUG=6
+	# export I_MPI_PLATFORM=auto
+	# export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+
+    # -------------------------------------------------------------------------
+    # *** Start the run
+    # -------------------------------------------------------------------------
+
+    cd ${run_dir}/../start
+    
+    # Use the launch function from the platform configuration file
+    t1=$(date +%s)
+
+    if [ -e mpmd.conf ];then
+      rm mpmd.conf
+    fi
+    
+    # ------------------------------------------------------------------
+    # *** Configure Multiple Program Multiple Data (MPMD)
+    # ------------------------------------------------------------------
+
+    echo "Configuring Multiple Program Multiple Data (MPMD) for ensemble size ${NENS} with ${fes_numproc} processes for each member."
+    for((i=1;i<=$NENS;i++))
+    do
+      ENSstr=`printf %02d $i`
+      ENS4str=`printf %04d $i`
+      echo 'Preparing mpmd.conf...'${ENS4str}
+
+      echo '#!/bin/sh' > fesom${ENSstr}
+      echo 'cd '${run_dir}/${ENSstr} >> fesom${ENSstr}
+      echo ${run_dir}'/'$ENSstr'/fesom.x' >> fesom${ENSstr}
+      chmod +x fesom${ENSstr}
+
+      echo $(((i-1)*($fes_numproc)))'-'$(((i-1)*($fes_numproc)+$fes_numproc-1))' ./fesom'${ENSstr} >> mpmd.conf
+    done
+
+    cat mpmd.conf
+
+    echo "Executing the run ..."
+    # Execute the program with MPMD settings
+    srun -l --propagate=STACK,CORE  --cpu_bind=quiet,cores --multi-prog mpmd.conf > "fesom2.0.out"
+
+    t2=$(date +%s)
+    tr=$(date -d "0 -$t1 sec + $t2 sec" +%T)
 
 
     # -------------------------------------------------------------------------
@@ -300,3 +443,32 @@ do
     
 done # loop over legs
 
+
+# -----------------------------------------------------------------------------
+# *** Platform dependent finalising of the run
+# -----------------------------------------------------------------------------
+    # Copy the model logfile of this restart leg:
+    cd ${run_dir}
+    cp ../start/fesom2.0.out fesom2.0.out_${leg_number}_${leg_start_date_yyyy}
+    
+    # Resubmit next job:
+    IsInLine=$( tail -1 ../start/fesom2.0.out | grep -c 'fesom should stop with exit status = 0')
+
+    if [ $IsInLine -eq 0 ]; then
+            echo "Something is wrong. Last line of fesom.out reads:"
+            echo $( tail -1 ../start/fesom2.0.out)
+            echo "Termination of job script."
+    fi
+
+    if [ ${IsInLine} -eq 1 ]  && ${resubmit_job} && [ $(date -d "${leg_end_date}" +%s) -lt $(date -d "${run_end_date}" +%s) ]
+     then
+        echo "Resubmitting job for leg $((leg_number+1))"
+        # Need to go to dir to find the run script
+        cd ${start_dir}
+
+	sed -i "$(grep -n '#SBATCH --job-name=' job_albedo_restart | cut -d ':' -f 1)c #SBATCH --job-name=PHY${nextjob}" job_albedo_restart
+        # Submit command
+        sbatch job_albedo_restart
+    fi
+
+exit 0

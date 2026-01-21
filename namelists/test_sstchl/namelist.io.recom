@@ -3,7 +3,7 @@ ldiag_solver     =.false.
 lcurt_stress_surf=.false.
 ldiag_curl_vel3  =.false.
 ldiag_energy     =.false.
-ldiag_salt3D     =.false.
+ldiag_    3D     =.false.
 ldiag_dMOC       =.false.
 ldiag_DVD        =.false.
 ldiag_forc       =.false.
@@ -26,10 +26,24 @@ io_list =  'CO2f      ',    1, 'm', 4,
            'DICsurf   ',    1, 'm', 4,
            'Alksurf   ',    1, 'm', 4,
            'sst       ',    1, 'm', 4,
-!           'salt      ',    1, 'm', 4,
+	'fh        ',    1, 's', 4,
+	'fw        ',    1, 's', 4,
+	'dflux     ',    1, 's', 4,
+	'kpp_obldepth    ',    1, 's', 4,
+	'curl_surf ',    1, 's', 4,
+	'fer_C     ',    1, 's', 4,
+	'N2        ',    1, 's', 4,
+	'Kv        ',    1, 's', 4,
+	'w         ',    1, 's', 4,
+	'u         ',    1, 's', 4,
+        'v         ',    1, 's', 4,
+        'Av        ',    1, 's', 4,
+        'salt      ',    1, 's', 4,
+        'fer_K     ',    1, 's', 4,
+        'Redi_K    ',    1, 's', 4,
 !           'DIC       ',    1, 'd', 4,
 !           'Alk       ',    1, 'd', 4,
-!           'temp      ',    1, 'd', 4,
+           'temp      ',    1, 's', 4,
 !           'PhyC      ',    1, 'd', 4,
 !            'sss       ', 1000, 'y', 4,
 !            'ssh       ', 1000, 'y', 4,

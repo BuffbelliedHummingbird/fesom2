@@ -9,6 +9,32 @@ MODULE mod_carbon_fluxes_diags
    logical            :: cfdiags_debug ! whether to write debug output for tracer mass conservation
    character(len=100) :: vname_cfdiags ! variable name for debugging output
    
+   ! Possibility to remove functionality for debugging purposes
+   logical :: simplify_debug01 = .true. ! in oce_ale_driver.F90
+   logical :: simplify_debug02 = .true.
+   logical :: simplify_debug03 = .true.
+   logical :: simplify_debug04 = .true.
+   logical :: simplify_debug05 = .true.
+   logical :: simplify_debug06 = .true.
+   logical :: simplify_debug07 = .true.
+   logical :: simplify_debug08 = .true.
+   logical :: simplify_debug09 = .true.
+   logical :: simplify_debug10 = .true.
+   logical :: simplify_debug11 = .true.
+   logical :: simplify_debug12 = .true.
+   logical :: simplify_debug13 = .true. ! in oce_adv_tra_driver.F90
+   logical :: simplify_debug14 = .true.
+   logical :: simplify_debug15 = .true.
+   logical :: simplify_debug16 = .true.
+   logical :: simplify_debug17 = .true. ! in recom_sinking.F90
+   logical :: simplify_debug18 = .true.
+   logical :: simplify_debug19 = .true.
+   logical :: simplify_debug20 = .true.
+   logical :: simplify_debug21 = .true.
+   logical :: simplify_debug22 = .true. ! in int_recom/recom_sms.F90
+   logical :: simplify_debug23 = .true. ! in int_recom/recom_main.F90
+   logical :: simplify_debug24 = .true.
+   
 !  _________________________________________________________________________   
 !  *** Transports, i.e. directed fluxes through area [mmol C / m2 / sec] ***
 

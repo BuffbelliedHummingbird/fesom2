@@ -172,6 +172,7 @@ subroutine solve_tracers_ale(mesh)
     export=0.0
 #endif
 #ifdef use_PDAF
+    IF (.not. simplify_debug01) THEN ! simplify_debug-01
     ! init - set to zero before tracer loop
     DO f=1, cfnfields
       ! case flux or volume change:
@@ -194,7 +195,9 @@ subroutine solve_tracers_ale(mesh)
         cffields(f)%instantmass=0.0
       ENDIF
     ENDDO
+    ENDIF ! simplify_debug-01
     
+    IF (.not. simplify_debug02) THEN ! simplify_debug-02
     ! apply volume-mass scaling to REcoM-SMS fluxes
     allocate(f_mass(nlmax,myDim_nod2D))
     allocate(f_conc(nlmax,myDim_nod2D))
@@ -214,6 +217,7 @@ subroutine solve_tracers_ale(mesh)
     
     deallocate(f_mass)    
     deallocate(f_conc)
+    ENDIF ! simplify_debug-02
 #endif
 
     !___________________________________________________________________________
@@ -231,7 +235,9 @@ subroutine solve_tracers_ale(mesh)
         call compute_vel_nodes(mesh)
     end if
 #ifdef use_PDAF
+    IF (.not. simplify_debug03) THEN ! simplify_debug-03
     CALL cfdiags_computetransport(tr_arr,Unode,wvel)
+    ENDIF ! simplify_debug-03
 #endif
 
     !___________________________________________________________________________
@@ -306,66 +312,8 @@ subroutine solve_tracers_ale(mesh)
     end do
     
 #ifdef use_PDAF
-!~     ! carbon tracer diagnostics    
-!~     cffields(id_m_dic)        %instantconc =   tr_arr(:nlmax,:myDim_nod2D, 4)
-    
-!~     cffields(id_m_alk)        %instantconc =   tr_arr(:nlmax,:myDim_nod2D, 5)
-    
-!~     cffields(id_m_livingmatter)%instantconc = (  tr_arr(:nlmax,:myDim_nod2D, 7) & ! PhyC
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,12) & ! HetC
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,22) & ! PhyCalc
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,16) & ! DiaC
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,26) & ! Zoo2C
-!~                                                )
-                        
-!~     cffields(id_m_deadmatter) %instantconc = ( tr_arr(:nlmax,:myDim_nod2D,28) &  ! Det2C
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,30) &  ! Det2Calc
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,10) &  ! DetC
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,23) &  ! DetCalc
-!~                                                + tr_arr(:nlmax,:myDim_nod2D,14) &  ! DOC
-!~                                                )
-!~     ! concentration to mass
-!~     allocate(f_mass(nlmax,myDim_nod2D))
-!~     f_mass = areasvol(:nlmax,:myDim_nod2D) * hnode_new(:nlmax,:myDim_nod2D)
-!~     DO f=1, size(cffieldstracer)
-!~        ids=cffieldstracer(f)
-!~        cffields(ids)%instantmass = cffields(ids)%instantconc * f_mass
-!~     ENDDO
-    
-!~     ! --- DEBUG ---
-!~     if (cfdiags_debug) then
-!~     !                - send -                             - receive -    - size -   - type -              - sum -  -receiver-   -fesom -    -check-
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D, 7)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass PhyC', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,12)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass HetC', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,22)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass PhyCalc', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,16)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DiaC', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,26)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass Zoo2C', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,28)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass Det2C', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,30)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass Det2Calc', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,10)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DetC', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,23)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DetCalc', globsumdebug
-!~     CALL MPI_REDUCE( sum(tr_arr(:nlmax,:myDim_nod2D,14)* f_mass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DOC', globsumdebug
-!~     CALL MPI_REDUCE( sum(cffields(id_m_deadmatter)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DeadMatter', globsumdebug
-!~     CALL MPI_REDUCE( sum(cffields(id_m_livingmatter)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass LivingMatter', globsumdebug
-!~     CALL MPI_REDUCE( sum(cffields(id_m_dic)%instantmass), globsumdebug , 1        , MPI_DOUBLE_PRECISION, MPI_SUM, 0          , MPI_COMM_FESOM, MPIerr)
-!~     if (writepe) write(*,*) 'CFDIAGS mass DIC', globsumdebug
-!~     endif
-                        
-!~     deallocate(f_mass)
-
     ! --- DEBUG ---
+    IF (.not. simplify_debug04) THEN ! simplify_debug-04
     IF (cfdiags_debug) THEN
       
       ! DIC
@@ -425,6 +373,7 @@ subroutine solve_tracers_ale(mesh)
       if (writepe) write(*,*) 'sum s_X_deadmatter ' , sum(vardata_glob)
       
     ENDIF
+    ENDIF ! simplify_debug-04
 #endif
     
 end subroutine solve_tracers_ale
@@ -441,16 +390,9 @@ subroutine adv_tracers_ale(tr_num, mesh)
     use adv_tracers_muscle_ale_interface
     use adv_tracers_vert_ppm_ale_interface
     use oce_adv_tra_driver_interfaces
-!~ #ifdef use_PDAF
-!~     use mod_carbon_fluxes_diags
-!~     use mod_assim_pdaf, only: nlmax
-!~     use mod_parallel_pdaf, only: writepe
-!~ #endif
+
     implicit none
-!~ #ifdef use_PDAF
-!~     real, allocatable :: factormass(:,:)
-!~     real, allocatable :: factorconc(:,:)
-!~ #endif
+
     integer :: tr_num, node, nz
     type(t_mesh), intent(in) , target :: mesh
     
@@ -481,62 +423,6 @@ subroutine adv_tracers_ale(tr_num, mesh)
     ! update array for total tracer flux del_ttf with the fluxes from horizontal
     ! and vertical advection
     del_ttf=del_ttf+del_ttf_advhoriz+del_ttf_advvert
-    
-    !___________________________________________________________________________
-    ! update carbon flux diagnostics with the fluxes from horizontal
-    ! and vertical advection
-!~ #ifdef use_PDAF
-!~     ! compute concentration or mass for carbon flux diagnostics
-!~     allocate(factormass(nlmax,myDim_nod2D))
-!~     allocate(factorconc(nlmax,myDim_nod2D))
-!~     factorconc = 1.0 / hnode_new(:nlmax,:myDim_nod2D) / dt
-!~     factormass = areasvol(:nlmax,:myDim_nod2D) / dt
-    
-!~     IF (tr_num== 5) THEN ! alkalinity
-!~         ! hor advection
-!~         cffields(id_s_hor_alk )%instantconc = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorconc
-!~         cffields(id_s_hor_alk )%instantmass = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factormass
-!~         ! ver advection
-!~         cffields(id_s_ver_alk )%instantconc = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorconc
-!~         cffields(id_s_ver_alk )%instantmass = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factormass
-!~     ENDIF
-!~     IF (tr_num== 4) THEN ! DIC
-!~         ! hor advection
-!~         cffields(id_s_hor_dic )%instantconc = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factorconc
-!~         cffields(id_s_hor_dic )%instantmass = del_ttf_advhoriz (:nlmax,:myDim_nod2D) *factormass
-!~         ! ver advection
-!~         cffields(id_s_ver_dic )%instantconc = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factorconc
-!~         cffields(id_s_ver_dic )%instantmass = del_ttf_advvert  (:nlmax,:myDim_nod2D) *factormass
-!~     ENDIF
-    
-!~     IF ((tr_num== 7) .or. &           ! PhyC
-!~         (tr_num==12) .or. &           ! HetC
-!~         (tr_num==22) .or. &           ! PhyCalc
-!~         (tr_num==16) .or. &           ! DiaC
-!~         (tr_num==26)        ) THEN    ! Zoo2C
-!~     ! hor advection
-!~     cffields(id_s_hor_livingmatter )%instantconc = cffields(id_s_hor_livingmatter )%instantconc + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorconc
-!~     cffields(id_s_hor_livingmatter )%instantmass = cffields(id_s_hor_livingmatter )%instantmass + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factormass
-!~     ! ver advection
-!~     cffields(id_s_ver_livingmatter )%instantconc = cffields(id_s_ver_livingmatter )%instantconc + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorconc
-!~     cffields(id_s_ver_livingmatter )%instantmass = cffields(id_s_ver_livingmatter )%instantmass + del_ttf_advvert (:nlmax,:myDim_nod2D) *factormass
-!~     ENDIF
-    
-!~     IF ((tr_num==28) .or. &           ! Det Zoo2C
-!~         (tr_num==30) .or. &           ! Det Zoo2Calc
-!~         (tr_num==10) .or. &           ! Det C
-!~         (tr_num==23) .or. &           ! Det Calc
-!~         (tr_num==14)        ) THEN    ! DOC
-!~     ! hor advection
-!~     cffields(id_s_hor_deadmatter   )%instantconc = cffields(id_s_hor_deadmatter   )%instantconc + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factorconc
-!~     cffields(id_s_hor_deadmatter   )%instantmass = cffields(id_s_hor_deadmatter   )%instantmass + del_ttf_advhoriz(:nlmax,:myDim_nod2D) *factormass
-!~     ! ver advection
-!~     cffields(id_s_ver_deadmatter   )%instantconc = cffields(id_s_ver_deadmatter   )%instantconc + del_ttf_advvert (:nlmax,:myDim_nod2D) *factorconc
-!~     cffields(id_s_ver_deadmatter   )%instantmass = cffields(id_s_ver_deadmatter   )%instantmass + del_ttf_advvert (:nlmax,:myDim_nod2D) *factormass
-!~     ENDIF
-!~     deallocate(factormass)
-!~     deallocate(factorconc)
-!~ #endif
     
     !___________________________________________________________________________
     ! compute discrete variance decay after Burchard and Rennau 2008
@@ -648,6 +534,7 @@ if (1) then
                                                 
 ! update carbon flux diagnostics for remineralization from benthos
 #ifdef use_PDAF
+        IF (.not. simplify_debug05) THEN ! simplify_debug-05
         nzmaxpdaf = MIN(nlmax,nzmax)
         
         allocate(factormass(nzmaxpdaf-nzmin+1))
@@ -669,6 +556,7 @@ if (1) then
         endif
         deallocate(factormass)
         deallocate(factorconc)
+        ENDIF ! simplify_debug-05
 #endif
         end do
     end if
@@ -713,6 +601,7 @@ end if ! if (0)
                                                 
 ! update carbon flux diagnostics for sinking into benthos
 #ifdef use_PDAF
+        IF (.not. simplify_debug06) THEN ! simplify_debug-06
         nzmaxpdaf = MIN(nlmax,nzmax)
         
         allocate(factormass(nzmaxpdaf-nzmin+1))
@@ -742,6 +631,7 @@ end if ! if (0)
        endif
        deallocate(factormass)
        deallocate(factorconc)
+       ENDIF ! simplify_debug-06
 #endif
         end do                             
     end if
@@ -777,6 +667,7 @@ end if ! if (0)
         !!PS tr_arr(1:nzmax,n,tr_num)=tr_arr(1:nzmax,n,tr_num)+ &
         !!PS                             del_ttf(1:nzmax,n)/hnode_new(1:nzmax,n)
 #ifdef use_PDAF
+    IF (.not. simplify_debug07) THEN ! simplify_debug-07
     nzmaxpdaf = MIN(nlmax,nzmax)
     IF (tr_num== 5) THEN ! alkalinity
         cffields(id_s_vol_alk )%instantconc(nzmin:nzmaxpdaf,n) = tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
@@ -802,6 +693,7 @@ end if ! if (0)
     cffields(id_s_vol_deadmatter   )%instantconc(nzmin:nzmaxpdaf,n) = cffields(id_s_vol_deadmatter   )%instantconc(nzmin:nzmaxpdaf,n) + tr_arr(nzmin:nzmaxpdaf,n,tr_num) &
     *(hnode(nzmin:nzmaxpdaf,n)-hnode_new(nzmin:nzmaxpdaf,n))/hnode_new(nzmin:nzmaxpdaf,n)/dt
     ENDIF
+    ENDIF ! simplify_debug-07
 #endif
         
         del_ttf(nzmin:nzmax,n)=del_ttf(nzmin:nzmax,n)+tr_arr(nzmin:nzmax,n,tr_num)* &
@@ -814,6 +706,7 @@ end if ! if (0)
         !                        del_ttf(1:nzmax,n))/hnode_new(1:nzmax,n)
     end do ! n=1, myDim_nod2D
 #ifdef use_PDAF
+    IF (.not. simplify_debug08) THEN ! simplify_debug-08
     IF (cfdiags_debug .and. (tr_num == 4)) THEN
       vname_cfdiags='s_horLO_dic'
       call debug_hor(vname_cfdiags,cffields(id_s_horLO_dic           )%instantmass)
@@ -826,6 +719,7 @@ end if ! if (0)
       vname_cfdiags='s_diffV_dic_expl'
       call debug_vert(vname_cfdiags,cffields(id_s_diffV_dic)%instantmass)
     ENDIF
+    ENDIF ! simplify_debug-08
 #endif
     
     !___________________________________________________________________________
@@ -1272,6 +1166,7 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
         !_______________________________________________________________________
         ! Carbon flux diagnostics
 #ifdef use_PDAF
+            IF (.not. simplify_debug09) THEN ! simplify_debug-09
             IF (nz<=nlmax) THEN
                ! concentration (SMS Vertical diffusion)
                factorconc=1.0 / dt
@@ -1342,16 +1237,19 @@ subroutine diff_ver_part_impl_ale(tr_num, mesh)
                  ENDIF
                ENDIF ! end dead biomass
             ENDIF ! (nz<=nlmax)
+            ENDIF ! simplify_debug-09
 #endif
         end do ! --> nz=nzmin,nzmax-1 (update tracer)
     end do ! --> do n=1,myDim_nod2D
     
 #ifdef use_PDAF
     ! debugging output
+    IF (.not. simplify_debug10) THEN ! simplify_debug-10
     IF (cfdiags_debug .and. (tr_num == 4)) THEN
       vname_cfdiags='s_diffV_dic_impl'
       call debug_vert(vname_cfdiags,cffields(id_s_diffV_dic)%instantmass)
     ENDIF
+    ENDIF ! simplify_debug-10
 #endif
 end subroutine diff_ver_part_impl_ale
 
@@ -1725,6 +1623,7 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
         do nz=ul1,nl1
             del_ttf(nz,n) = del_ttf(nz,n)+(vd_flux(nz) - vd_flux(nz+1))*dt/areasvol(nz,n)
 #ifdef use_PDAF
+            IF (.not. simplify_debug11) THEN ! simplify_debug-11
             ! compute concentration or mass for carbon flux diagnostics
             ! concentration
             factorconc = 1.0/areasvol(nz,n)/hnode_new(nz,n)
@@ -1761,6 +1660,7 @@ subroutine diff_ver_part_redi_expl(mesh,tr_num)
                  cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) = cffields(id_s_diffV_deadmatter  )%instantmass(nz,n) + (vd_flux(nz) - vd_flux(nz+1))*factormass
                ENDIF
             ENDIF
+            ENDIF ! simplify_debug-11
 #endif
         enddo
     end do ! n=1, myDim_nod2D
@@ -1926,6 +1826,8 @@ subroutine diff_part_hor_redi(mesh,tr_num)
         !_______________________________________________________________________
         ! add to carbon flux diagnostics
 #ifdef use_PDAF
+        IF (.not. simplify_debug12) THEN ! simplify_debug-12
+        
         nzmaxpdaf = MIN(nlmax,nl12)
         
         ! compute concentration or mass for carbon flux diagnostics
@@ -1980,6 +1882,7 @@ subroutine diff_part_hor_redi(mesh,tr_num)
         
         deallocate(factormass1,factormass2)
         deallocate(factorconc1,factorconc2)
+        ENDIF ! simplify_debug-12
 #endif
         
     end do ! edge=1, myDim_edge2D

@@ -49,7 +49,7 @@ ssh_fixed_rmse=.true.
 bias_obs_ssh=0.5
 lradius_ssh=3.0e5
 
-ASSIM_O_sst = .true.
+ASSIM_O_sst = .false.
 path_obs_sst='/albedo/work/projects/p_recompdaf/frbunsen/data/physics/SST/OSTIA/CORE2/dist_72/'
 file_sst_prefix='OSTIA_SST_20160101_20161231_daily_dist72_'
 file_sst_suffix ='.nc'
@@ -93,7 +93,7 @@ proffiles_o=0  ! 0: No processing of EN4 raw profile data.
 start_year_o = 2016
 end_year_o   = 2016
 
-assim_o_chl_cci = .false.
+assim_o_chl_cci = .true.
 rms_obs_chl_cci = 0.3
 path_obs_chl_cci = '/albedo/work/projects/p_recompdaf/frbunsen/data/BGC/chlsurf_OC-CCI/CORE2_daily/dist_72/'
 file_chl_cci_prefix = ''
@@ -161,7 +161,7 @@ perturb_params_bio= .true.
 perturb_params_phy= .true.
 perturb_scale=0.25
 
-assimilateBGC=.false.
+assimilateBGC=.true.
 assimilatePHY=.true.
 /
 

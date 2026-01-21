@@ -72,25 +72,36 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   CHARACTER(len=5)   :: mype_string
   CHARACTER(len=3)   :: day_string
   CHARACTER(len=5)   :: tim_string
+  LOGICAL            :: IsDistributed    = .true.
+  LOGICAL            :: IsBioDistributed = .true.
+  LOGICAL            :: IsPhyDistributed = .true.
   
-  ! Set debug output
-  debugmode    = .false.
+  ! Debug settings
+  IsDistributed    = .true.  ! possibility to not distribute state for debugging purposes
+  IsBioDistributed = .false. ! possibility to not distribute BGC variables for debugging purposes
+  IsPhyDistributed = .true.  ! possibility to not distribute PHY variables for debugging purposes
+  
+  IF (IsDistributed) THEN
+  
+  ! Activate debug output
+  debugmode    = .true.
   IF (.not. debugmode) THEN
      write_debug = .false.
   ELSE
-     IF (mype_world>0) THEN
-        write_debug = .false.
-     ELSE
+     IF (mype_model==32) THEN
         write_debug = .true.
+     ELSE
+        write_debug = .false.
      ENDIF
   ENDIF
     
   IF (write_debug) THEN
          ! print state vector
-         WRITE(day_string, '(i3.3)') daynew
-         WRITE(tim_string, '(i5.5)') int(timenew)
+         WRITE(day_string , '(i3.3)') daynew
+         WRITE(tim_string , '(i5.5)') int(timenew)
+         WRITE(mype_string, '(i5.5)') int(mype_world)
          fileID_debug=20
-         open(unit=fileID_debug, file='distribute_state_pdaf_'//day_string//'_'//tim_string//'.txt', status='unknown')
+         open(unit=fileID_debug, file='distribute_state_pdaf_'//day_string//'_'//tim_string//'_'//mype_string//'.txt', status='unknown')
   ENDIF
 
 ! **********************
@@ -109,7 +120,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
     
   ! ensure to distribute fields with valid topography at first call
   IF (first_call) THEN
-      IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'Distribute_state: set topography'
+      IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'distribute_state: set topography'
       state_p = state_p * topography_p
       first_call = .FALSE.
   END IF
@@ -118,6 +129,8 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 ! *** Initialize model fields from state  ***
 ! *** Each model PE knows its sub-state   ***
 !********************************************
+
+  IF (IsPhyDistributed) THEN
 
   ! *** Dimensions of FESOM arrays:
   ! * eta_n          (myDim_nod2D + eDim_nod2D)            ! Dynamic topography
@@ -134,7 +147,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   ! SSH (1)
   DO i = 1, myDim_nod2D
      s = i + offset(id% SSH)
-     if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%SSH)%variable, s, eta_n(i), state_p(s)
+     if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') sfields(id%SSH)%variable, i, 0, s, eta_n(i), state_p(s)
      eta_n(i) = state_p(s)
   END DO
   
@@ -148,11 +161,11 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
       ! u
       s = (i-1) * (nlmax) + k + offset(id% u)
       U_node_upd(1, k, i) = state_p(s) - Unode(1, k, i)
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%u)%variable, s, Unode(1, k, i), state_p(s)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') sfields(id%u)%variable, i, k, s, Unode(1, k, i), state_p(s)
       ! v
       s = (i-1) * (nlmax) + k + offset(id% v)
       U_node_upd(2, k, i) = state_p(s) - Unode(2, k, i)
-      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,G15.6,G15.6)') sfields(id%v)%variable, s, Unode(2, k, i), state_p(s)
+      if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') sfields(id%v)%variable, i, k, s, Unode(2, k, i), state_p(s)
    END DO
   END DO
   
@@ -161,6 +174,19 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   U_elem_upd = 0.0
 
   call compute_vel_elems(U_node_upd,U_elem_upd)
+  
+  IF (write_debug) THEN
+	DO i=1,myDim_elem2D
+	DO k = 1, nlmax
+		write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') 'u_elem', i, k, 0, UV(1,k,i), UV(1,k,i)+U_elem_upd(1,k,i)
+	ENDDO
+	ENDDO
+	DO i=1,myDim_elem2D
+	DO k = 1, nlmax
+		write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') 'v_elem', i, k, 0, UV(2,k,i), UV(2,k,i)+U_elem_upd(2,k,i)
+	ENDDO
+	ENDDO
+  ENDIF
   
   ! 3. add update to model velocity on elements (UV)
   UV = UV + U_elem_upd
@@ -199,6 +225,10 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
 
   call exchange_nod(eta_n)            ! SSH
   call exchange_elem(UV(:,:,:))       ! u and v (element-wise)
+  
+  ELSE  ! (IsPhyDistributed)
+  IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'debug: distribute_state - not: SSH, U, V'
+  ENDIF ! (IsPhyDistributed)
 
 ! *********************************
 ! *** Model 3D tracers          ***
@@ -209,23 +239,55 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
      istate = ids_tr3D(b)                 ! index of field in state vector
      ifesom = sfields(istate)%trnumfesom  ! index of field in model tracer array
      
-     DO i = 1, myDim_nod2D
-        DO k = 1, nlmax
-        
-           ! indeces to flatten 3D arrays
-           s = (i-1) * (nlmax) + k
-           ! put state values into model tracer array
-           tr_arr(k, i,  ifesom) = state_p(s + offset(istate))
+     IF (     (IsPhyDistributed .and. (sfields(istate)%bgc == .false.)) &
+         .or. (IsBioDistributed .and. (sfields(istate)%bgc == .true. ))) THEN
+     
+        DO i = 1, myDim_nod2D
+           DO k = 1, nlmax
            
+              ! indeces to flatten 3D arrays
+              s = (i-1) * (nlmax) + k
+              
+              ! debugging output
+              if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') &
+              sfields(istate)%variable, i, k, s, tr_arr(k, i,  ifesom), state_p(s + offset(istate))
+              
+              ! put state values into model tracer array
+              tr_arr(k, i,  ifesom) = state_p(s + offset(istate))
+              
+           ENDDO
         ENDDO
-     ENDDO
-     ! initialize external nodes
-     call exchange_nod(tr_arr(:,:,ifesom))
-  ENDDO
+        ! initialize external nodes
+        call exchange_nod(tr_arr(:,:,ifesom))
+        
+     ELSE ! (IsPhyDistributed/IsBioDistributed)
+     IF (writepe) WRITE (*,'(a, 8x,a,a)') 'FESOM-PDAF', 'debug: distribute_state - not: ', sfields(istate)%variable
+     ENDIF
+  ENDDO ! tracer field loop
+
+   ! some more debugging output
+   IF (.false.) THEN
+   IF ((mype_model==18)) THEN
+      i=477
+      ifesom = sfields(id% temp    ) % trnumfesom
+      istate = id% temp
+      write(*,*) 'distribute_state_pdaf','state_p( ___ + offset(istate))', &
+                 state_p((i-1) * (nlmax) + offset(istate) + 1 : (i-1) * (nlmax) + offset(istate) + nlmax)
+      write(*,*) 'distribute_state_pdaf','tr_arr(:, i,  ifesom)', tr_arr(:, i,  ifesom)
+   ENDIF
+   ENDIF
+   
+   ! IF (writepe) WRITE(*,*) 'distribute_state: EPSILON(X)', EPSILON(state_p(0)), '  ', EPSILON(tr_arr(0,0,0))
+   ! EPSILON(X)  2.220446049250313E-016     2.220446049250313E-016
+   ! Precision: 17.15F
 
   ! clean up:
   if (write_debug) close(fileID_debug)
-  deallocate(U_node_upd,U_elem_upd)
+  if (IsPhyDistributed) deallocate(U_node_upd,U_elem_upd)
  
-  ENDIF
+  ENDIF ! (istep_asml==step_null etc.)
+  
+  ELSE  ! (IsDistributed)
+  IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'debug: no distribute_state.'
+  ENDIF ! (IsDistributed)
 END SUBROUTINE distribute_state_pdaf

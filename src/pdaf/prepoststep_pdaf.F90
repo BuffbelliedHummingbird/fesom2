@@ -92,19 +92,19 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   SAVE
 
 ! !ARGUMENTS:
-  INTEGER, INTENT(in) :: step        ! Current time step, starting from 0 at beginning of year
-                                     ! (When the routine is called before
-                                     ! the analysis, -step is provided.)
-  INTEGER, INTENT(in) :: dim_p       ! PE-local state dimension
-  INTEGER, INTENT(in) :: dim_ens     ! Size of state ensemble
-  INTEGER, INTENT(in) :: dim_ens_p   ! PE-local size of ensemble
-  INTEGER, INTENT(in) :: dim_obs_p   ! PE-local dimension of observation vector
+  INTEGER, INTENT(in) :: step           ! Current time step, starting from 0 at beginning of year
+                                        ! (When the routine is called before
+                                        ! the analysis, -step is provided.)
+  INTEGER, INTENT(in) :: dim_p          ! PE-local state dimension
+  INTEGER, INTENT(in) :: dim_ens        ! Size of state ensemble
+  INTEGER, INTENT(in) :: dim_ens_p      ! PE-local size of ensemble
+  INTEGER, INTENT(in) :: dim_obs_p      ! PE-local dimension of observation vector
   REAL, INTENT(inout) :: state_p(dim_p) ! PE-local forecast/analysis state
-  ! The array 'state_p' is not generally not initialized in the case of SEIK.
-  ! It can be used freely here.
+                                        ! The array 'state_p' is not generally not initialized in the case of SEIK.
+                                        ! It can be used freely here.
   REAL, INTENT(inout) :: Uinv(dim_ens-1, dim_ens-1) ! Inverse of matrix U
   REAL, INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
-  INTEGER, INTENT(in) :: flag        ! PDAF status flag
+  INTEGER, INTENT(in) :: flag           ! PDAF status flag
 
 ! CALLING SEQUENCE:
 ! Called by: PDAF_get_state      (as U_prepoststep)
@@ -148,12 +148,17 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   character(len=100) :: varname
 
   ! variables for debugging:
-  LOGICAL :: debug
-  LOGICAL :: write_debug
+  LOGICAL :: debug                  = .false.
+  LOGICAL :: write_debug            = .false.
+  LOGICAL :: simplify_debug         = .false.
+  LOGICAL :: simplify_output        = .false.
   INTEGER :: fileID_debug
   CHARACTER(len=3) :: day_string
   INTEGER :: myDebug_id(1)
-  LOGICAL :: debugging_monthlymean = .false.
+  LOGICAL :: debugging_monthlymean  = .false.
+  
+  simplify_debug  = .true. ! remove functionality for debugging purposes
+  simplify_output = .true. ! remove output functionality for debugging purposes
 
 ! **********************
 ! *** INITIALIZATION ***
@@ -239,14 +244,17 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! ****************************
 ! *** Corrections          ***
 ! ****************************
-   
+
     IF ((step-step_null)<0) THEN
+    
+    IF (.not. simplify_debug) THEN ! simplify_debug-01
     ! *** store forecast state fields temporarily to compare with analysis afterwards ***    
       DO member = 1, dim_ens
         DO i = 1, dim_fields(id% SSH)
            state_fcst_SSH_p(i,member) = ens_p(i+offset(id% SSH),member)
         ENDDO
       ENDDO
+    ENDIF ! simplify_debug-01
     
     ELSE IF ((step-step_null)>0) THEN
    ! *** correcting assimilated state fields ***
@@ -269,6 +277,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
             WRITE(*, *) 'FESOM-PDAF', &
             '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
    
+   IF (.not. simplify_debug) THEN ! simplify_debug-02
    ! *** SSH state update must be <= 2*sigma
    count_lim_ssh_p = 0
    
@@ -289,6 +298,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF (mype_filter == 0) &
             WRITE(*,*) 'FESOM-PDAF', &
             '--- SSH updates limited to 2x standard deviation: ', (count_lim_ssh_g(member), member = 1, dim_ens)
+   ENDIF ! simplify_debug-02
 
 
    ! *** temperature must be > -2 degC ***
@@ -308,7 +318,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
    IF (mype_filter == 0) &
             WRITE(*,*) 'FESOM-PDAF', &
             '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
-            
+    
+   IF (.not. simplify_debug) THEN ! simplify_debug-03        
    ! *** BGC fields must be larger than "tiny" ***
    IF (mype_filter == 0) &
       WRITE(*, *) 'FESOM-PDAF', '--- reset BGC to tiny'
@@ -356,12 +367,15 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       ENDDO ! k=1,nlmax
     ENDDO ! i=1,my_Dim_nod2D
    ENDDO ! member=1,dim_ens
-
+   
+   END IF ! simplify_debug-03
    END IF ! Corrections
+   
 
 ! *******************************
 ! *** Compute ensemble mean   ***
 ! *******************************
+  IF (.not. simplify_debug) THEN ! simplify_debug-04
   IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- compute ensemble mean'
   
   ! Local: 
@@ -372,6 +386,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END DO
   END DO
   state_p(:) = invdim_ens * state_p(:)
+  ENDIF ! simplify_debug-04
 
 
 ! *********************************************************************
@@ -379,6 +394,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *********************************************************************
 ! save values at forecast phase
 
+  IF (.not. simplify_debug) THEN ! simplify_debug-05
   IF ((step-step_null)<0) THEN
 
      ! -- Sea-ice concentration --
@@ -472,11 +488,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      END IF
 
   END IF ! forecast phase
+  END IF ! simplify_debug-05
   
 ! ************************************************
 ! *** Carbon sources minus sinks diagnostics   ***
 ! ************************************************
   
+  IF (.not. simplify_debug) THEN ! simplify_debug-06
   ! factor to convert concentration to mass
   factor_mass = mesh_fesom%areasvol(:nlmax,:myDim_nod2D) * hnode_new(:nlmax,:myDim_nod2D) / SecondsPerDay
   factor_conc = 1.0 / SecondsPerDay
@@ -563,12 +581,14 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
     CALL carbonfluxes_diags_output_timemean_asml()
   
   ENDIF ! (analysis phase)
+  ENDIF ! simplify_debug-06
   
 
 ! *****************************************************************
 ! *** Compute ensemble spread (STD) for different fields        ***
 ! *****************************************************************
   
+  IF (.not. simplify_debug) THEN ! simplify_debug-07
   ! Set debug output
   debug = .false.
   IF (.not. debug) THEN
@@ -701,6 +721,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
                         stdev_volo_g(id% Alk  ), &
                        'vol oce STDEV', typestr, 'FESOM-PDAF', ('-',i=1,70)
   END IF
+  END IF ! simplify_debug-07
   
 ! *******************************
 ! *** Reset forgetting factor ***
@@ -710,6 +731,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 !  -  days_since_DAstart is set by slurm-job-script
 !  -  current forgetting factor and target temperature ensemble standard deviation are read from atmos-perturbation file
   
+  IF (.not. simplify_debug) THEN ! simplify_debug-08
   IF ((step-step_null)<0) THEN
   ! forecast phase   
      
@@ -788,12 +810,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      days_since_DAstart=days_since_DAstart+1
      
   ENDIF ! (forecast phase)
+  ENDIF ! simplify_debug-08
 
 
 ! ***************************************************************
 ! *** Compute statistics for effective observation dimensions ***
 ! ***************************************************************
-
+  IF (.not. simplify_debug) THEN ! simplify_debug-09
   IF (loctype==1 .AND. ((step-step_null) > 0)) THEN
 
      max_eff_dim_obs = 0.0
@@ -832,10 +855,12 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
              'FESOM-PDAF', 'avg. effective observation dimension:       ', avg_eff_dim_obs_g
      END IF
   END IF
+  END IF ! simplify_debug-09
   
 ! ***************************
 ! *** Compute daily means ***
 ! ***************************
+  IF (.not. simplify_debug) THEN ! simplify_debug-10
 ! daily means ("m"-state) are averaged over one analysis step and the consecutive model forecast steps of that day
 ! during analysis step, add to m-fields
   IF (w_mm) THEN
@@ -848,11 +873,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      timemean_s = timemean_s + stdev_p / delt_obs_ocn
   ENDIF ! step > 0
   ENDIF ! w_sm
+  ENDIF ! simplify_debug-10
   
 ! *****************************
 ! *** Compute monthly means ***
 ! *****************************
-
+  
+  IF (.not. simplify_debug) THEN ! simplify_debug-11
   debugging_monthlymean = .false.
   
      ! include state into monthly mean
@@ -881,12 +908,14 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        IF (compute_monthly_sf) monthly_state_sf = monthly_state_sf * weights
      END IF
      ENDIF ! now_to_write_monthly
+  ENDIF ! simplify_debug-11
 
 ! **************************
 ! *** Write output files ***
 ! **************************
 ! note: after monthly output is written, reset monthly fields to zero
-
+ 
+  IF (.not. simplify_debug) THEN ! simplify_debug-12
   ! *** write initial state fields ***
   IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
       ! ensemble mean
@@ -899,8 +928,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         ENDDO
       ENDIF
   ENDIF
+  ENDIF ! simplify_debug-12
 
-  ! daily output
+  IF (.not. simplify_output) THEN ! simplify_debug (daily output)
   IF (.not. now_to_write_monthly) THEN
   IF ((step-step_null) < 0) THEN
         ! *** write forecast state fields ***
@@ -925,9 +955,11 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
             CALL netCDF_out('aa',ens_p(:,member), member, now_to_write_monthly)
           ENDDO
         ENDIF
-  END IF
   ENDIF
+  ENDIF
+  ENDIF ! simplify_debug (daily output)
   
+  IF (.not. simplify_debug) THEN ! simplify_debug-13
   ! monthly output
   IF (now_to_write_monthly) THEN
   ! end of month: pass monthly output in addition to daily output
@@ -955,7 +987,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         ENDIF
   END IF
   END IF
+  END IF ! simplify_debug-13
 
+IF (.not. simplify_debug) THEN ! simplify_debug-14
 ! at last day of month, reset monthly_state to zero (has been written)
 IF (now_to_write_monthly) THEN
    IF ((step-step_null) > 0) THEN
@@ -968,6 +1002,7 @@ IF (now_to_write_monthly) THEN
      IF (compute_monthly_sf) monthly_state_sf = 0.0D0
    END IF
 ENDIF ! now_to_write_monthly
+ENDIF ! simplify_debug-14
 
 ! ********************
 ! *** finishing up ***
@@ -986,6 +1021,6 @@ ENDIF ! now_to_write_monthly
      IF (allocated(mean_sst_p))       deallocate(mean_sst_p)     
      IF (allocated(mean_ice_p))       deallocate(mean_ice_p)     
   ENDIF
-  DEALLOCATE(stdev_p)
+  IF (allocated(stdev_p)) deallocate(stdev_p)
 
 END SUBROUTINE prepoststep_pdaf

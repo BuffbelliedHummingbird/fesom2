@@ -727,18 +727,18 @@ SUBROUTINE init_pdaf(nsteps)
 
 IF (perturb_params_bio) THEN
    IF (dim_ens <= 1) THEN
-        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Ensemble Size 1: Not perturbing BGC parameters'
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', ' Ensemble Size 1: Not perturbing BGC parameters'
    ELSEIF (dim_ens>1) THEN
-        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Perturbing BGC parameters'
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', ' Perturbing BGC parameters'
         CALL do_perturb_param_bio()
    ENDIF ! if (dim_ens>1)
 ENDIF ! if perturb_param
 
 IF (perturb_params_phy) THEN
    IF (dim_ens <= 1) THEN
-        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Ensemble Size 1: Not perturbing PHY parameters'
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', ' Ensemble Size 1: Not perturbing PHY parameters'
    ELSEIF (dim_ens>1) THEN
-        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', 'Perturbing PHY parameters'
+        IF (mype_model==0 .and. task_id==1) WRITE(*,*) 'FESOM-PDAF', ' Perturbing PHY parameters'
         CALL do_perturb_param_phy()
    ENDIF ! if (dim_ens>1)
 ENDIF ! if perturb_param

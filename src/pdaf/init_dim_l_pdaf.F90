@@ -84,6 +84,24 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
      ! Set index of sweep
      isweep = 2
   end if
+  
+! *****************
+! *** OMI Debug ***
+! *****************
+IF (.true.) THEN
+   !IF     ((mype_filter==32) .AND. (domain_p==1129)) THEN
+   !   call PDAFomi_set_debug_flag(1)
+   !   call PDAF_set_debug_flag(1)
+   IF ((mype_filter==18) .AND. (domain_p==477)) THEN
+      call PDAFomi_set_debug_flag(1)
+      call PDAF_set_debug_flag(1)
+   !ELSEIF ((mype_filter==34) .AND. (domain_p==253)) THEN
+   !   call PDAFomi_set_debug_flag(3)
+   ELSE
+      call PDAFomi_set_debug_flag(0)
+      call PDAF_set_debug_flag(0)
+   ENDIF
+ENDIF
 
 ! ****************************************
 ! *** Initialize local state dimension ***
@@ -108,7 +126,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   ! Physics:
   DO p=phymin, phymax
     ! not updated:
-    IF ( .not. (sfields(p)% updated)) THEN
+    IF ( .not. (sfields(p)% IsInStateL)) THEN
       dim_fields_l(p) = 0
     ELSE
       ! surface fields:
@@ -121,7 +139,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   ! BGC:
   DO b=bgcmin, bgcmax
     ! not updated:
-    IF ( .not. (sfields(b)% updated)) THEN
+    IF ( .not. (sfields(b)% IsInStateL)) THEN
       dim_fields_l(b) = 0
     ELSE
       ! surface fields:
@@ -169,15 +187,15 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   ALLOCATE(id_lstate_in_pstate(dim_l))
 
   ! *** indices for full state vector ***
-
+  
   ! SSH
-  if (sfields(id%ssh)%updated) then
+  if (sfields(id%ssh)%IsInStateL) then
   id_lstate_in_pstate (offset_l(id%ssh)+1) &
         = offset(id%ssh) + domain_p
   endif
   
   ! U
-  if (sfields(id%u)%updated) then
+  if (sfields(id%u)%IsInStateL) then
   id_lstate_in_pstate (offset_l(id%u)+1 : offset_l(id%u)+dim_fields_l(id%u)) &
         = offset(id%u) &
         + (domain_p-1)*(nlmax) &
@@ -185,21 +203,18 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   endif
   
   ! V
-  if (sfields(id%v)%updated) then
+  if (sfields(id%v)%IsInStateL) then
   id_lstate_in_pstate (offset_l(id%v)+1 : offset_l(id%v)+dim_fields_l(id%v)) &
         = offset(id%v) &
         + (domain_p-1)*(nlmax) &
         + (/(i, i=1,dim_fields_l(id%v))/)
   endif
-        
+  
   ! W
-  ! id_lstate_in_pstate (offset_l(id%w)+1 : offset_l(id%w+1)) &
-  !      = offset(id%w) &
-  !      + (domain_p-1)*(nlmax) &
-  !      + (/(i, i=1,dim_fields_l(id%w))/)
+  ! vertical velocities are intentionally omitted
   
   ! Temp
-  if (sfields(id%temp)%updated) then
+  if (sfields(id%temp)%IsInStateL) then
   id_lstate_in_pstate (offset_l(id%temp)+1 : offset_l(id%temp)+dim_fields_l(id%temp))&
          = offset(id%temp) &
          + (domain_p-1)*(nlmax) &
@@ -207,7 +222,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   endif
   
   ! Salt
-  if (sfields(id%salt)%updated) then
+  if (sfields(id%salt)%IsInStateL) then
   id_lstate_in_pstate (offset_l(id%salt)+1 : offset_l(id%salt)+dim_fields_l(id%salt)) &
         = offset(id%salt) &
         + (domain_p-1)*(nlmax) &
@@ -218,7 +233,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   DO b=bgcmin, bgcmax
   
     ! only updated fields:
-    IF ((sfields(b)% updated)) THEN
+    IF ((sfields(b)%IsInStateL)) THEN
       
       ! surface fields:
       IF (sfields(b)% ndims == 1)   THEN
