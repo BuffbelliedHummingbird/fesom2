@@ -88,15 +88,10 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
 ! *****************
 ! *** OMI Debug ***
 ! *****************
-IF (.true.) THEN
-   !IF     ((mype_filter==32) .AND. (domain_p==1129)) THEN
-   !   call PDAFomi_set_debug_flag(1)
-   !   call PDAF_set_debug_flag(1)
+IF (.false.) THEN
    IF ((mype_filter==18) .AND. (domain_p==477)) THEN
       call PDAFomi_set_debug_flag(1)
       call PDAF_set_debug_flag(1)
-   !ELSEIF ((mype_filter==34) .AND. (domain_p==253)) THEN
-   !   call PDAFomi_set_debug_flag(3)
    ELSE
       call PDAFomi_set_debug_flag(0)
       call PDAF_set_debug_flag(0)

@@ -96,13 +96,13 @@ SUBROUTINE init_pdaf(nsteps)
   USE timer, only: timeit
   USE PDAFomi, &
        ONLY: PDAFomi_get_domain_limits_unstr
+       
   USE mod_nc_out_routines, &
        ONLY: netCDF_init
   USE mod_nc_out_variables, &
        ONLY: init_sfields, sfields, setoutput
   USE mod_carbon_fluxes_diags, &
        ONLY: init_carbonfluxes_diags_out, init_carbonfluxes_diags_arrays
-
 
   IMPLICIT NONE
   include 'mpif.h'

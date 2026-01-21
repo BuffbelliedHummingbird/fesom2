@@ -167,20 +167,20 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (mype_filter==0) THEN
      IF ((step-step_null)==0) THEN
        IF (.not.(this_is_pdaf_restart)) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze initial state ensemble at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze initial state ensemble at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'i'
        ELSE
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','This is a PDAF restart. No initial fields at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','prepoststep_pdaf: This is a PDAF restart. No initial fields at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'i'
        END IF
      ELSE IF ((step-step_null)>0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze assimilated state ensemble at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze assimilated state ensemble at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'a'
      ELSE IF ((step-step_null)<0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'Analyze forecast state ensemble at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze forecast state ensemble at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'f'
      END IF

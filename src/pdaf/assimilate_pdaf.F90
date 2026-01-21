@@ -22,7 +22,9 @@ SUBROUTINE assimilate_pdaf(istep)
        ONLY: filtertype, istep_asml, step_null, timemean, &
        dim_state_p, delt_obs_ocn, dim_ens, timemean_s, &
        monthly_state_sm, monthly_state_m, &
-       compute_monthly_mm, compute_monthly_sm
+       compute_monthly_mm, compute_monthly_sm, &
+       assimilatePHY, assimilateBGC, &
+       cda_phy, cda_bio
   USE mod_nc_out_variables, &
        ONLY: w_mm, w_sm, w_dayensm, w_monensm
   USE mod_nc_out_routines, &
@@ -37,7 +39,7 @@ SUBROUTINE assimilate_pdaf(istep)
   include 'mpif.h'
 
 ! *** Arguments ***
-  INTEGER, INTENT(in) :: istep       !< current time step
+  INTEGER, INTENT(in) :: istep       ! current time step of model main loop
 
 ! *** Local variables ***
   INTEGER :: status_pdaf             ! PDAF status flag
@@ -58,6 +60,8 @@ SUBROUTINE assimilate_pdaf(istep)
   EXTERNAL :: collect_state_pdaf, &  ! Routine to collect a state vector from model fields
        distribute_state_pdaf, &      ! Routine to distribute a state vector to model fields
        next_observation_pdaf, &      ! Provide time step of next observation
+       next_observation_pdaf_ncalls2_1, &      
+       next_observation_pdaf_ncalls2_2, &      
        prepoststep_pdaf              ! User supplied pre/poststep routine
   ! Localization of state vector
   EXTERNAL :: init_n_domains_pdaf, & ! Provide number of local analysis domains
@@ -94,32 +98,63 @@ SUBROUTINE assimilate_pdaf(istep)
   ! Check  whether the filter is domain-localized
   CALL PDAF_get_localfilter(localfilter)
 
-  ! Call assimilate routine for global or local filter
+  ! Call assimilate routine
   IF (localfilter==1) THEN
-     CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
-          init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
-          init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
-          next_observation_pdaf, status_pdaf)
-  ELSE
-     IF (filtertype==11) THEN
-!~         ! Observation generation has its own OMI interface routine
-!~         CALL PDAFomi_generate_obs(collect_state_pdaf, distribute_state_pdaf, &
-!~              init_dim_obs_pdafomi, obs_op_pdafomi, get_obs_f_pdaf, &
-!~              prepoststep_pdaf, next_observation_pdaf, status_pdaf)
-     ELSE
-        ! All global filters except LEnKF
-        CALL PDAFomi_assimilate_global(collect_state_pdaf, distribute_state_pdaf, &
-             init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, &
+     
+     ! Two consecutive calls for weakly coupled assimilation of PHY and BGC observations
+     IF ((assimilateBGC) .and. (assimilatePHY) .and. (trim(cda_phy)=='weak') .and. (trim(cda_bio)=='weak')) THEN
+        
+        ! PHY assimilation (1)
+        CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
+             init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
+             next_observation_pdaf_ncalls2_1, status_pdaf)
+        ! BGC assimilation (2)
+        CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
+             init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
+             next_observation_pdaf_ncalls2_2, status_pdaf)
+     
+     ! One call for PHY assimilation only        
+     ELSEIF ((.not. assimilateBGC) .and. (assimilatePHY)) THEN
+     
+        CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
+             init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
-     END IF
+             
+     ! One call for BGC assimilation only        
+     ELSEIF ((assimilateBGC) .and. (.not. assimilatePHY)) THEN
+     
+        CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
+             init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
+             next_observation_pdaf, status_pdaf)
+     ENDIF
+     
+  ELSE
+!    IF (filtertype==11) THEN
+!          ! Observation generation has its own OMI interface routine
+!          CALL PDAFomi_generate_obs(collect_state_pdaf, distribute_state_pdaf, &
+!               init_dim_obs_pdafomi, obs_op_pdafomi, get_obs_f_pdaf, &
+!               prepoststep_pdaf, next_observation_pdaf, status_pdaf)
+!    ELSE
+!       ! All global filters except LEnKF
+!       CALL PDAFomi_assimilate_global(collect_state_pdaf, distribute_state_pdaf, &
+!            init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, &
+!            next_observation_pdaf, status_pdaf)
+!    END IF
+     WRITE (*,'(/a,i4,a1/)') &
+          ' This code implementation is for LESTKF - stopping! (PE ', mype_world,')'
+     CALL  abort_parallel()
   END IF
 
   ! Check for errors during execution of PDAF
 
   IF (status_pdaf /= 0) THEN
-     WRITE (*,'(/1x,a6,i3,a43,i4,a1/)') &
+     WRITE (*,'(/1x,a6,i3,a33,i4,a1/)') &
           'ERROR ', status_pdaf, &
-          ' in PDAF_put_state - stopping! (PE ', mype_world,')'
+          ' in PDAF - stopping! (PE ', mype_world,')'
      CALL  abort_parallel()
   END IF
   
