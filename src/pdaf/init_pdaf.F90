@@ -312,39 +312,89 @@ SUBROUTINE init_pdaf(nsteps)
     cda_phy = 'weak'  ! whether physics is updated from BGC assimilation
     cda_bio = 'weak'  ! whether BGC is updated from physics assimilation
 
-    if ((assimilateBGC) .and. (assimilatePHY)) then
-       ! Observations of both physics and BGC are assimilated
-       n_sweeps = 2
-       type_sweep(1) = 'phy'
-       type_sweep(2) = 'bio'
-    else
-       ! Less than two observation categories
-       n_sweeps = 1
-       if (assimilatePHY) then
-          ! Only observations of physics are assimilated
+    if (.false.) then
+    ! below: code remnants from implementation for coupling of PHY and BGC assimilation with "double-sweep";
+    ! discarded in favor of implementation with separate consecutive calls to PDAF assimilation routine.
+    
+       if ((assimilateBGC) .and. (assimilatePHY)) then
+          ! Observations of both physics and BGC are assimilated
+          n_sweeps = 2
           type_sweep(1) = 'phy'
-       elseif (assimilateBGC) then
-          ! Only observations of BGC are assimilated
-          type_sweep(1) = 'bio'
+          type_sweep(2) = 'bio'
        else
-          ! No observation active (free run); set sweep to physics
-          type_sweep(1) = 'phy'
+          ! Less than two observation categories
+          n_sweeps = 1
+          if (assimilatePHY) then
+             ! Only observations of physics are assimilated
+             type_sweep(1) = 'phy'
+          elseif (assimilateBGC) then
+             ! Only observations of BGC are assimilated
+             type_sweep(1) = 'bio'
+          else
+             ! No observation active (free run)
+             type_sweep(1) = 'non'
+          end if
+       end if
+       
+       if (mype_world == 0) then
+          write (*,'(a,2x,a)') 'FESOM-PDAF', '*** Setup for coupled DA FESOM-REcoM ***'
+          write (*, '(a,4x,a,i5)') 'FESOM-PDAF', 'Number of local analysis sweeps', n_sweeps
+          write (*, '(a,4x,a)') 'FESOM-PDAF','Type of sweeps:'
+          do i = 1, n_sweeps
+             if (trim(type_sweep(i))=='phy') then
+                cdaval = cda_phy
+             else
+                cdaval = cda_bio
+             end if
+             write (*, '(a,8x,a,i3,3x,a,a,3x,a,a)') &
+                  'FESOM-PDAF', 'sweep', i, ' observation type: ', trim(type_sweep(i)), 'CDA: ', trim(cdaval)
+          end do
        end if
     end if
-
-    if (mype_world == 0) then
-       write (*,'(a,2x,a)') 'FESOM-PDAF', '*** Setup for coupled DA FESOM-REcoM ***'
-       write (*, '(a,4x,a,i5)') 'FESOM-PDAF', 'Number of local analysis sweeps', n_sweeps
-       write (*, '(a,4x,a)') 'FESOM-PDAF','Type of sweeps:'
-       do i = 1, n_sweeps
-          if (trim(type_sweep(i))=='phy') then
-             cdaval = cda_phy
+    
+    if (.true.) then
+    ! below: implementation of coupled PHY and BGC assimilation
+    ! with separate consecutive calls to PDAF assimilation routine.
+    
+    type_sweep(1) = 'non'
+    type_sweep(2) = 'non'
+    
+       if ((assimilateBGC) .and. (assimilatePHY)) then
+          ! Observations of both physics and BGC are assimilated
+          n_sweeps = 1
+          type_sweep(1) = 'phy'
+          type_sweep(2) = 'bio'
+       else
+          ! Less than two observation categories
+          n_sweeps = 1
+          if (assimilatePHY) then
+             ! Only observations of physics are assimilated
+             type_sweep(1) = 'phy'
+          elseif (assimilateBGC) then
+             ! Only observations of BGC are assimilated
+             type_sweep(1) = 'bio'
           else
-             cdaval = cda_bio
+             ! No observation active (free run)
+             type_sweep(1) = 'non'
           end if
-          write (*, '(a,8x,a,i3,3x,a,a,3x,a,a)') &
-               'FESOM-PDAF', 'sweep', i, ' observation type: ', trim(type_sweep(i)), 'CDA: ', trim(cdaval)
-       end do
+       end if
+	   
+       if (mype_world == 0) then
+          write (*,'(a,2x,a)') 'FESOM-PDAF', '*** Setup for coupled DA FESOM-REcoM ***'
+          write (*, '(a,4x,a,i5)') 'FESOM-PDAF', 'Number of local analysis sweeps', n_sweeps
+          write (*, '(a,4x,a)') 'FESOM-PDAF','Type of coupling:'
+          do i = 1, 2
+             if     (trim(type_sweep(i))=='phy') then
+                cdaval = cda_phy
+             elseif (trim(type_sweep(i))=='bio') then
+                cdaval = cda_bio
+             else
+                cdaval = 'non'
+             end if
+             write (*, '(a,8x,a,a,3x,a,a)') &
+                  'FESOM-PDAF',' observation type: ', trim(type_sweep(i)), 'CDA: ', trim(cdaval)
+          end do
+       end if
     end if
 
 ! ***********************************************************************************************
