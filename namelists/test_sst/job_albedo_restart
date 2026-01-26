@@ -57,7 +57,7 @@ NENSstr=`printf %02d $NENS`
 #   run_end_date="2020-01-04"
 
 run_start_date="2010-01-01"
-run_end_date="2010-01-02"
+run_end_date="2010-01-03"
 
 # Set restart frequency. Examples:
 # Multiple restarts for 10-year-experiment:
@@ -65,7 +65,7 @@ run_end_date="2010-01-02"
 # Run 3-day experiment in one go without restarts:
 # rst_freq="3 days"
 
-rst_freq="1 day"
+rst_freq="2 day"
 rst_freq_number=`echo ${rst_freq} | cut -c 1`
 rst_freq_unit=`echo ${rst_freq} | cut -b 3` # (d,m,y)
 # Number of restart legs to be run in one single slurm job:

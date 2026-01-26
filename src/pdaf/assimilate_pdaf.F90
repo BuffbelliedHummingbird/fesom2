@@ -62,10 +62,13 @@ SUBROUTINE assimilate_pdaf(istep)
        next_observation_pdaf, &      ! Provide time step of next observation
        next_observation_pdaf_ncalls2_1, &      
        next_observation_pdaf_ncalls2_2, &      
-       prepoststep_pdaf              ! User supplied pre/poststep routine
+       prepoststep_pdaf, &            ! User supplied pre/poststep routine
+       prestep_pdaf, poststep_pdaf
   ! Localization of state vector
   EXTERNAL :: init_n_domains_pdaf, & ! Provide number of local analysis domains
        init_dim_l_pdaf, &            ! Initialize state dimension for local analysis domain
+       init_dim_l_pdaf_PHY, &
+       init_dim_l_pdaf_BGC, &
        g2l_state_pdaf, &             ! Get state on local analysis domain from global state
        l2g_state_pdaf                ! Update global state from state on local analysis domain
   ! Interface to PDAF-OMI for local and global filters
@@ -112,13 +115,13 @@ SUBROUTINE assimilate_pdaf(istep)
         
         ! PHY assimilation (1)
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
-             init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prepoststep_pdaf, init_n_domains_pdaf, &
-             init_dim_l_pdaf, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
+             init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prestep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf_ncalls2_1, status_pdaf)
         ! BGC assimilation (2)
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
-             init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, prepoststep_pdaf, init_n_domains_pdaf, &
-             init_dim_l_pdaf, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
+             init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, poststep_pdaf, init_n_domains_pdaf, &
+             init_dim_l_pdaf_BGC, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf_ncalls2_2, status_pdaf)
      
      ! One call for PHY assimilation only        
@@ -126,7 +129,7 @@ SUBROUTINE assimilate_pdaf(istep)
      
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prepoststep_pdaf, init_n_domains_pdaf, &
-             init_dim_l_pdaf, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
+             init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
              
      ! One call for BGC assimilation only        
@@ -134,7 +137,7 @@ SUBROUTINE assimilate_pdaf(istep)
      
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, prepoststep_pdaf, init_n_domains_pdaf, &
-             init_dim_l_pdaf, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
+             init_dim_l_pdaf_BGC, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
              
      ! Combined call for strongly coupled assimilation of PHY and BGC observations

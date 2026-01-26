@@ -1,10 +1,8 @@
-! PDAF in AWI-CM2 / Fesom 2.0
-
 ! *****************************
 ! -----------------------------
-! *** prepoststep_pdaf      ***
+! *** prestep_pdaf          ***
 ! -----------------------------
-SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
+SUBROUTINE prestep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      state_p, Uinv, ens_p, flag)
 
 ! !DESCRIPTION:
@@ -15,6 +13,10 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! PDAF. In this case, the name of the routine is defined
 ! within PDAF. This routine just calls the prepoststep
 ! routine corresponding to the selected filter algorithm.
+!
+! This variant is adapted for multiple consecutive calls of the PDAF 
+! assimilation routine. It is executed at the beginning of multiple
+! consecutive assimilation steps.
 !
 ! !REVISION HISTORY:
 ! 2010-07 - Lars Nerger  - Initial code
@@ -163,7 +165,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   
   simplify_debug  = .true. ! remove functionality for debugging purposes
   simplify_output = .true. ! remove output functionality for debugging purposes
-
+  
   ! set debug output
   debug = .false.
   IF (.not. debug) THEN
@@ -175,7 +177,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         write_debug = .true.
      ENDIF
   ENDIF
-  
+
 ! **********************
 ! *** INITIALIZATION ***
 ! **********************
@@ -183,73 +185,31 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (mype_filter==0) THEN
      IF ((step-step_null)==0) THEN
        IF (.not.(this_is_pdaf_restart)) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze initial state ensemble at step', &
-        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2,1x,a)') 'FESOM-PDAF', 'prestep_pdaf: WARNING: Nothing is done during initialization at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0),'(prepoststep_pdaf instead?)'
         WRITE (typestr,'(a1)') 'i'
        ELSE
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','prepoststep_pdaf: This is a PDAF restart. No initial fields at step', &
-        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF','prestep_pdaf: WARNING: Nothing is done during initialization at step', &
+        step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0),'(prepoststep_pdaf instead?)'
         WRITE (typestr,'(a1)') 'i'
        END IF
      ELSE IF ((step-step_null)>0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze assimilated state ensemble at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prestep_pdaf: Nothing is done after physics assimilation at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'a'
      ELSE IF ((step-step_null)<0) THEN
-        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prepoststep_pdaf: Analyze forecast state ensemble at step', &
+        WRITE (*,'(a, 8x,a,1x,i7,2x,i4,a1,i2.2,a1,i2.2,2x,i2.2,a1,i2.2)') 'FESOM-PDAF', 'prestep_pdaf: Analyze forecast state ensemble before physics assimilation at step', &
         step, yearnew,'-',month,'-',day_in_month,FLOOR(timenew/3600.0),':',INT(MOD(timenew,3600.0)/60.0)
         WRITE (typestr,'(a1)') 'f'
      END IF
   END IF ! IF (mype_filter==0)
   
+  IF ((step-step_null)<0) THEN ! begin of pre-step
+  
   ! variables allocated and saved during forecast; and deallocated after analysis
   IF (.not. ALLOCATED(stdev_SSH_f_p))    ALLOCATE(stdev_SSH_f_p(dim_fields(id%SSH)))
   IF (.not. ALLOCATED(state_fcst_SSH_p)) ALLOCATE(state_fcst_SSH_p(dim_fields(id%SSH),dim_ens))
   
-  IF ((step-step_null)==0) THEN
-  ! allocate monthly states at initial time; never de-allocated; monthly reset to zero
-  DO s=1, nfields
-     !                                                  -- output? -----------        -- ensemble mean? ----------            -- monthly? ----------------------
-     compute_monthly_ff = compute_monthly_ff .or. ( sfields(s)%output(ff,oo) .and. (.not. sfields(s)%output(ff,ee)) .and. (.not. sfields(s)%output(ff,dd)))  ! have monthly forecast (ff) states to write?
-     compute_monthly_aa = compute_monthly_aa .or. ( sfields(s)%output(aa,oo) .and. (.not. sfields(s)%output(aa,ee)) .and. (.not. sfields(s)%output(aa,dd)))  ! have monthly analysis (aa) states to write?
-     compute_monthly_mm = compute_monthly_mm .or. ( sfields(s)%output(mm,oo) .and. (.not. sfields(s)%output(mm,ee)) .and. (.not. sfields(s)%output(mm,dd)))  ! have monthly daymean  (mm) states to write?
-     compute_monthly_sf = compute_monthly_sf .or. ( sfields(s)%output(sf,oo) .and. (.not. sfields(s)%output(sf,ee)) .and. (.not. sfields(s)%output(sf,dd)))  ! have monthly forecast (sf) STD to write?
-     compute_monthly_sa = compute_monthly_sa .or. ( sfields(s)%output(sa,oo) .and. (.not. sfields(s)%output(sa,ee)) .and. (.not. sfields(s)%output(sa,dd)))  ! have monthly analysis (sa) STD to write?
-     compute_monthly_sm = compute_monthly_sm .or. ( sfields(s)%output(sm,oo) .and. (.not. sfields(s)%output(sm,ee)) .and. (.not. sfields(s)%output(sm,dd)))  ! have monthly daymean  (sm) STD to write?
-  ENDDO
-
-  IF ((.not. ALLOCATED(monthly_state_a)))     ALLOCATE(monthly_state_a(dim_p))
-  IF ((.not. ALLOCATED(monthly_state_f)))     ALLOCATE(monthly_state_f(dim_p))
-  IF ((.not. ALLOCATED(monthly_state_m)))     ALLOCATE(monthly_state_m(dim_p))
-  
-  IF ((.not. ALLOCATED(monthly_state_sa)))    ALLOCATE(monthly_state_sa(dim_p))
-  IF ((.not. ALLOCATED(monthly_state_sf)))    ALLOCATE(monthly_state_sf(dim_p))
-  IF ((.not. ALLOCATED(monthly_state_sm)))    ALLOCATE(monthly_state_sm(dim_p))
- 
-  ! allocate correction-counters at initial time; never de-allocated; reset to zero during each analysis
-  IF (.not. ALLOCATED(count_lim_salt0_g))   ALLOCATE(count_lim_salt0_g  (dim_ens))
-  IF (.not. ALLOCATED(count_lim_salt0_p))   ALLOCATE(count_lim_salt0_p  (dim_ens))
-  IF (.not. ALLOCATED(count_lim_absvel_g))  ALLOCATE(count_lim_absvel_g (dim_ens))
-  IF (.not. ALLOCATED(count_lim_absvel_p))  ALLOCATE(count_lim_absvel_p (dim_ens))
-  IF (.not. ALLOCATED(count_lim_ssh_g))     ALLOCATE(count_lim_ssh_g    (dim_ens))
-  IF (.not. ALLOCATED(count_lim_ssh_p))     ALLOCATE(count_lim_ssh_p    (dim_ens))
-  IF (.not. ALLOCATED(count_lim_tempM2_g))  ALLOCATE(count_lim_tempM2_g (dim_ens))
-  IF (.not. ALLOCATED(count_lim_tempM2_p))  ALLOCATE(count_lim_tempM2_p (dim_ens))
-
-  ! initialize numbers
-  invdim_ens = 1.0 / REAL(dim_ens)
-  
-  ! init monthly state
-  IF ((step-step_null)==0) THEN
-     monthly_state_a=  0.0D0
-     monthly_state_m=  0.0D0
-     monthly_state_f=  0.0D0
-     monthly_state_sa= 0.0D0
-     monthly_state_sm= 0.0D0
-     monthly_state_sf= 0.0D0
-  ENDIF
-  ENDIF ! ((step-step_null)==0)
-
 ! ****************************
 ! *** Perform pre/poststep ***
 ! ****************************
@@ -262,6 +222,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! ****************************
 
     IF ((step-step_null)<0) THEN
+    ! Corrections
     
     IF (.not. simplify_debug) THEN ! simplify_debug-01
     ! *** store forecast state fields temporarily to compare with analysis afterwards ***    
@@ -272,127 +233,13 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
       ENDDO
     ENDIF ! simplify_debug-01
     
-    ELSE IF ((step-step_null)>0) THEN
-   ! *** correcting assimilated state fields ***
+    END IF ! Corrections
    
-   ! *** salinity must be > 0 ***
-   count_lim_salt0_p = 0
-   
-   DO member = 1, dim_ens
-      DO i = 1, dim_fields(id% salt)
-           IF (ens_p(i+ offset(id% salt),member) < 0.0D0) THEN
-               ens_p(i+ offset(id% salt),member) = 0.0D0
-               
-               count_lim_salt0_p(member) = count_lim_salt0_p(member)+1
-           END IF
-      END DO
-   END DO
-   
-   CALL MPI_Allreduce(count_lim_salt0_p, count_lim_salt0_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   IF (mype_filter == 0) &
-            WRITE(*, *) 'FESOM-PDAF', &
-            '--- Updated salinity limited to zero: ', (count_lim_salt0_g(member), member = 1, dim_ens)
-   
-   IF (.not. simplify_debug) THEN ! simplify_debug-02
-   ! *** SSH state update must be <= 2*sigma
-   count_lim_ssh_p = 0
-   
-   DO member = 1, dim_ens
-   DO i = 1, dim_fields(id% SSH)
-       
-       diffm = ens_p(offset(id% SSH)+i,member) - state_fcst_SSH_p(i,member)
-   
-       IF (ABS(diffm) > 2.0*stdev_SSH_f_p(i)) THEN
-           ens_p(offset(id% SSH)+i,member) = state_fcst_SSH_p(i,member) + SIGN(2.0*stdev_SSH_f_p(i),diffm)
-           count_lim_ssh_p(member) = count_lim_ssh_p(member)+1
-       END IF
-       
-   END DO
-   END DO
-   
-   CALL MPI_Allreduce(count_lim_ssh_p, count_lim_ssh_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   IF (mype_filter == 0) &
-            WRITE(*,*) 'FESOM-PDAF', &
-            '--- SSH updates limited to 2x standard deviation: ', (count_lim_ssh_g(member), member = 1, dim_ens)
-   ENDIF ! simplify_debug-02
-
-
-   ! *** temperature must be > -2 degC ***
-   count_lim_tempM2_p = 0
-   
-   DO member = 1, dim_ens
-      DO i = 1, dim_fields(id% temp)
-           IF (ens_p(i+ offset(id% temp),member) < -2.0) THEN
-               ens_p(i+ offset(id% temp),member) = -2.0
-               
-               count_lim_tempM2_p(member) = count_lim_tempM2_p(member)+1
-           END IF
-      END DO
-   END DO
-   
-   CALL MPI_Allreduce(count_lim_tempM2_p, count_lim_tempM2_g, dim_ens, MPI_INTEGER, MPI_SUM, COMM_filter, MPIerr)
-   IF (mype_filter == 0) &
-            WRITE(*,*) 'FESOM-PDAF', &
-            '--- Updated temperature limited to -2 degC: ', (count_lim_tempM2_g(member), member = 1, dim_ens)
-    
-   IF (.not. simplify_debug) THEN ! simplify_debug-03        
-   ! *** BGC fields must be larger than "tiny" ***
-   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- reset BGC to tiny'
-   
-   tiny_N   = tiny_chl/chl2N_max      ! Chl2N_max   = 0.00001/ 3.15d0 [mg CHL/mmol N] Maximum CHL-a:N ratio = 0.3 gCHL gN^{-1}
-   tiny_N_d = tiny_chl/chl2N_max_d    ! Chl2N_max_d = 0.00001/ 4.2d0
-   tiny_C   = tiny_N  /NCmax          ! NCmax       = 0.2d0           [mmol N/mmol C] Maximum cell quota of nitrogen (N:C)
-   tiny_C_d = tiny_N_d/NCmax_d        ! NCmax_d     = 0.2d0 
-   tiny_Si  = tiny_C_d/SiCmax         ! SiCmax      = 0.8d0
-   tiny_R   = tiny * Redfield
-   
-   DO member = 1, dim_ens
-    DO i = 1, myDim_nod2D
-     DO k = 1, mesh_fesom%nlevels_nod2D(i)-1 ! loop through all wet nodes
-     
-           s = (i-1) * (nlmax) + k ! index in state vector
-           
-           DO f=1,nfields
-             ! biogeochemical model tracers
-             IF ((sfields(f)%bgc) .and. (sfields(f)% trnumfesom > 0)) THEN
-                ens_p(offset(f)+s,member) = max(tiny,ens_p(offset(f)+s,member))
-             ENDIF
-           ENDDO ! f=1,nfields
-           
-           ! small phytoplankton
-           ens_p(s+ offset(id% PhyN   ),member) = max(tiny_N  ,ens_p(s+ offset(id% PhyN   ),member))
-           ens_p(s+ offset(id% PhyC   ),member) = max(tiny_C  ,ens_p(s+ offset(id% PhyC   ),member))
-           ens_p(s+ offset(id% PhyChl ),member) = max(tiny_chl,ens_p(s+ offset(id% PhyChl ),member))
-           ens_p(s+ offset(id% PhyCalc),member) = max(tiny    ,ens_p(s+ offset(id% PhyCalc),member))
-           
-           ! diatoms
-           ens_p(s+ offset(id% DiaN   ),member) = max(tiny_N_d,ens_p(s+ offset(id% DiaN   ),member))
-           ens_p(s+ offset(id% DiaC   ),member) = max(tiny_C_d,ens_p(s+ offset(id% DiaC   ),member))
-           ens_p(s+ offset(id% DiaChl ),member) = max(tiny_chl,ens_p(s+ offset(id% DiaChl ),member))
-           ens_p(s+ offset(id% DiaSi  ),member) = max(tiny_Si ,ens_p(s+ offset(id% DiaSi  ),member))
-           
-           ! zooplankton 1
-           ens_p(s+ offset(id% Zo1N   ),member) = max(tiny    ,ens_p(s+ offset(id% Zo1N   ),member))
-           ens_p(s+ offset(id% Zo1C   ),member) = max(tiny_R  ,ens_p(s+ offset(id% Zo1C   ),member))
-           
-           ! zooplankton 2
-           ens_p(s+ offset(id% Zo2N   ),member) = max(tiny    ,ens_p(s+ offset(id% Zo2N   ),member))
-           ens_p(s+ offset(id% Zo2C   ),member) = max(tiny_R  ,ens_p(s+ offset(id% Zo2C   ),member))
-
-      ENDDO ! k=1,nlmax
-    ENDDO ! i=1,my_Dim_nod2D
-   ENDDO ! member=1,dim_ens
-   
-   END IF ! simplify_debug-03
-   END IF ! Corrections
-   
-
 ! *******************************
 ! *** Compute ensemble mean   ***
 ! *******************************
   IF (.not. simplify_debug) THEN ! simplify_debug-04
-  IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- compute ensemble mean'
+  IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: compute ensemble mean'
   
   ! Local: 
   state_p = 0.0
@@ -419,7 +266,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         .OR. (sss_exclude_ice     .and. assim_o_sss     )&
         .OR. (sss_cci_exclude_ice .and. assim_o_sss_cci )&
         .OR. (chl_cci_exclude_ice .and. assim_o_chl_cci )) THEN 
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SEA-ICE for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast SEA-ICE for observation exclusion'
         IF (ALLOCATED(mean_ice_p)) DEALLOCATE(mean_ice_p)
         ALLOCATE (mean_ice_p(dim_fields(id% a_ice)))
         mean_ice_p = state_p(offset(id% a_ice)+ 1 : &
@@ -429,7 +276,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! -- SST --
      ! save mean_sst_p
      IF ((sst_exclude_diff > 0.0) .and. assim_o_sst) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SST for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast SST for observation exclusion'
         IF (ALLOCATED(mean_sst_p)) DEALLOCATE(mean_sst_p)
         ALLOCATE (mean_sst_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -440,7 +287,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! -- SSS (CASE SMOS) --
      ! save mean_sss_p
      IF ((sss_exclude_diff > 0.0) .and. assim_o_sss) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SSS for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast SSS for observation exclusion'
         IF (ALLOCATED(mean_sss_p)) DEALLOCATE(mean_sss_p)
         ALLOCATE (mean_sss_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -451,7 +298,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! -- SSS (CASE CCI) --
      ! save mean_sss_cci_p
      IF ((sss_cci_exclude_diff > 0.0) .and. assim_o_sss_cci) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast SSS for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast SSS for observation exclusion'
         IF (ALLOCATED(mean_sss_cci_p)) DEALLOCATE(mean_sss_cci_p)
         ALLOCATE (mean_sss_cci_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -462,7 +309,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! -- Chlorophyll --
      ! save mean_chl_cci_p
      IF ((chl_cci_exclude_diff > 0.0) .and. assim_o_chl_cci) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast CHL for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast CHL for observation exclusion'
         IF (ALLOCATED(mean_chl_cci_p)) DEALLOCATE(mean_chl_cci_p)
         ALLOCATE (mean_chl_cci_p(myDim_nod2D))
         DO i = 1, myDim_nod2D
@@ -476,7 +323,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      IF ((assim_o_en4_t .OR. assim_o_en4_s) &
          .AND. &
          (prof_exclude_diff > 0.0)) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean temperature (3D) for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean temperature (3D) for observation exclusion'
         ! Store mean temperature for profile assimilation
         IF (ALLOCATED(mean_temp_p)) DEALLOCATE(mean_temp_p)
         ALLOCATE (mean_temp_p(dim_fields(id%temp)))
@@ -487,7 +334,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! save mean_o2_p
      IF (((o2_merged_excl_absolute > 0.0) .or. (o2_merged_excl_relative > 0.0)) &
         .and. assim_o_o2_merged) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast oxygen for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast oxygen for observation exclusion'
         IF (ALLOCATED(mean_O2_p)) DEALLOCATE(mean_O2_p)
         ALLOCATE (mean_O2_p(dim_fields(id%O2)))
         mean_O2_p = state_p(offset(id%O2)+1 : offset(id%O2)+dim_fields(id%O2))
@@ -497,7 +344,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      ! save mean_n_p
      IF (((n_merged_excl_absolute > 0.0) .or. (n_merged_excl_relative > 0.0)) &
         .and. assim_o_n_merged) THEN
-        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- save ensemble mean forecast DIN for observation exclusion'
+        IF (mype_filter==0) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', '--- prestep_pdaf: save ensemble mean forecast DIN for observation exclusion'
         IF (ALLOCATED(mean_n_p)) DEALLOCATE(mean_n_p)
         ALLOCATE (mean_n_p(dim_fields(id%DIN)))
         mean_n_p = state_p(offset(id%DIN)+1 : offset(id%DIN)+dim_fields(id%DIN))
@@ -520,7 +367,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! get fmass and fconc before analysis step
   
   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- compute carbon diagnostics at forecast'
+      WRITE(*, *) 'FESOM-PDAF', '--- prestep_pdaf: compute carbon diagnostics at forecast'
   
     DO i = 1, myDim_nod2D
       DO k = 1, nlmax
@@ -554,49 +401,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
     ENDDO
 
   ENDIF ! (forecast phase)
-  
-  IF ((step-step_null)>0) THEN
-  ! analysis phase
-  ! get amass and aconc after analysis step
-  
-  IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- compute carbon diagnostics at analysis'
-  
-     DO i = 1, myDim_nod2D
-      DO k = 1, nlmax
-      s = (i-1) * (nlmax) + k ! index in state vector
-      ! DIC
-      cffields(id_s_asml_dic)% aconc (k, i) = state_p(s + offset(id% DIC))
-      ! Alk
-      cffields(id_s_asml_alk)% aconc (k, i) = state_p(s + offset(id% Alk))
-      ! Living carbon biomass
-      cffields(id_s_asml_livingmatter)% aconc (k, i) = &
-                               (state_p(s + offset(id% PhyC)) &
-                              + state_p(s + offset(id% DiaC)) &
-                              + state_p(s + offset(id% Zo1C)) &
-                              + state_p(s + offset(id% Zo2C)) &
-                              + state_p(s + offset(id% PhyCalc)))
-      ! Dead organic carbon
-      cffields(id_s_asml_deadmatter)% aconc (k, i) = &
-                               (state_p(s + offset(id% DOC))     &
-                              + state_p(s + offset(id% DetC))    &
-                              + state_p(s + offset(id% DetCalc)) &
-                              + state_p(s + offset(id% Det2C))   &
-                              + state_p(s + offset(id% Det2Calc)))
-      ENDDO ! k=1,nlmax
-    ENDDO ! i=1,my_Dim_nod2D
-    
-    ! convert concentration to mass
-    DO s=1, size(cffieldsasml)
-       i = cffieldsasml(s)
-       cffields(i)% amass = cffields(i)% aconc * factor_mass
-       cffields(i)% aconc = cffields(i)% aconc * factor_conc
-    ENDDO
-    
-    ! save the difference of forecast and analysis
-    CALL carbonfluxes_diags_output_timemean_asml()
-  
-  ENDIF ! (analysis phase)
   ENDIF ! simplify_debug-06
   
 
@@ -604,9 +408,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Compute ensemble spread (STD) for different fields        ***
 ! *****************************************************************
   
-  IF (.not. simplify_debug) THEN ! simplify_debug-07
+  IF (.not. simplify_debug) THEN ! simplify_debug-07  
   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- compute ensemble standard deviation'
+      WRITE(*, *) 'FESOM-PDAF', '--- prestep_pdaf: compute ensemble standard deviation'
   
   ! Compute standard deviation of ensemble at grid points
   ! ---------------------------------------------------------------------------------------
@@ -632,7 +436,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! -----------------------------------------------------------------------------------------------------
   ! Compute pe-local surface mean of ensemble STD for each field
   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- compute ensemble standard deviation surface mean'
+      WRITE(*, *) 'FESOM-PDAF', '--- prestep_pdaf: compute ensemble standard deviation surface mean'
   stdev_surf_p = 0.0
   stdev_surf_g = 0.0
   
@@ -664,7 +468,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! -----------------------------------------------------------------------------------------------------
   ! Compute pe-local mean of ensemble STD for each field
   IF (mype_filter == 0) &
-      WRITE(*, *) 'FESOM-PDAF', '--- compute ensemble standard deviation global ocean mean'
+      WRITE(*, *) 'FESOM-PDAF', '--- prestep_pdaf: compute ensemble standard deviation global ocean mean'
   stdev_volo_p = 0.0
   stdev_volo_g = 0.0
   
@@ -699,7 +503,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   ! Display RMS errors
   IF (mype_filter==0) THEN
      WRITE (*,'(a, 10x,a)') &
-          'FESOM-PDAF', 'Ensemble standard deviation:'
+          'FESOM-PDAF', 'prestep_pdaf: Ensemble standard deviation:'
      WRITE (*,'(a,7x,    a14,   a14,   a14,   a14,  a14, /a, 10x,70a)') &
           'FESOM-PDAF', 'CO2f','pCO2','temp','DIC','Alk', &
           'FESOM-PDAF', ('-',i=1,70)
@@ -815,70 +619,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      
   ENDIF ! (forecast phase)
   ENDIF ! simplify_debug-08
-
-
-! ***************************************************************
-! *** Compute statistics for effective observation dimensions ***
-! ***************************************************************
-  IF (.not. simplify_debug) THEN ! simplify_debug-09
-  IF (loctype==1 .AND. ((step-step_null) > 0)) THEN
-
-     max_eff_dim_obs = 0.0
-     min_eff_dim_obs = 1.0e16
-     sum_eff_dim_obs = 0.0
-
-     DO i = 1, myDim_nod2D
-        IF (eff_dim_obs(i) > max_eff_dim_obs) max_eff_dim_obs = eff_dim_obs(i)
-        IF (eff_dim_obs(i) < min_eff_dim_obs) min_eff_dim_obs = eff_dim_obs(i)
-        sum_eff_dim_obs = sum_eff_dim_obs + eff_dim_obs(i)
-     END DO
-     IF (npes_filter>1) THEN
-        CALL MPI_Reduce(sum_eff_dim_obs, avg_eff_dim_obs_g, 1, MPI_DOUBLE_PRECISION, MPI_SUM, &
-             0, COMM_filter, MPIerr)
-        CALL MPI_Reduce(max_eff_dim_obs, max_eff_dim_obs_g, 1, MPI_DOUBLE_PRECISION, MPI_MAX, &
-             0, COMM_filter, MPIerr)
-        CALL MPI_Reduce(min_eff_dim_obs, min_eff_dim_obs_g, 1, MPI_DOUBLE_PRECISION, MPI_MIN, &
-             0, COMM_filter, MPIerr)
-     ELSE
-        ! This is a work around for working with nullmpi.F90
-        avg_eff_dim_obs_g = sum_eff_dim_obs
-        min_eff_dim_obs_g = min_eff_dim_obs
-        max_eff_dim_obs_g = max_eff_dim_obs
-     END IF
-
-     IF (mype_filter==0) THEN
-        avg_eff_dim_obs_g = avg_eff_dim_obs_g / REAL(mesh_fesom%nod2d)
-
-        WRITE (*, '(a, 8x, a)') &
-             'FESOM-PDAF', '--- Effective observation dimensions for local analysis:'
-        WRITE (*, '(a, 12x, a, f12.2)') &
-             'FESOM-PDAF', 'min. effective observation dimension:       ', min_eff_dim_obs_g
-        WRITE (*, '(a, 12x, a, f12.2)') &
-             'FESOM-PDAF', 'max. effective observation dimension:       ', max_eff_dim_obs_g
-        WRITE (*, '(a, 12x, a, f12.2)') &
-             'FESOM-PDAF', 'avg. effective observation dimension:       ', avg_eff_dim_obs_g
-     END IF
-  END IF
-  END IF ! simplify_debug-09
-  
-! ***************************
-! *** Compute daily means ***
-! ***************************
-  IF (.not. simplify_debug) THEN ! simplify_debug-10
-! daily means ("m"-state) are averaged over one analysis step and the consecutive model forecast steps of that day
-! during analysis step, add to m-fields
-  IF (w_mm) THEN
-  IF ((step-step_null) > 0) THEN
-     timemean = timemean + state_p / delt_obs_ocn
-  ENDIF ! step > 0
-  ENDIF ! w_mm
-  IF (w_sm) THEN
-  IF ((step-step_null) > 0) THEN
-     timemean_s = timemean_s + stdev_p / delt_obs_ocn
-  ENDIF ! step > 0
-  ENDIF ! w_sm
-  ENDIF ! simplify_debug-10
-  
+   
 ! *****************************
 ! *** Compute monthly means ***
 ! *****************************
@@ -887,14 +628,9 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   debugging_monthlymean = .false.
   
      ! include state into monthly mean
-     IF ((step-step_null) > 0) THEN
-     ! *** analyzed fields ***
-       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
-       IF (compute_monthly_aa) monthly_state_a  = monthly_state_a  + state_p
-       IF (compute_monthly_sa) monthly_state_sa = monthly_state_sa + stdev_p
-     ELSE IF ((step-step_null) < 0) THEN
+     IF ((step-step_null) < 0) THEN
      ! *** forecasted fields ***
-       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,*) 'step ', step, 'adding to monthly mean.'
+       IF (debugging_monthlymean .and. mype_filter==0) WRITE(*,'(a, 8x, a,i7,a)') 'FESOM-PDAF', '--- prestep_pdaf: step ', step, 'adding forecast state to monthly mean.'
        IF (compute_monthly_ff) monthly_state_f  = monthly_state_f  + state_p
        IF (compute_monthly_sf) monthly_state_sf = monthly_state_sf + stdev_p
      END IF
@@ -902,11 +638,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
      IF (now_to_write_monthly) THEN
      ! computing monthly mean at last day of month
      weights =  1.0/REAL(num_day_in_month(fleapyear,month))
-     IF ((step-step_null) > 0) THEN
-     ! *** analyzed state fields ***
-       IF (compute_monthly_aa) monthly_state_a  = monthly_state_a  * weights
-       IF (compute_monthly_sa) monthly_state_sa = monthly_state_sa * weights
-     ELSE IF ((step-step_null) < 0) THEN
+     IF ((step-step_null) < 0) THEN
      ! *** forecasted state fields ***
        IF (compute_monthly_ff) monthly_state_f  = monthly_state_f  * weights
        IF (compute_monthly_sf) monthly_state_sf = monthly_state_sf * weights
@@ -918,21 +650,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
 ! *** Write output files ***
 ! **************************
 ! note: after monthly output is written, reset monthly fields to zero
- 
-  IF (.not. simplify_debug) THEN ! simplify_debug-12
-  ! *** write initial state fields ***
-  IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
-      ! ensemble mean
-      IF (w_dayensm) CALL netCDF_out('ii',state_p, int0, now_to_write_monthly, stdev_surf_g=stdev_surf_g, stdev_volo_g=stdev_volo_g)
-      IF (w_dayensm) CALL netCDF_out('si',stdev_p, int0, now_to_write_monthly)
-      ! ensemble members
-      IF (w_daymemb) THEN
-        DO member = 1, dim_ens
-           CALL netCDF_out('ii',ens_p(:,member), member, now_to_write_monthly)
-        ENDDO
-      ENDIF
-  ENDIF
-  ENDIF ! simplify_debug-12
 
   IF (.not. simplify_output) THEN ! simplify_debug (daily output)
   IF (.not. now_to_write_monthly) THEN
@@ -946,17 +663,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         IF (w_daymemb) THEN
           DO member = 1, dim_ens
             CALL netCDF_out('ff',ens_p(:,member), member, now_to_write_monthly)
-          ENDDO
-        ENDIF
-  ELSE IF ((step-step_null) > 0) THEN
-        ! *** write analysis ***
-        ! ensemble mean
-        IF (w_dayensm) CALL netCDF_out('aa',state_p   , int0, now_to_write_monthly, stdev_surf_g=stdev_surf_g, stdev_volo_g=stdev_volo_g)
-        IF (w_dayensm) CALL netCDF_out('sa',stdev_p   , int0, now_to_write_monthly)
-        ! ensemble members
-        IF (w_daymemb) THEN
-          DO member = 1, dim_ens
-            CALL netCDF_out('aa',ens_p(:,member), member, now_to_write_monthly)
           ENDDO
         ENDIF
   ENDIF
@@ -978,17 +684,6 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
             CALL netCDF_out('ff',ens_p(:,member), member, now_to_write_monthly, m_state_p=ens_p(:,member))
           ENDDO
         ENDIF
-  ELSE IF ((step-step_null) > 0) THEN
-        ! *** write analysis and "m"-state fields ***
-        ! ensemble mean, adding monthly mean of analysis
-        IF (w_dayensm .or. w_monensm) CALL netCDF_out('aa',state_p   , int0, now_to_write_monthly, stdev_surf_g=stdev_surf_g, stdev_volo_g=stdev_volo_g, m_state_p=monthly_state_a )
-        IF (w_dayensm .or. w_monensm) CALL netCDF_out('sa',stdev_p   , int0, now_to_write_monthly,                                                       m_state_p=monthly_state_sa)
-        ! ensemble members, adding snapshot
-        IF (w_daymemb .or. w_monmemb) THEN
-          DO member = 1, dim_ens
-            CALL netCDF_out('aa',ens_p(:,member), member, now_to_write_monthly, m_state_p=ens_p(:,member))
-          ENDDO
-        ENDIF
   END IF
   END IF
   END IF ! simplify_debug-13
@@ -996,35 +691,20 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   IF (.not. simplify_debug) THEN ! simplify_debug-14
   ! at last day of month, reset monthly_state to zero (has been written)
   IF (now_to_write_monthly) THEN
-     IF ((step-step_null) > 0) THEN
-     ! *** assimilated state fields ***
-       IF (compute_monthly_aa) monthly_state_a  = 0.0D0
-       IF (compute_monthly_sa) monthly_state_sa = 0.0D0
-     ELSE IF ((step-step_null) < 0) THEN
+     IF ((step-step_null) < 0) THEN
      ! *** forecasted state fields ***
        IF (compute_monthly_ff) monthly_state_f  = 0.0D0
        IF (compute_monthly_sf) monthly_state_sf = 0.0D0
      END IF
   ENDIF ! now_to_write_monthly
   ENDIF ! simplify_debug-14
-
+  
 ! ********************
 ! *** finishing up ***
 ! ********************
 
-  ! variables deallocated after analysis step
-  IF ((step-step_null) >= 0) THEN
-     IF (allocated(stdev_SSH_f_p))    deallocate(stdev_SSH_f_p)
-     IF (allocated(state_fcst_SSH_p)) deallocate(state_fcst_SSH_p)
-     IF (allocated(mean_O2_p ))       deallocate(mean_O2_p )
-     IF (allocated(mean_n_p))         deallocate(mean_n_p)
-     IF (allocated(mean_chl_cci_p))   deallocate(mean_chl_cci_p)
-     IF (allocated(mean_temp_p))      deallocate(mean_temp_p)
-     IF (allocated(mean_sss_cci_p))   deallocate(mean_sss_cci_p)
-     IF (allocated(mean_sss_p))       deallocate(mean_sss_p)     
-     IF (allocated(mean_sst_p))       deallocate(mean_sst_p)     
-     IF (allocated(mean_ice_p))       deallocate(mean_ice_p)     
-  ENDIF
   IF (allocated(stdev_p)) deallocate(stdev_p)
+  
+  ENDIF  ! end of pre-step
 
-END SUBROUTINE prepoststep_pdaf
+END SUBROUTINE prestep_pdaf

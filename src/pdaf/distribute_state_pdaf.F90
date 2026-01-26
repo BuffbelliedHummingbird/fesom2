@@ -78,7 +78,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   
   ! Debug settings
   IsDistributed    = .true.  ! possibility to not distribute state for debugging purposes
-  IsBioDistributed = .false. ! possibility to not distribute BGC variables for debugging purposes
+  IsBioDistributed = .true.  ! possibility to not distribute BGC variables for debugging purposes
   IsPhyDistributed = .true.  ! possibility to not distribute PHY variables for debugging purposes
   
   IF (IsDistributed) THEN
@@ -214,9 +214,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   ! Temp (5) and salt (6)
   ! are included in tracer field loop.
   
-  ! Sea-ice concentration is needed in PDAF to not assimilate SST at
+  ! Sea-ice concentration is needed in PDAF to NOT assimilate SST at
   ! sea-ice locations.
-  ! But sea-ice itself is not assimilated, thus sea-ice update is
+  ! But sea-ice itself is not included in the assimilation, thus sea-ice update is
   ! not distributed to the model.
   
 ! *********************************
@@ -279,13 +279,13 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
    
    ! IF (writepe) WRITE(*,*) 'distribute_state: EPSILON(X)', EPSILON(state_p(0)), '  ', EPSILON(tr_arr(0,0,0))
    ! EPSILON(X)  2.220446049250313E-016     2.220446049250313E-016
-   ! Precision: 17.15F
+   ! => Precision of 16 digits.
 
   ! clean up:
   if (write_debug) close(fileID_debug)
   if (IsPhyDistributed) deallocate(U_node_upd,U_elem_upd)
  
-  ENDIF ! (istep_asml==step_null etc.)
+  ENDIF ! (istep_asml==step_null at restarts etc.)
   
   ELSE  ! (IsDistributed)
   IF (writepe) WRITE (*,'(a, 8x,a)') 'FESOM-PDAF', 'debug: no distribute_state.'

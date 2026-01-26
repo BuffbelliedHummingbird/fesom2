@@ -14,8 +14,12 @@
 !! __Revision history:__
 !! 2005-09 - Lars Nerger - Initial code
 !! 2022-03 - Frauke B    - Adapted for FESOM 2.1
-!!
 
+
+! *****************************
+! -----------------------------
+! *** init_dim_l_pdaf       ***
+! -----------------------------
 SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
 
   USE mod_assim_pdaf, &                    ! Variables for assimilation
@@ -34,7 +38,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
     USE PDAFomi, &
         ONLY: PDAFomi_set_debug_flag
     USE mod_parallel_pdaf, &
-        ONLY: mype_filter, abort_parallel
+        ONLY: mype_filter, abort_parallel, mype_world
     USE PDAF_mod_filter, &
         ONLY: state
     USE mod_nc_out_variables, &
@@ -65,6 +69,9 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
   INTEGER :: i, b, p                             ! Counters
   INTEGER :: domain_p                            ! Local analysis domain accounting for multiple sweeps
   
+  LOGICAL, save :: first_call = .true.
+  LOGICAL :: writenow = .false.
+  
   ! integer :: myDebug_id(1)
   ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
   
@@ -84,6 +91,14 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
      ! Set index of sweep
      isweep = 2
   end if
+  
+  ! write to logfile at first call
+  IF ((domain_p==1) .and. (mype_world==0) .and. (first_call)) THEN
+     writenow = .true.
+     first_call = .false.
+  ELSE
+      writenow = .false.
+  ENDIF
   
 ! *****************
 ! *** OMI Debug ***
@@ -117,7 +132,8 @@ ENDIF
 !~   dim_fields_l (id%salt)   = nlay
 !~   dim_fields_l (id%a_ice)  = 0
 !~   dim_fields_l (id%MLD1)   = 0
-  
+
+  dim_fields_l = 0
   ! Physics:
   DO p=phymin, phymax
     ! not updated:
@@ -144,10 +160,17 @@ ENDIF
     ENDIF
   ENDDO
 
-  offset_l(1) = 0
+  offset_l = 0
   DO i = 2,nfields
      offset_l(i) = offset_l(i-1) + dim_fields_l(i-1)
   END DO
+  
+  IF (writenow) THEN
+     DO i = 2,nfields
+        WRITE (*,'(a,10x,a,1x,a10,1x,a,1x,i2)') &
+        'FESOM-PDAF', 'init_dim_l_pdaf:', sfields(i) % variable, 'dim_fields_l =', dim_fields_l(i)
+     ENDDO
+  ENDIF
   
   dim_l = sum(dim_fields_l)
 
@@ -176,7 +199,7 @@ ENDIF
 ! *** Initialize array of indices for local domain ***
 ! ****************************************************
 
-  ! Allocate arrays
+  ! Re-allocation to fit dim_l
   IF (ALLOCATED(id_lstate_in_pstate)) DEALLOCATE(id_lstate_in_pstate)
   
   ALLOCATE(id_lstate_in_pstate(dim_l))
@@ -206,7 +229,7 @@ ENDIF
   endif
   
   ! W
-  ! vertical velocities are intentionally omitted
+  ! vertical velocities are intentionally not included
   
   ! Temp
   if (sfields(id%temp)%IsInStateL) then
@@ -247,3 +270,325 @@ ENDIF
   ENDDO
 
 END SUBROUTINE init_dim_l_pdaf
+
+
+! *****************************
+! -----------------------------
+! *** init_dim_l_pdaf_BGC   ***
+! -----------------------------
+SUBROUTINE init_dim_l_pdaf_BGC(step, domain_p, dim_l)
+
+  USE mod_assim_pdaf, &                    ! Variables for assimilation
+       ONLY: id_lstate_in_pstate, &        ! Indices of local state vector in PE-local global state vector
+             offset, &                     ! PE-local offsets of fields in state vector
+             id, &                         ! Field IDs in state vector
+             coords_l, &                   ! Coordinates of local analysis domain
+             mesh_fesom, nlmax, &                 
+             nfields, bgcmin, bgcmax, phymin, phymax, &
+                                          ! mesh_fesom % coord_nod2D, & ! vertex coordinates in radian measure
+                                          ! mesh_fesom % nlevels, &     ! number of levels at (below) elem     considering bottom topography
+                                          ! mesh_fesom % nlevels_nod2D  ! number of levels at (below) vertices considering bottom topography
+                                          ! mesh_fesom % nl             ! number of levels not considering bottom topography
+             dim_fields_l, offset_l, &    ! Domain local (water column at one node) field dimensions
+             isweep
+    USE PDAFomi, &
+        ONLY: PDAFomi_set_debug_flag
+    USE mod_parallel_pdaf, &
+        ONLY: mype_filter, abort_parallel, mype_world
+    USE PDAF_mod_filter, &
+        ONLY: state
+    USE mod_nc_out_variables, &
+        ONLY: sfields, ids_bgc, nfields_bgc
+    USE g_parsup, &
+      ONLY: myDim_nod2D, &      ! Process-local number of vertices
+            myDim_elem2D        ! Process-local number of elements 
+    USE g_rotate_grid, &
+       ONLY: r2g                           ! Transform from the mesh (rotated) coordinates 
+                                           ! to geographical coordinates  
+       ! glon, glat        :: [radian] geographical coordinates
+       ! rlon, rlat        :: [radian] mesh (rotated) coordinates
+       
+  USE mod_assim_pdaf, &
+       ONLY: debug_id_nod2
+  USE g_parsup, &
+       ONLY: myList_nod2D
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in)  :: step              ! Current time step
+  INTEGER, INTENT(in)  :: domain_p          ! Current local analysis domain, containing repititive sweeps
+  INTEGER, INTENT(out) :: dim_l             ! Local state dimension
+
+! *** Local variables ***
+  INTEGER :: nlay                                ! Number of layers for current domain
+  INTEGER :: i, b, p                             ! Counters
+  
+  LOGICAL, save :: first_call = .true.
+  LOGICAL :: writenow = .false.
+  
+  ! write to logfile at first call
+  IF ((domain_p==1) .and. (mype_world==0) .and. (first_call)) THEN
+     writenow = .true.
+     first_call = .false.
+  ELSE
+      writenow = .false.
+  ENDIF
+  
+  ! integer :: myDebug_id(1)
+  ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
+  
+! *****************
+! *** OMI Debug ***
+! *****************
+  IF (.false.) THEN
+     IF ((mype_filter==18) .AND. (domain_p==477)) THEN
+        call PDAFomi_set_debug_flag(1)
+        call PDAF_set_debug_flag(1)
+     ELSE
+        call PDAFomi_set_debug_flag(0)
+        call PDAF_set_debug_flag(0)
+     ENDIF
+  ENDIF
+
+! ****************************************
+! *** Initialize local state dimension ***
+! ****************************************
+  
+  ! water column at domain_p: local number of wet layers
+  nlay = mesh_fesom%nlevels_nod2D(domain_p)-1
+  
+  IF (nlay > nlmax) THEN
+  WRITE(*,'(a,10x,a,1x,a,1x,i7,1x,a)') 'FESOM-PDAF', 'init_dim_l_pdaf_BGC', 'domain_p ', domain_p, ': nlay exceeds layer bounds!'
+  CALL abort_parallel()
+  ENDIF
+  
+  dim_fields_l = 0
+  ! loop BGC variables
+  DO p=1,nfields_bgc
+    
+    ! not updated:
+    IF ( .not. (sfields(ids_bgc(p))% IsInStateL)) THEN
+      dim_fields_l(ids_bgc(p)) = 0
+    ELSE
+    ! updated:
+      ! surface fields:
+      IF (sfields(ids_bgc(p))% ndims == 1)   dim_fields_l(ids_bgc(p))=1
+      ! 3D fields:
+      IF (sfields(ids_bgc(p))% ndims == 2)   dim_fields_l(ids_bgc(p))=nlay
+    ENDIF
+    
+    IF (writenow) WRITE (*,'(a,10x,a,1x,a10,1x,a,1x,i2)') &
+    'FESOM-PDAF', 'init_dim_l_pdaf_BGC:', sfields(ids_bgc(p)) % variable, 'dim_fields_l =', dim_fields_l(ids_bgc(p))
+    
+  ENDDO
+
+  offset_l = 0
+  DO i = 2,nfields
+     offset_l(i) = offset_l(i-1) + dim_fields_l(i-1)
+  END DO
+  
+  dim_l = sum(dim_fields_l)
+
+! **********************************************
+! *** Initialize coordinates of local domain ***
+! **********************************************
+
+  ! Get location of current water column (basis point)
+  CALL r2g(coords_l(1), coords_l(2), mesh_fesom%coord_nod2D(1, domain_p), mesh_fesom%coord_nod2D(2, domain_p))
+
+! ****************************************************
+! *** Initialize array of indices for local domain ***
+! ****************************************************
+
+  ! re-allocate to fit dim_l
+  IF (ALLOCATED(id_lstate_in_pstate)) DEALLOCATE(id_lstate_in_pstate)
+  ALLOCATE(id_lstate_in_pstate(dim_l))
+
+  ! *** indices for full state vector ***
+        
+  ! loop BGC variables
+  DO p=1,nfields_bgc
+    b=ids_bgc(p)
+  
+    ! only updated fields:
+    IF ((sfields(b)%IsInStateL)) THEN
+      
+      ! surface fields:
+      IF (sfields(b)% ndims == 1)   THEN
+            id_lstate_in_pstate (offset_l(b)+1) &
+                   = offset(b) + domain_p
+      ENDIF
+
+      ! 3D fields:
+      IF (sfields(b)% ndims == 2)   THEN
+            id_lstate_in_pstate (offset_l(b)+1 : offset_l(b)+dim_fields_l(b))&
+                   = offset(b) &
+                   + (domain_p-1)*(nlmax) &
+                   + (/(i, i=1,dim_fields_l(b))/)
+      ENDIF
+    ENDIF
+  ENDDO
+
+END SUBROUTINE init_dim_l_pdaf_BGC
+
+
+! *****************************
+! -----------------------------
+! *** init_dim_l_pdaf_PHY   ***
+! -----------------------------
+SUBROUTINE init_dim_l_pdaf_PHY(step, domain_p, dim_l)
+
+  USE mod_assim_pdaf, &                    ! Variables for assimilation
+       ONLY: id_lstate_in_pstate, &        ! Indices of local state vector in PE-local global state vector
+             offset, &                     ! PE-local offsets of fields in state vector
+             id, &                         ! Field IDs in state vector
+             coords_l, &                   ! Coordinates of local analysis domain
+             mesh_fesom, nlmax, &                 
+             nfields, bgcmin, bgcmax, phymin, phymax, &
+                                          ! mesh_fesom % coord_nod2D, & ! vertex coordinates in radian measure
+                                          ! mesh_fesom % nlevels, &     ! number of levels at (below) elem     considering bottom topography
+                                          ! mesh_fesom % nlevels_nod2D  ! number of levels at (below) vertices considering bottom topography
+                                          ! mesh_fesom % nl             ! number of levels not considering bottom topography
+             dim_fields_l, offset_l, &    ! Domain local (water column at one node) field dimensions
+             isweep
+    USE PDAFomi, &
+        ONLY: PDAFomi_set_debug_flag
+    USE mod_parallel_pdaf, &
+        ONLY: mype_filter, abort_parallel, mype_world
+    USE PDAF_mod_filter, &
+        ONLY: state
+    USE mod_nc_out_variables, &
+        ONLY: sfields, ids_phy, nfields_phy
+    USE g_parsup, &
+      ONLY: myDim_nod2D, &      ! Process-local number of vertices
+            myDim_elem2D        ! Process-local number of elements 
+    USE g_rotate_grid, &
+       ONLY: r2g                           ! Transform from the mesh (rotated) coordinates 
+                                           ! to geographical coordinates  
+       ! glon, glat        :: [radian] geographical coordinates
+       ! rlon, rlat        :: [radian] mesh (rotated) coordinates
+       
+  USE mod_assim_pdaf, &
+       ONLY: debug_id_nod2
+  USE g_parsup, &
+       ONLY: myList_nod2D
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in)  :: step              ! Current time step
+  INTEGER, INTENT(in)  :: domain_p          ! Current local analysis domain, containing repititive sweeps
+  INTEGER, INTENT(out) :: dim_l             ! Local state dimension
+
+! *** Local variables ***
+  INTEGER :: nlay                                ! Number of layers for current domain
+  INTEGER :: i, b, p                             ! Counters
+  
+  LOGICAL, save :: first_call = .true.
+  LOGICAL :: writenow = .false.
+  
+  ! write to logfile at first call
+  IF ((domain_p==1) .and. (mype_world==0) .and. (first_call)) THEN
+     writenow = .true.
+     first_call = .false.
+  ELSE
+      writenow = .false.
+  ENDIF
+  
+  ! integer :: myDebug_id(1)
+  ! myDebug_id = FINDLOC(myList_nod2D, value=debug_id_nod2)
+  
+! *****************
+! *** OMI Debug ***
+! *****************
+  IF (.false.) THEN
+     IF ((mype_filter==18) .AND. (domain_p==477)) THEN
+        call PDAFomi_set_debug_flag(1)
+        call PDAF_set_debug_flag(1)
+     ELSE
+        call PDAFomi_set_debug_flag(0)
+        call PDAF_set_debug_flag(0)
+     ENDIF
+  ENDIF
+
+! ****************************************
+! *** Initialize local state dimension ***
+! ****************************************
+  
+  ! water column at domain_p: local number of wet layers
+  nlay = mesh_fesom%nlevels_nod2D(domain_p)-1
+  
+  IF (nlay > nlmax) THEN
+  WRITE(*,'(a,10x,a,1x,a,1x,i7,1x,a)') 'FESOM-PDAF', 'init_dim_l_pdaf_PHY', 'domain_p ', domain_p, ': nlay exceeds layer bounds!'
+  CALL abort_parallel()
+  ENDIF
+  
+  dim_fields_l = 0
+  ! loop PHY variables
+  DO p=1,nfields_phy
+    
+    ! not updated:
+    IF ( .not. (sfields(ids_phy(p))% IsInStateL)) THEN
+      dim_fields_l(ids_phy(p)) = 0
+    ELSE
+    ! updated:
+      ! surface fields:
+      IF (sfields(ids_phy(p))% ndims == 1)   dim_fields_l(ids_phy(p))=1
+      ! 3D fields:
+      IF (sfields(ids_phy(p))% ndims == 2)   dim_fields_l(ids_phy(p))=nlay
+    ENDIF
+    
+    IF (writenow) WRITE (*,'(a,10x,a,1x,a10,1x,a,1x,i2)') &
+    'FESOM-PDAF', 'init_dim_l_pdaf_PHY:', sfields(ids_phy(p)) % variable, 'dim_fields_l =', dim_fields_l(ids_phy(p))
+    
+  ENDDO
+
+  offset_l = 0
+  DO i = 2,nfields
+     offset_l(i) = offset_l(i-1) + dim_fields_l(i-1)
+  END DO
+  
+  dim_l = sum(dim_fields_l)
+
+! **********************************************
+! *** Initialize coordinates of local domain ***
+! **********************************************
+
+  ! Get location of current water column (basis point)
+  CALL r2g(coords_l(1), coords_l(2), mesh_fesom%coord_nod2D(1, domain_p), mesh_fesom%coord_nod2D(2, domain_p))
+
+! ****************************************************
+! *** Initialize array of indices for local domain ***
+! ****************************************************
+
+  ! re-allocate to fit dim_l
+  IF (ALLOCATED(id_lstate_in_pstate)) DEALLOCATE(id_lstate_in_pstate)
+  ALLOCATE(id_lstate_in_pstate(dim_l))
+
+  ! *** indices for full state vector ***
+        
+  ! loop PHY variables
+  DO p=1,nfields_phy
+    b=ids_phy(p)
+  
+    ! only updated fields:
+    IF ((sfields(b)%IsInStateL)) THEN
+      
+      ! surface fields:
+      IF (sfields(b)% ndims == 1)   THEN
+            id_lstate_in_pstate (offset_l(b)+1) &
+                   = offset(b) + domain_p
+      ENDIF
+
+      ! 3D fields:
+      IF (sfields(b)% ndims == 2)   THEN
+            id_lstate_in_pstate (offset_l(b)+1 : offset_l(b)+dim_fields_l(b))&
+                   = offset(b) &
+                   + (domain_p-1)*(nlmax) &
+                   + (/(i, i=1,dim_fields_l(b))/)
+      ENDIF
+    ENDIF
+  ENDDO
+
+END SUBROUTINE init_dim_l_pdaf_PHY

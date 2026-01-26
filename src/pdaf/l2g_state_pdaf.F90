@@ -23,7 +23,7 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
        ONLY: id_lstate_in_pstate, ens_member_debug, &
              nfields, dim_fields_l, offset_l, &
              isweep, cda_bio, cda_phy, type_sweep, &
-             step_null, delt_obs_ocn
+             step_null, delt_obs_ocn, n_sweeps
   USE mod_parallel_pdaf, &
        ONLY: mype_filter, mype_model
   USE mod_nc_out_variables, &
@@ -47,15 +47,29 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
   INTEGER :: memberid             !< Ensemble member
   CHARACTER(LEN=17) :: filename   !< Filename for debugging output
   
+  LOGICAL, save :: first_call = .true.
+  LOGICAL :: writenow = .false.
+  
+  ! write to logfile at first call
+  IF ((domain==1) .and. (mype_filter==0) .and. (first_call)) THEN
+     writenow = .true.
+     first_call = .false.
+  ELSE
+      writenow = .false.
+  ENDIF
   
 ! **************************************************
 ! *** Initialize elements of global state vector ***
 ! **************************************************
   
-  DO ifield = 1, nfields
+  update_cda = .true.
   
-     ! Determine whether to apply update according to coupled data assimilation settings
+  DO ifield = 1, nfields
      
+     if (n_sweeps>1) then
+     ! only applies if multiple-sweep logic is implemented and used
+     
+     ! Determine whether to apply update according to coupled data assimilation settings
      ! Physics field and physics sweep:
      if ( .not. (sfields(ifield)%bgc) .and. (trim(type_sweep(isweep))=='phy')) then
      update_cda = .true.
@@ -75,10 +89,12 @@ SUBROUTINE l2g_state_pdaf(step, domain, dim_l, state_l, dim_p, state_p)
         end if
      end if
      
-!~      if ((mype_filter==0) .and. (step==step_null+delt_obs_ocn)) &
-!~                   write (*,'(a,4x,a,1x,a,a,1x,a,1x,L)') 'FESOM-PDAF', &
-!~                    '--- l2g_state:',type_sweep(isweep),'-sweep, updating', sfields(ifield)%variable, update_cda
-  
+     ! logfile / debug output
+     if ((writenow) .and. (dim_fields_l(ifield)>0)) &
+                  write (*,'(a,4x,a,1x,a,a,1x,a,1x,L)') 'FESOM-PDAF', &
+                   '--- l2g_state:',type_sweep(isweep),'-sweep, updating', sfields(ifield)%variable, update_cda
+     endif
+     
      if (update_cda) then
      ! update field in global state vector from local state
      DO i = offset_l(ifield)+1, offset_l(ifield)+dim_fields_l(ifield)
