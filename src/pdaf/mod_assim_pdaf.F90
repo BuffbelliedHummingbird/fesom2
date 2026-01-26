@@ -246,9 +246,15 @@ REAL                 :: coords_l(2)        ! Coordinates of local analysis domai
 INTEGER, ALLOCATABLE :: dim_fields_l(:)    ! Field dimensions for local domain (i.e. field of vertical water column at 1 node)
 INTEGER, ALLOCATABLE :: offset_l(:)        ! Field offsets for local domain
 
+! for corrections after analysis
 REAL, ALLOCATABLE :: state_fcst(:,:)       ! state prior to assimilation, saved to use for correction
 REAL, ALLOCATABLE :: state_fcst_SSH_p(:,:) ! state prior to assimilation, saved to use for correction
 REAL, ALLOCATABLE :: stdev_SSH_f_p(:)      ! forecast ensemble standard deviation at grid points for SSH field, saved to use for correction
+INTEGER, allocatable :: count_lim_salt0_g(:) , count_lim_salt0_p(:)       ! Count how many excessively large updates are limited to treshold
+INTEGER, allocatable :: count_lim_absvel_g(:), count_lim_absvel_p(:)      ! Count how many excessively large updates are limited to treshold
+INTEGER, allocatable :: count_lim_ssh_g(:)   , count_lim_ssh_p(:)         ! Count how many excessively large updates are limited to treshold
+INTEGER, allocatable :: count_lim_tempM2_g(:), count_lim_tempM2_p(:)      ! Count how many excessively large updates are limited to treshold
+
 REAL, ALLOCATABLE :: monthly_state_f(:)       ! forecasted monthly state
 REAL, ALLOCATABLE :: monthly_state_a(:)       ! analyzed monthly state
 REAL, ALLOCATABLE :: monthly_state_m(:)       ! monthly time-mean state

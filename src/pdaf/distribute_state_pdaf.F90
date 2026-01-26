@@ -72,6 +72,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   CHARACTER(len=5)   :: mype_string
   CHARACTER(len=3)   :: day_string
   CHARACTER(len=5)   :: tim_string
+  CHARACTER(len=5)   :: stp_string
   LOGICAL            :: IsDistributed    = .true.
   LOGICAL            :: IsBioDistributed = .true.
   LOGICAL            :: IsPhyDistributed = .true.
@@ -100,8 +101,9 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
          WRITE(day_string , '(i3.3)') daynew
          WRITE(tim_string , '(i5.5)') int(timenew)
          WRITE(mype_string, '(i5.5)') int(mype_world)
+         WRITE(stp_string , '(i5.5)') int(istep_asml)
          fileID_debug=20
-         open(unit=fileID_debug, file='distribute_state_pdaf_'//day_string//'_'//tim_string//'_'//mype_string//'.txt', status='unknown')
+         open(unit=fileID_debug, file='distribute_state_pdaf_'//day_string//'_'//tim_string//'_'//mype_string//'_'//stp_string//'.txt', status='unknown')
   ENDIF
 
 ! **********************
@@ -162,10 +164,12 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
       s = (i-1) * (nlmax) + k + offset(id% u)
       U_node_upd(1, k, i) = state_p(s) - Unode(1, k, i)
       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') sfields(id%u)%variable, i, k, s, Unode(1, k, i), state_p(s)
+      Unode(1, k, i) = state_p(s) ! adjust diagnostic model velocity on nodes (Unode)
       ! v
       s = (i-1) * (nlmax) + k + offset(id% v)
       U_node_upd(2, k, i) = state_p(s) - Unode(2, k, i)
       if (write_debug) write(fileID_debug, '(a10,1x,i8,1x,i8,1x,i8,1x,g0,1x,g0)') sfields(id%v)%variable, i, k, s, Unode(2, k, i), state_p(s)
+      Unode(2, k, i) = state_p(s) ! adjust diagnostic model velocity on nodes (Unode)
    END DO
   END DO
   
@@ -192,7 +196,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
   UV = UV + U_elem_upd
   
   ! 4. adjust diagnostic model velocity on nodes (Unode)
-  call compute_vel_nodes(mesh_fesom)
+  ! call compute_vel_nodes(mesh_fesom)
 
 
   ! Element-wise version not interpolated onto nodes. Removed in favor of the above:

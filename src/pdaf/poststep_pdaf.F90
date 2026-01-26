@@ -46,7 +46,11 @@ SUBROUTINE poststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
        compute_monthly_aa, compute_monthly_ff, &
        compute_monthly_sa, compute_monthly_sf, &
        compute_monthly_mm, compute_monthly_sm, &
-       resetforget
+       resetforget, &
+       count_lim_salt0_g , count_lim_salt0_p, &
+       count_lim_absvel_g, count_lim_absvel_p, &
+       count_lim_ssh_g   , count_lim_ssh_p, &
+       count_lim_tempM2_g, count_lim_tempM2_p
   USE mod_atmos_ens_stochasticity, &
       ONLY: stable_rmse
   USE g_PARSUP, &
@@ -128,10 +132,6 @@ SUBROUTINE poststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   REAL :: min_eff_dim_obs_g, max_eff_dim_obs_g   ! Stats on effective observation dimensions
   REAL :: sum_eff_dim_obs, avg_eff_dim_obs_g     ! Stats on effective observation dimensions
   LOGICAL :: now_to_write_monthly
-  INTEGER, allocatable :: count_lim_salt0_g(:) , count_lim_salt0_p(:)       ! Count how many excessively large updates are limited to treshold
-  INTEGER, allocatable :: count_lim_absvel_g(:), count_lim_absvel_p(:)      ! Count how many excessively large updates are limited to treshold
-  INTEGER, allocatable :: count_lim_ssh_g(:)   , count_lim_ssh_p(:)         ! Count how many excessively large updates are limited to treshold
-  INTEGER, allocatable :: count_lim_tempM2_g(:), count_lim_tempM2_p(:)      ! Count how many excessively large updates are limited to treshold
   
   REAL :: tiny_N                 ! Min PhyN
   REAL :: tiny_N_d               ! Min DiaN

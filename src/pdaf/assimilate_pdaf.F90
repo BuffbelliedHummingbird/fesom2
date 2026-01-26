@@ -98,8 +98,11 @@ SUBROUTINE assimilate_pdaf(istep)
   call daily_event  (IsLastStepDay,  1)
   call monthly_event(IsLastStepMonth,1)
 
-  istep_asml = istep + step_null  ! istep:       starting at 1 at each model (re)start
-                                  ! istep_asml:  starting at 1 at beginning of each year
+  ! istep:       Fesom's step:
+  !              - starts at 1 at each model (re)start
+  ! istep_asml:  imitates PDAF's step:
+  !              - starts at 1 at beginning of each calendar year
+  !              - starts at step_null at each (re)start
 
   if(mype_submodel==0 .and. task_id==1) write (*,'(a,1x,a,1x,a,1x,i5,1x,a,1x,i5,1x,a,1x,i3,1x,a,1x,i2,a,1x,i2,a)') &
           'FESOM-PDAF','assimilate_pdaf','istep', istep, 'istep_asml', istep_asml, 'day', daynew, 'time', FLOOR(timenew/3600.0),'h',INT(MOD(timenew,3600.0)/60.0),'min'
@@ -114,11 +117,13 @@ SUBROUTINE assimilate_pdaf(istep)
      IF ((assimilateBGC) .and. (assimilatePHY) .and. (trim(cda_phy)=='weak') .and. (trim(cda_bio)=='weak')) THEN
         
         ! PHY assimilation (1)
+        istep_asml = istep_asml + 1
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prestep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf_ncalls2_1, status_pdaf)
         ! BGC assimilation (2)
+        istep_asml = istep_asml + 1
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, poststep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_BGC, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
@@ -126,27 +131,28 @@ SUBROUTINE assimilate_pdaf(istep)
      
      ! One call for PHY assimilation only        
      ELSEIF ((.not. assimilateBGC) .and. (assimilatePHY) .and. (trim(cda_phy)=='weak')) THEN
-     
+        istep_asml = istep_asml + 1
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prepoststep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
-             
+                         
      ! One call for BGC assimilation only        
      ELSEIF ((assimilateBGC) .and. (.not. assimilatePHY) .and. (trim(cda_bio)=='weak')) THEN
-     
+        istep_asml = istep_asml + 1
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, prepoststep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_BGC, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
-             
+                          
      ! Combined call for strongly coupled assimilation of PHY and BGC observations
      ELSEIF ((assimilateBGC) .and. (assimilatePHY) .and. (trim(cda_phy)=='strong') .and. (trim(cda_bio)=='strong')) THEN
-     
+        istep_asml = istep_asml + 1
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf, status_pdaf)
+                     
      ENDIF
      
   ELSE
