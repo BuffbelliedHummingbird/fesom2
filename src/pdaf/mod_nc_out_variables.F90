@@ -755,10 +755,10 @@ sfields(id% sigma) % bgc = .false.
   sfields(id% NPPd     ) % updated = upd_NPPd
   sfields(id% export   ) % updated = upd_export
   
-  do b=1,nfields
-     sfields(p) % IsInStateL = sfields(p) % updated
-     sfields(b) % IsInStateL = sfields(b) % updated
-  enddo
+  ! do b=1,nfields
+  !    sfields(b) % IsInStateL = sfields(b) % updated
+  !    sfields(b) % IsInStateL = sfields(b) % updated
+  ! enddo
   
   ! Physics not assimilated and coupling weak: No update to physics
   IF ((.not. assimilatePHY) .and. (cda_phy=='weak')) THEN
@@ -772,6 +772,11 @@ sfields(id% sigma) % bgc = .false.
        sfields(b) % updated = .false.
      enddo
   ENDIF
+  
+  do b=1,nfields
+     sfields(b) % IsInStateL = sfields(b) % updated
+     sfields(b) % IsInStateL = sfields(b) % updated
+  enddo
   
   ! **************************************
   ! ***  Indeces of by type of field   ***

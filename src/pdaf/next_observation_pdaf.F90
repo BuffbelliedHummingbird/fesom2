@@ -47,8 +47,12 @@ SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
 ! *************************************************************
 
   IF (stepnow==step_null) THEN
-      ! at start, one assimilation step right away
+      ! at start, one assimilation step at first step of day 1
       nsteps=1
+      ! at start, last step of day 1 for double assim.-calls:
+      ! nsteps=2*delt_obs_ocn-1
+      ! at start, last step of day 1 for single assim.-calls:
+      ! nsteps=delt_obs_ocn
       assim_time = INT( REAL(nsteps) / REAL(delt_obs_ocn) * REAL(secondsperday))
       
       IF (mype_model==0 .AND. task_id==1) &

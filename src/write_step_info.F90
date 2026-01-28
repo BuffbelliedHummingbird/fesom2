@@ -30,8 +30,9 @@ subroutine write_step_info(istep,outfreq, mesh)
                                            max_wvel, max_hnode, max_deta, max_wvel2, max_hnode2, max_m_ice, &
                                            max_vvel, max_vvel2, max_uvel, max_uvel2, &
                                            max_cfl_z, max_pgfx, max_pgfy, max_kv, max_av 
-	real(kind=WP)						:: int_deta , int_dhbar
-	real(kind=WP)						:: loc, loc_eta, loc_hbar, loc_deta, loc_dhbar, loc_wflux,loc_hflux, loc_temp, loc_salt
+	real(kind=WP)						:: int_deta , int_dhbar, int_uvel1, int_uvel2, int_wvel, int_hnode
+	real(kind=WP)						:: loc, loc_eta, loc_hbar, loc_deta, loc_dhbar, loc_wflux,loc_hflux, loc_temp, loc_salt, &
+	                                       loc_uvel1, loc_uvel2, loc_wvel, loc_hnode
     type(t_mesh), intent(in)                               , target :: mesh
 #include "associate_mesh.h"
 	if (mod(istep,outfreq)==0) then
@@ -50,10 +51,13 @@ subroutine write_step_info(istep,outfreq, mesh)
 		loc_deta  =0.
 		loc_dhbar =0.
 		loc_wflux =0.
-!!PS 		loc_hflux =0.
-!!PS 		loc_temp  =0.
-!!PS 		loc_salt  =0.
-		loc       =0.
+ 		loc_hflux =0.
+ 		loc_temp  =0.
+ 		loc_salt  =0.
+		loc_uvel1 =0.
+		loc_uvel2 =0.
+		loc_wvel  =0.
+		loc_hnode =0.
 		!_______________________________________________________________________
 		do n=1, myDim_nod2D
             if (ulevels_nod2D(n)>1) cycle
@@ -62,10 +66,16 @@ subroutine write_step_info(istep,outfreq, mesh)
 			loc_deta  = loc_deta  + area(ulevels_nod2D(n), n)*d_eta(n)
 			loc_dhbar = loc_dhbar + area(ulevels_nod2D(n), n)*(hbar(n)-hbar_old(n))
 			loc_wflux = loc_wflux + area(ulevels_nod2D(n), n)*water_flux(n)
-!!PS 			loc_hflux = loc_hflux + area(1, n)*heat_flux(n)
-!!PS 			loc_temp  = loc_temp  + area(1, n)*sum(tr_arr(:,n,1))/(nlevels_nod2D(n)-1)
-!!PS 			loc_salt  = loc_salt  + area(1, n)*sum(tr_arr(:,n,2))/(nlevels_nod2D(n)-1)
-		end do
+ 			loc_hflux = loc_hflux + area(1, n)*heat_flux(n)
+ 			
+ 			loc_temp  = loc_temp  + area(1, n)*sum(tr_arr(:,n,1))/(nlevels_nod2D(n)-1)
+ 			loc_salt  = loc_salt  + area(1, n)*sum(tr_arr(:,n,2))/(nlevels_nod2D(n)-1)
+ 			loc_uvel1 = loc_uvel1 + area(1, n)*sum(Unode(1,:,n)) /(nlevels_nod2D(n)-1)
+		    loc_uvel2 = loc_uvel2 + area(1, n)*sum(Unode(2,:,n)) /(nlevels_nod2D(n)-1)
+		    loc_wvel  = loc_wvel  + area(1, n)*sum(Wvel(:,n))    /(nlevels_nod2D(n)-1)
+		    loc_hnode = loc_hnode + area(1, n)*sum(hnode(:,n))   /(nlevels_nod2D(n)-1)
+		    
+		enddo
 		
 		!_______________________________________________________________________
 		call MPI_AllREDUCE(loc_eta  , int_eta  , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
@@ -73,9 +83,15 @@ subroutine write_step_info(istep,outfreq, mesh)
 		call MPI_AllREDUCE(loc_deta , int_deta , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
 		call MPI_AllREDUCE(loc_dhbar, int_dhbar, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
 		call MPI_AllREDUCE(loc_wflux, int_wflux, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
-!!PS 		call MPI_AllREDUCE(loc_hflux, int_hflux, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
-!!PS 		call MPI_AllREDUCE(loc_temp , int_temp , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
-!!PS 		call MPI_AllREDUCE(loc_salt , int_salt , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_hflux, int_hflux, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_temp , int_temp , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_salt , int_salt , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		
+ 		call MPI_AllREDUCE(loc_salt , int_salt , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_uvel1, int_uvel1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_uvel2, int_uvel2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_wvel , int_wvel , 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
+ 		call MPI_AllREDUCE(loc_hnode, int_hnode, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_FESOM, MPIerr)
 
 		int_eta  = int_eta  /ocean_area
 		int_hbar = int_hbar /ocean_area
@@ -89,9 +105,14 @@ subroutine write_step_info(istep,outfreq, mesh)
 !!PS 		int_dhbar= int_dhbar/ocean_areawithcav
 !!PS 		int_wflux= int_wflux/ocean_areawithcav
 		
-!!PS 		int_hflux= int_hflux/ocean_area
-!!PS 		int_temp = int_temp /ocean_area
-!!PS 		int_salt = int_salt /ocean_area
+ 		int_hflux= int_hflux/ocean_area
+ 		int_temp = int_temp /ocean_area
+ 		int_salt = int_salt /ocean_area
+ 		
+ 		int_uvel1= int_uvel1/ocean_area
+ 		int_uvel2= int_uvel2/ocean_area
+ 		int_wvel = int_wvel /ocean_area
+ 		int_hnode= int_hnode/ocean_area
 		
 		!_______________________________________________________________________
 		loc = minval(eta_n(1:myDim_nod2D))
@@ -189,27 +210,27 @@ subroutine write_step_info(istep,outfreq, mesh)
 			write(*,*) '	 int(dhbar)-int(wflux)*dt =', int_dhbar-int_wflux*dt*(-1.0)
 			write(*,*)
 			write(*,*) '	___global min/max/mean  --> mstep=',mstep,'____________'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	       eta= ', min_eta  ,' | ',max_eta  ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	      deta= ', min_deta ,' | ',max_deta ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	      hbar= ', min_hbar ,' | ',max_hbar ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, ES10.3)") ' 	     wflux= ', min_wflux,' | ',max_wflux,' | ',int_wflux
-			write(*,"(A, ES10.3, A, ES10.3, A, ES10.3)") ' 	     hflux= ', min_hflux,' | ',max_hflux,' | ',int_hflux
-			write(*,"(A, ES10.3, A, ES10.3, A, ES10.3)") ' 	      temp= ', min_temp ,' | ',max_temp ,' | ',int_temp
-			write(*,"(A, ES10.3, A, ES10.3, A, ES10.3)") ' 	      salt= ', min_salt ,' | ',max_salt ,' | ',int_salt
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 wvel(1,:)= ', min_wvel ,' | ',max_wvel ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 wvel(2,:)= ', min_wvel2,' | ',max_wvel2,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 uvel(1,:)= ', min_uvel ,' | ',max_uvel ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 uvel(2,:)= ', min_uvel2,' | ',max_uvel2,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 vvel(1,:)= ', min_vvel ,' | ',max_vvel ,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	 vvel(2,:)= ', min_vvel2,' | ',max_vvel2,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	hnode(1,:)= ', min_hnode,' | ',max_hnode,' | ','N.A.'
-			write(*,"(A, ES10.3, A, ES10.3, A, A     )") ' 	hnode(2,:)= ', min_hnode2,' | ',max_hnode2,' | ','N.A.'
-			write(*,"(A, A     , A, ES10.3, A, A     )") ' 	     cfl_z= ',' N.A.     ',' | ',max_cfl_z  ,' | ','N.A.'
-			write(*,"(A, A     , A, ES10.3, A, A     )") ' 	     pgf_x= ',' N.A.     ',' | ',max_pgfx  ,' | ','N.A.'
-			write(*,"(A, A     , A, ES10.3, A, A     )") ' 	     pgf_y= ',' N.A.     ',' | ',max_pgfy  ,' | ','N.A.'
-			write(*,"(A, A     , A, ES10.3, A, A     )") ' 	        Av= ',' N.A.     ',' | ',max_av    ,' | ','N.A.'
-			write(*,"(A, A     , A, ES10.3, A, A     )") ' 	        Kv= ',' N.A.     ',' | ',max_kv    ,' | ','N.A.'
-	if (use_ice)    write(*,"(A, A     , A, ES10.3, A, A     )") ' 	     m_ice= ',' N.A.     ',' | ',max_m_ice  ,' | ','N.A.'
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	       eta= ', min_eta  ,' | ',max_eta  ,' | ',int_eta
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	      deta= ', min_deta ,' | ',max_deta ,' | ',int_deta
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	      hbar= ', min_hbar ,' | ',max_hbar ,' | ',int_hbar
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	     wflux= ', min_wflux,' | ',max_wflux,' | ',int_wflux
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	     hflux= ', min_hflux,' | ',max_hflux,' | ',int_hflux
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	      temp= ', min_temp ,' | ',max_temp ,' | ',int_temp
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	      salt= ', min_salt ,' | ',max_salt ,' | ',int_salt
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	 wvel(1,:)= ', min_wvel ,' | ',max_wvel ,' | ',int_wvel
+			write(*,"(A, ES17.10, A, ES17.10, A, A      )") ' 	 wvel(2,:)= ', min_wvel2,' | ',max_wvel2,' | ','N.A.'
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	 uvel(1,:)= ', min_uvel ,' | ',max_uvel ,' | ',int_uvel1
+			write(*,"(A, ES17.10, A, ES17.10, A, A      )") ' 	 uvel(2,:)= ', min_uvel2,' | ',max_uvel2,' | ','N.A.'
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	 vvel(1,:)= ', min_vvel ,' | ',max_vvel ,' | ',int_uvel2
+			write(*,"(A, ES17.10, A, ES17.10, A, A      )") ' 	 vvel(2,:)= ', min_vvel2,' | ',max_vvel2,' | ','N.A.'
+			write(*,"(A, ES17.10, A, ES17.10, A, ES17.10)") ' 	hnode(1,:)= ', min_hnode,' | ',max_hnode,' | ',int_hnode
+			write(*,"(A, ES17.10, A, ES17.10, A, A      )") ' 	hnode(2,:)= ', min_hnode2,' | ',max_hnode2,' | ','N.A.'
+			write(*,"(A, A      , A, ES17.10, A, A      )") ' 	     cfl_z= ',' N.A.     ',' | ',max_cfl_z  ,' | ','N.A.'
+			write(*,"(A, A      , A, ES17.10, A, A      )") ' 	     pgf_x= ',' N.A.     ',' | ',max_pgfx  ,' | ','N.A.'
+			write(*,"(A, A      , A, ES17.10, A, A      )") ' 	     pgf_y= ',' N.A.     ',' | ',max_pgfy  ,' | ','N.A.'
+			write(*,"(A, A      , A, ES17.10, A, A      )") ' 	        Av= ',' N.A.     ',' | ',max_av    ,' | ','N.A.'
+			write(*,"(A, A      , A, ES17.10, A, A      )") ' 	        Kv= ',' N.A.     ',' | ',max_kv    ,' | ','N.A.'
+	if (use_ice)    write(*,"(A, A     , A, ES17.10, A, A     )") ' 	     m_ice= ',' N.A.     ',' | ',max_m_ice  ,' | ','N.A.'
 			write(*,*)
 		endif
 	endif ! --> if (mod(istep,logfile_outfreq)==0) then

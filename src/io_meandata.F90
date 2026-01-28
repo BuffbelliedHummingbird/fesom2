@@ -1035,7 +1035,7 @@ subroutine create_new_file(entry, mesh)
  
   call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'git_SHA', len_trim(fesom_git_sha()), fesom_git_sha()), __LINE__)
   call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'MeshPath', len_trim(MeshPath), trim(MeshPath)), __LINE__)
-  call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'mesh_representative_checksum', len(mesh%representative_checksum), mesh%representative_checksum), __LINE__)
+  ! call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'mesh_representative_checksum', len(mesh%representative_checksum), mesh%representative_checksum), __LINE__)
   call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'ClimateDataPath', len_trim(ClimateDataPath), trim(ClimateDataPath)), __LINE__)
   call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'which_ALE', len_trim(which_ALE), trim(which_ALE)), __LINE__)
   call assert_nf( nf_put_att_text(entry%ncid, NF_GLOBAL, global_attributes_prefix//'mix_scheme', len_trim(mix_scheme), trim(mix_scheme)), __LINE__)

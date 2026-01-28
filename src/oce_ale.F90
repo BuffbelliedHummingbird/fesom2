@@ -1020,7 +1020,7 @@ subroutine restart_thickness_ale(mesh)
         ! restart depthlevels (zbar_3d_n) and mitdpethlevels (Z_3d_n)
         ! dont forget also at restart zbar_3d_n and Z_3d_n are first initialised 
         ! and filled up in ale_init there bottom depth zbar_3d_n(nlevels_nod2d) 
-        ! ist set according if there are partial cells or not 
+        ! is set according if there are partial cells or not 
         do n=1, myDim_nod2D+eDim_nod2D
             nzmin = ulevels_nod2D(n)
             nzmax = nlevels_nod2D(n)-1

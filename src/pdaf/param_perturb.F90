@@ -142,7 +142,7 @@ subroutine do_perturb_param_bio()
         iseed(3)=13 + task_id
         iseed(4)=59
         CALL perturb_lognormal(Chl2N_max_d,perturb_scale,iseed)
-        IF (mype_model==0) WRITE(*,'(a31,g0,a9,i3)') 'param_perturb: Chl2N_max_d      ', Chl2N_max_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a31,g0,a9,i3)') 'param_perturb: Chl2N_max_d     ', Chl2N_max_d, ' on task ', task_id
         
         ! deg_Chl
         IF (mype_model==0 .and. task_id==1) WRITE(*,'(a31,g0,a15)') 'param_perturb: deg_Chl         ', deg_Chl, ' (specified)'
@@ -241,7 +241,7 @@ subroutine do_perturb_param_bio()
         iseed(3)=14+3*task_id
         iseed(4)=33
         CALL perturb_lognormal(k_din_d, perturb_scaleD, iseed)
-        IF (mype_model==0) WRITE(*,'(a31,g0,a9,i3)') 'param_perturb: k_din_d          ', k_din_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a31,g0,a9,i3)') 'param_perturb: k_din_d         ', k_din_d, ' on task ', task_id
         
         ! res_phy
         IF (mype_model==0 .and. task_id==1) WRITE(*,'(a31,g0,a15)') 'param_perturb: res_phy         ', res_phy, ' (specified)'
@@ -422,5 +422,67 @@ subroutine do_perturb_param_phy()
         IF (mype_model==0) WRITE(*,'(a31,g0,a9,i3)') 'param_perturb: K_ver           ', K_ver, ' on task ', task_id
         
 end subroutine do_perturb_param_phy
+
+
+! ******************************
+! *** PRINT PARAMETER VALUES ***
+! ******************************
+
+subroutine print_param()
+
+        USE mod_parallel_pdaf, &
+            ONLY: mype_model, task_id
+        USE recom_config, &
+            ONLY: alfa, alfa_d, P_cm, P_cm_d, Chl2N_max, Chl2N_max_d, &
+            deg_Chl, deg_Chl_d, graz_max, graz_max2, grazEff, grazEff2, &
+            VDet, VDet_zoo2, Vdet_a, k_din, k_din_d, res_phy, res_phy_d, &
+            rho_N, rho_C1, lossN, lossN_d, lossC, lossC_d, reminN, &
+            reminC, calc_prod_ratio, res_het, res_zoo2, &
+            biosynth, calc_diss_rate, calc_diss_rate2
+        USE o_param, &
+            ONLY: K_ver
+
+        implicit none
+        
+        INTEGER, save :: n=1
+        
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': alfa            ', alfa, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': alfa_d          ', alfa_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': P_cm            ', P_cm, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': P_cm_d          ', P_cm_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': Chl2N_max       ', Chl2N_max, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': Chl2N_max_d     ', Chl2N_max_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': deg_Chl         ', deg_Chl, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': deg_Chl_d       ', deg_Chl_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': graz_max        ', graz_max, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': graz_max2       ', graz_max2, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': grazEff         ', grazEff, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': grazEff2        ', grazEff2, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': VDet            ', VDet, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': vdet_zoo2       ', vdet_zoo2, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': vdet_a          ', vdet_a, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': k_din           ', k_din, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': k_din_d         ', k_din_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': res_phy         ', res_phy, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': res_phy_d       ', res_phy_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': rho_N           ', rho_N, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': rho_c1          ', rho_c1, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': lossN           ', lossn, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': lossN_d         ', lossN_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': lossC           ', lossc, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': lossC_d         ', lossc_d, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': reminN          ', reminn, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': reminC          ', reminc, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': calc_prod_ratio ', calc_prod_ratio, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': res_het         ', res_het, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': res_zoo2        ', res_zoo2, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': biosynth        ', biosynth, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': calc_diss_rate  ', calc_diss_rate, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': calc_diss_rate2 ', calc_diss_rate2, ' on task ', task_id
+        IF (mype_model==0) WRITE(*,'(a13,1x,i5,a18,g0,a9,i3)') 'param_perturb', n, ': K_ver           ', K_ver, ' on task ', task_id
+        
+        n=n+1
+        
+end subroutine print_param
 
 END MODULE mod_perturbation_pdaf
