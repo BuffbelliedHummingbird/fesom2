@@ -263,12 +263,6 @@ type(t_mesh),   save,  target  :: mesh
         !___compute horizontal velocity on nodes (originally on elements)________
         call compute_vel_nodes(mesh)
         
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After compute_vel_nodes:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif   
         !___model sea-ice step__________________________________________________
         t1 = MPI_Wtime()
         if(use_ice) then
@@ -276,23 +270,12 @@ type(t_mesh),   save,  target  :: mesh
             if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call ocean2ice(n)'//achar(27)//'[0m'
             call ocean2ice(mesh)
             
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After ocean2ice:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif            
             !___compute update of atmospheric forcing____________________________
             if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call update_atm_forcing(n)'//achar(27)//'[0m'
             t0_frc = MPI_Wtime()
             call update_atm_forcing(n, mesh)
             t1_frc = MPI_Wtime()
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After update_atm_forcing:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif             
+
             !___compute ice step________________________________________________
             if (ice_steps_since_upd>=ice_ave_steps-1) then
                 ice_update=.true.
@@ -303,23 +286,13 @@ type(t_mesh),   save,  target  :: mesh
             endif
             if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call ice_timestep(n)'//achar(27)//'[0m'
             if (ice_update) call ice_timestep(n, mesh)
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After ice_timestep:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif 
+
             !___compute fluxes to the ocean: heat, freshwater, momentum_________
             if (flag_debug .and. mype==0)  print *, achar(27)//'[34m'//' --> call oce_fluxes_mom...'//achar(27)//'[0m'
             call oce_fluxes_mom(mesh) ! momentum only
             call oce_fluxes(mesh)
         end if
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After oce_fluxes:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif 
+
         call before_oce_step(mesh) ! prepare the things if required
         
 #if defined (__recom)
@@ -328,12 +301,6 @@ type(t_mesh),   save,  target  :: mesh
            call recom(mesh)
         end if
 #endif
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After recom:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif 
         t2 = MPI_Wtime()
         
         !___model ocean step____________________________________________________
@@ -343,26 +310,12 @@ type(t_mesh),   save,  target  :: mesh
         t3 = MPI_Wtime()
         
 #ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After oce_timestep_ale:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif 
-        
-#ifdef use_PDAF
         CALL timeit(7, 'new')
         CALL assimilate_PDAF(mstep) ! mstep: starting at 1 at each model (re)start
         CALL timeit(7, 'old')
         t4b = MPI_Wtime()
         IF (.not. (simplify_debug)) CALL carbonfluxes_diags_output_timemean(mstep)
 #endif
-
-#ifdef use_PDAF
-       if (simplify_debug) then
-          if (mype==0) write(*,*) 'After assimilate_pdaf:'
-          call write_step_info(n,logfile_outfreq, mesh)
-       endif
-#endif 
 
 #if defined (__recom)
         if (use_REcoM) then
@@ -397,7 +350,7 @@ type(t_mesh),   save,  target  :: mesh
         rtime_read_forcing  = rtime_read_forcing  + t1_frc - t0_frc
         
 #ifdef use_PDAF
-        ! call print_param()
+        IF (simplify_debug) call print_param()
 #endif
     end do
     
