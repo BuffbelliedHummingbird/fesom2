@@ -57,11 +57,8 @@ SUBROUTINE assimilate_pdaf(istep)
   
   INTEGER, parameter :: int0 = 0
   
-  ! work-around to update random seed
-  REAL, ALLOCATABLE  :: dummyrndmat(:,:)
-  INTEGER            :: nsteps_dummy
-  INTEGER            :: next_assim_flag
-  REAL               :: time_dummy
+  ! seed for generation of random omega
+  INTEGER            :: seedvec(4)
 
   ! External subroutines
   EXTERNAL :: collect_state_pdaf, &  ! Routine to collect a state vector from model fields
@@ -95,8 +92,7 @@ SUBROUTINE assimilate_pdaf(istep)
   ! Variables for debugging:
   LOGICAL :: simplify_assim = .false.
   
-  ! Possibility to reduce functionality for debugging
-  simplify_assim = .true.
+  simplify_assim = .false. ! true: removes functionality for debugging purposes
 
 ! *********************************
 ! *** Call assimilation routine ***
@@ -106,8 +102,6 @@ SUBROUTINE assimilate_pdaf(istep)
   call daily_event  (IsLastStepDay,  1)
   call monthly_event(IsLastStepMonth,1)
   
-  if (filterpe) allocate(dummyrndmat(dim_ens,dim_ens-1))
-
   ! istep:       Fesom's step:
   !              - starts at 1 at each model (re)start
   ! istep_asml:  imitates PDAF's step:
@@ -129,12 +123,15 @@ SUBROUTINE assimilate_pdaf(istep)
      
         ! PHY assimilation (1)
         istep_asml = istep_asml + 1
+        CALL PDAF_get_seed(seedvec)
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prestep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
              next_observation_pdaf_ncalls2_1, status_pdaf)
+             
         ! BGC assimilation (2)
         istep_asml = istep_asml + 1
+        CALL PDAF_set_seed(seedvec)
         CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
              init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, poststep_pdaf, init_n_domains_pdaf, &
              init_dim_l_pdaf_BGC, init_dim_obs_l_pdafomi_BGC, g2l_state_pdaf, l2g_state_pdaf, &
@@ -144,7 +141,7 @@ SUBROUTINE assimilate_pdaf(istep)
      ! Assimilation routine is called once
         istep_asml = istep_asml + 1
         
-        ! Select specific user supplied routines:   
+        ! Select specific user supplied routines for type of coupling and observations:   
         IF ((.not. assimilateBGC) .and. (assimilatePHY) .and. (trim(cda_phy)=='weak')) THEN
         ! One call for only-PHY assimilation
            
@@ -152,17 +149,9 @@ SUBROUTINE assimilate_pdaf(istep)
                 init_dim_obs_pdafomi_PHY, obs_op_pdafomi_PHY, prepoststep_pdaf, init_n_domains_pdaf, &
                 init_dim_l_pdaf_PHY, init_dim_obs_l_pdafomi_PHY, g2l_state_pdaf, l2g_state_pdaf, &
                 next_observation_pdaf, status_pdaf)
-           ! for consistency: work-around to update random seed after
-           if (filterpe .and. (assim_flag==1)) CALL PDAF_seik_omega(dim_ens-1, dummyrndmat, type_trans, 1)
            
         ELSEIF ((assimilateBGC) .and. (.not. assimilatePHY) .and. (trim(cda_bio)=='weak')) THEN
         ! One call for only-BGC assimilation
-           
-           ! for consistency: work-around to update random seed before
-           if (filterpe) then
-              call next_observation_pdaf(istep_asml,nsteps_dummy,next_assim_flag,time_dummy)
-              if (next_assim_flag==1) CALL PDAF_seik_omega(dim_ens-1, dummyrndmat, type_trans, 1)
-           endif
            
            CALL PDAFomi_assimilate_local(collect_state_pdaf, distribute_state_pdaf, &
                 init_dim_obs_pdafomi_BGC, obs_op_pdafomi_BGC, prepoststep_pdaf, init_n_domains_pdaf, &
@@ -175,10 +164,9 @@ SUBROUTINE assimilate_pdaf(istep)
                 init_dim_obs_pdafomi, obs_op_pdafomi, prepoststep_pdaf, init_n_domains_pdaf, &
                 init_dim_l_pdaf, init_dim_obs_l_pdafomi, g2l_state_pdaf, l2g_state_pdaf, &
                 next_observation_pdaf, status_pdaf)
-           ! for consistency: work-around to update random seed twice in total
-           if (filterpe .and. (assim_flag==1)) CALL PDAF_seik_omega(dim_ens-1, dummyrndmat, type_trans, 1)
                 
         ENDIF ! case-specific user supplied routines
+        
      ENDIF ! one or two calls
      
   ELSE
@@ -285,8 +273,5 @@ SUBROUTINE assimilate_pdaf(istep)
      ENDIF
      ENDIF ! filterpe
   ENDIF ! w_mm
-  
-  ! clean up
-  if (filterpe) deallocate(dummyrndmat)
   
 END SUBROUTINE assimilate_pdaf

@@ -128,16 +128,15 @@ SUBROUTINE init_pdaf(nsteps)
   INTEGER, parameter :: int0=0 ! Zero
   REAL, allocatable :: aux(:)  ! Temporary array
   
-  REAL    :: dummy
-
+  INTEGER, parameter  :: rank=1 ! used to init seed for random matrix generation
+  REAL     :: rndmat(1,1)       ! used to init seed for random matrix generation
+  
   ! External subroutines
   EXTERNAL :: init_ens_pdaf            ! Ensemble initialization
   EXTERNAL :: next_observation_pdaf, & ! Provide time step, model time, 
                                        ! and dimension of next observation
        distribute_state_pdaf, &        ! Routine to distribute a state vector to model fields
        prepoststep_pdaf                ! User supplied pre/poststep routine
-
-  dummy = 2.0
 
 ! ***************************
 ! ***   Initialize PDAF   ***
@@ -840,13 +839,16 @@ ENDIF
        
   IF (this_is_pdaf_restart .or. start_from_ENS_spinup) deallocate(state_p_init,ens_p_init)
 
-! *** Check whether initialization of PDAF was successful ***
+  ! *** Check whether initialization of PDAF was successful ***
   IF (status_pdaf /= 0) THEN
      WRITE (*,'(/1x,a6,i3,a43,i4,a1/)') &
           'ERROR ', status_pdaf, &
           ' in initialization of PDAF - stopping! (PE ', mype_world,')'
      CALL abort_parallel()
   END IF
+  
+  ! initialize seed vector for random matrix generation on all PEs
+  CALL PDAF_generate_rndmat(rank,rndmat,1)
   
 ! ***************************************
 ! *** Get domain limiting coordinates ***
@@ -892,7 +894,10 @@ ENDIF
   CALL MPI_BARRIER(MPI_COMM_WORLD, MPIerr)
   call timeit(6, 'old')
 
-  ! among others: initial call to prepoststep, distribution of initial ensemble to model, ...
+  ! among others:
+  ! - initial call to prepoststep
+  ! - distribution of initial ensemble to model
+  ! - set steps until first assimilation step
   CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
        distribute_state_pdaf, prepoststep_pdaf, status_pdaf)
 

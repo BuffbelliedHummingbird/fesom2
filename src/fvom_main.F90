@@ -53,7 +53,7 @@ integer :: n, nsteps, offset, row, i, provided
 real(kind=WP)     :: t0, t1, t2, t3, t4, t5, t6, t7, t8, t0_ice, t1_ice, t0_frc, t1_frc
 #ifdef use_PDAF
 real(kind=WP)     :: t4b
-logical           :: simplify_debug = .true.
+logical           :: simplify_debug = .false.
 #endif
 real(kind=WP)     :: rtime_fullice,    rtime_write_restart, rtime_write_means, rtime_compute_diag, rtime_read_forcing
 real(kind=real32) :: rtime_setup_mesh, rtime_setup_ocean, rtime_setup_forcing 

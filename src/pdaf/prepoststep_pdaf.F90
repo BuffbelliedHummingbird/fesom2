@@ -161,8 +161,8 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   INTEGER :: myDebug_id(1)
   LOGICAL :: debugging_monthlymean  = .false.
   
-  simplify_debug  = .true. ! remove functionality for debugging purposes
-  simplify_output = .true. ! remove output functionality for debugging purposes
+  simplify_debug  = .false. ! true: removes functionality for debugging purposes
+  simplify_output = .false. ! true: removes output functionality for debugging purposes
 
   ! set debug output
   debug = .false.
@@ -921,7 +921,7 @@ SUBROUTINE prepoststep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
  
   IF (.not. simplify_debug) THEN ! simplify_debug-12
   ! *** write initial state fields ***
-  IF ((step - step_null)==0 .and. ( .not. this_is_pdaf_restart)) THEN
+  IF ((step - step_null)==0 .and. (.not. this_is_pdaf_restart)) THEN
       ! ensemble mean
       IF (w_dayensm) CALL netCDF_out('ii',state_p, int0, now_to_write_monthly, stdev_surf_g=stdev_surf_g, stdev_volo_g=stdev_volo_g)
       IF (w_dayensm) CALL netCDF_out('si',stdev_p, int0, now_to_write_monthly)

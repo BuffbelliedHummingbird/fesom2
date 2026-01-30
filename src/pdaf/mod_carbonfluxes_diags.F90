@@ -10,30 +10,30 @@ MODULE mod_carbon_fluxes_diags
    character(len=100) :: vname_cfdiags ! variable name for debugging output
    
    ! Possibility to remove functionality for debugging purposes
-   logical :: simplify_debug01 = .true. ! in oce_ale_driver.F90
-   logical :: simplify_debug02 = .true.
-   logical :: simplify_debug03 = .true.
-   logical :: simplify_debug04 = .true.
-   logical :: simplify_debug05 = .true.
-   logical :: simplify_debug06 = .true.
-   logical :: simplify_debug07 = .true.
-   logical :: simplify_debug08 = .true.
-   logical :: simplify_debug09 = .true.
-   logical :: simplify_debug10 = .true.
-   logical :: simplify_debug11 = .true.
-   logical :: simplify_debug12 = .true.
-   logical :: simplify_debug13 = .true. ! in oce_adv_tra_driver.F90
-   logical :: simplify_debug14 = .true.
-   logical :: simplify_debug15 = .true.
-   logical :: simplify_debug16 = .true.
-   logical :: simplify_debug17 = .true. ! in recom_sinking.F90
-   logical :: simplify_debug18 = .true.
-   logical :: simplify_debug19 = .true.
-   logical :: simplify_debug20 = .true.
-   logical :: simplify_debug21 = .true.
-   logical :: simplify_debug22 = .true. ! in int_recom/recom_sms.F90
-   logical :: simplify_debug23 = .true. ! in int_recom/recom_main.F90
-   logical :: simplify_debug24 = .true.
+   logical :: simplify_debug01 = .false. ! in oce_ale_driver.F90
+   logical :: simplify_debug02 = .false.
+   logical :: simplify_debug03 = .false.
+   logical :: simplify_debug04 = .false.
+   logical :: simplify_debug05 = .false.
+   logical :: simplify_debug06 = .false.
+   logical :: simplify_debug07 = .false.
+   logical :: simplify_debug08 = .false.
+   logical :: simplify_debug09 = .false.
+   logical :: simplify_debug10 = .false.
+   logical :: simplify_debug11 = .false.
+   logical :: simplify_debug12 = .false.
+   logical :: simplify_debug13 = .false. ! in oce_adv_tra_driver.F90
+   logical :: simplify_debug14 = .false.
+   logical :: simplify_debug15 = .false.
+   logical :: simplify_debug16 = .false.
+   logical :: simplify_debug17 = .false. ! in recom_sinking.F90
+   logical :: simplify_debug18 = .false.
+   logical :: simplify_debug19 = .false.
+   logical :: simplify_debug20 = .false.
+   logical :: simplify_debug21 = .false.
+   logical :: simplify_debug22 = .false. ! in int_recom/recom_sms.F90
+   logical :: simplify_debug23 = .false. ! in int_recom/recom_main.F90
+   logical :: simplify_debug24 = .false.
    
 !  _________________________________________________________________________   
 !  *** Transports, i.e. directed fluxes through area [mmol C / m2 / sec] ***

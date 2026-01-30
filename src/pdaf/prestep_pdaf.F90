@@ -163,8 +163,8 @@ SUBROUTINE prestep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
   INTEGER :: myDebug_id(1)
   LOGICAL :: debugging_monthlymean  = .false.
   
-  simplify_debug  = .true. ! remove functionality for debugging purposes
-  simplify_output = .true. ! remove output functionality for debugging purposes
+  simplify_debug  = .false. ! true: removes functionality for debugging purposes
+  simplify_output = .false. ! true: removes output functionality for debugging purposes
   
   ! set debug output
   debug = .false.
@@ -203,6 +203,9 @@ SUBROUTINE prestep_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p, &
         WRITE (typestr,'(a1)') 'f'
      END IF
   END IF ! IF (mype_filter==0)
+  
+  ! initialize numbers
+  invdim_ens = 1.0 / REAL(dim_ens)
   
   IF ((step-step_null)<0) THEN ! begin of pre-step
   

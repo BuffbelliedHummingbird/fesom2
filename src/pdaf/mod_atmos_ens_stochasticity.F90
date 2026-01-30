@@ -292,27 +292,6 @@ IF(disturb_prec ) eof_p (atm_offset(id_atm% prec )+1 : atm_offset(id_atm% prec )
 IF(disturb_snow ) eof_p (atm_offset(id_atm% snow )+1 : atm_offset(id_atm% snow )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% snow )+1 : atm_offset_cvrf(id_cvrf% snow )+myDim_nod2D, :)
 IF(disturb_mslp ) eof_p (atm_offset(id_atm% mslp )+1 : atm_offset(id_atm% mslp )+myDim_nod2D, :)  =  eof_p_cvrfile (atm_offset_cvrf(id_cvrf% mslp )+1 : atm_offset_cvrf(id_cvrf% mslp )+myDim_nod2D, :)
 
-!~ ! Debugging output:
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'xwind', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% xwind)+1 : atm_offset_cvrf(id_cvrf% xwind)+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'ywind', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% ywind)+1 : atm_offset_cvrf(id_cvrf% ywind)+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'humi ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% humi )+1 : atm_offset_cvrf(id_cvrf% humi )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'qlw  ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% qlw  )+1 : atm_offset_cvrf(id_cvrf% qlw  )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'qsr  ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% qsr  )+1 : atm_offset_cvrf(id_cvrf% qsr  )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'tair ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% tair )+1 : atm_offset_cvrf(id_cvrf% tair )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'prec ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% prec )+1 : atm_offset_cvrf(id_cvrf% prec )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'snow ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% snow )+1 : atm_offset_cvrf(id_cvrf% snow )+3, :)
-!~ IF (mype_world==0) write(*,*) 'disturb_atmos_debug ', 'eof_p_cvr ', 'mslp ', eof_p_cvrfile (atm_offset_cvrf(id_cvrf% mslp )+1 : atm_offset_cvrf(id_cvrf% mslp )+3, :)
-
-!~ IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'xwind', eof_p (atm_offset(id_atm% xwind)+1 : atm_offset(id_atm% xwind)+3, :)
-!~ IF ((mype_world==0) .and. (disturb_ywind )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'ywind', eof_p (atm_offset(id_atm% ywind)+1 : atm_offset(id_atm% ywind)+3, :)
-!~ IF ((mype_world==0) .and. (disturb_humi  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'humi ', eof_p (atm_offset(id_atm% humi )+1 : atm_offset(id_atm% humi )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_qlw   )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'qlw  ', eof_p (atm_offset(id_atm% qlw  )+1 : atm_offset(id_atm% qlw  )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'qsr  ', eof_p (atm_offset(id_atm% qsr  )+1 : atm_offset(id_atm% qsr  )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_tair  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'tair ', eof_p (atm_offset(id_atm% tair )+1 : atm_offset(id_atm% tair )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_prec  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'prec ', eof_p (atm_offset(id_atm% prec )+1 : atm_offset(id_atm% prec )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_snow  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'snow ', eof_p (atm_offset(id_atm% snow )+1 : atm_offset(id_atm% snow )+3, :)
-!~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'eof_p ', 'mslp ', eof_p (atm_offset(id_atm% mslp )+1 : atm_offset(id_atm% mslp )+3, :)
-
 deallocate(eof_p_cvrfile)
 endif ! (dim_ens<=1)
 
@@ -343,8 +322,13 @@ REAL :: fac                              ! Square-root of dim_ens or dim_ens-1
 REAL :: arc, varscale                    ! autoregression coefficient and scaling factor
 CHARACTER(len=3) :: istep_string
 
+LOGICAL, save :: first_call = .true.
+
+! Initialize:
+IF (first_call) first_call = .FALSE.
+
 IF (dim_ens<=1) THEN
-IF ((mype_model==0) .and. (istep==2)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation at any step.'
+IF ((mype_model==0) .and. (first_call)) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','Ensemble size 1: No atmospheric perturbation at any step.'
 ELSEIF (dim_ens>1) THEN
 
 ALLOCATE(perturbation(nfields * myDim_nod2D))
@@ -364,7 +348,7 @@ ALLOCATE(omega_v(dim_ens-1))
 
 IF (mype_model==0) THEN
 
-   IF (istep==2) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step.'
+   IF (first_call) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step.'
 
    ! *** Generate uniform orthogonal matrix OMEGA ***
    CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 1)
@@ -392,7 +376,7 @@ DEALLOCATE(omega)
 CALL MPI_Bcast(Omega_v, dim_ens-1, MPI_DOUBLE_PRECISION, 0, &
 	 COMM_model, MPIerr)
 
-IF (istep==2 .AND. mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate atmospheric perturbation from covariance; to be repeated at each step'
+IF (first_call .AND. mype_world==0) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate atmospheric perturbation from covariance; to be repeated at each step'
 fac = varscale * SQRT(REAL(dim_ens-1)) ! varscale: scaling factor for ensemble variance
 
 
@@ -429,19 +413,6 @@ IF (istep==1) THEN
 		CALL read_atmos_stochasticity_restart()
 	ENDIF ! restart
 
-!~ ! debugging output:
-!~ ALLOCATE(atmdata_debug(nfields,myDim_nod2D))
-!~ IF(disturb_xwind) atmdata_debug(id_atm% xwind,:) = atmdata(i_xwind,:myDim_nod2D)
-!~ IF(disturb_ywind) atmdata_debug(id_atm% ywind,:) = atmdata(i_ywind,:myDim_nod2D)
-!~ IF(disturb_humi ) atmdata_debug(id_atm% humi ,:) = atmdata(i_humi ,:myDim_nod2D)
-!~ IF(disturb_qlw  ) atmdata_debug(id_atm% qlw  ,:) = atmdata(i_qlw  ,:myDim_nod2D)
-!~ IF(disturb_qsr  ) atmdata_debug(id_atm% qsr  ,:) = atmdata(i_qsr  ,:myDim_nod2D)
-!~ IF(disturb_tair ) atmdata_debug(id_atm% tair ,:) = atmdata(i_tair ,:myDim_nod2D)
-!~ IF(disturb_prec ) atmdata_debug(id_atm% prec ,:) = atmdata(i_prec ,:myDim_nod2D)
-!~ IF(disturb_snow ) atmdata_debug(id_atm% snow ,:) = atmdata(i_snow ,:myDim_nod2D)
-!~ IF(disturb_mslp ) atmdata_debug(id_atm% mslp ,:) = atmdata(i_mslp ,:myDim_nod2D)
-
-
 END IF ! istep==1
 
 ! autoregressive: next perturbation from last perturbation and new stochastic element
@@ -467,16 +438,8 @@ IF(disturb_prec ) CALL exchange_nod( perturbation_prec)
 IF(disturb_snow ) CALL exchange_nod( perturbation_snow)
 IF(disturb_mslp ) CALL exchange_nod( perturbation_mslp)
 
-!~ ! debugging output:
-!~ IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'perturbation_xwind', perturbation_xwind(:2)
-!~ IF ((mype_world==0) .and. (disturb_ywind )) write(*,*) 'disturb_atmos_debug ', 'perturbation_ywind', perturbation_ywind(:2)
-!~ IF ((mype_world==0) .and. (disturb_humi  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_humi ', perturbation_humi (:2)
-!~ IF ((mype_world==0) .and. (disturb_qlw   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qlw  ', perturbation_qlw  (:2)
-!~ IF ((mype_world==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
-!~ IF ((mype_world==0) .and. (disturb_tair  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_tair ', perturbation_tair (:2)
-!~ IF ((mype_world==0) .and. (disturb_prec  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_prec ', perturbation_prec (:2)
-!~ IF ((mype_world==0) .and. (disturb_snow  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_snow ', perturbation_snow (:2)
-!~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'perturbation_mslp ', perturbation_mslp (:2)
+! debugging output:
+! IF ((mype_world==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
 
 ! instantaneous potential solar radiation:
 IF (disturb_qsr) THEN
@@ -529,14 +492,6 @@ ENDIF
 
 !~ ! debugging output:
 !~ IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_xwind ,:2)', atmdata(i_xwind ,:2)
-!~ IF ((mype_world==0) .and. (disturb_ywind )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_ywind ,:2)', atmdata(i_ywind ,:2)
-!~ IF ((mype_world==0) .and. (disturb_humi  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_humi  ,:2)', atmdata(i_humi  ,:2)
-!~ IF ((mype_world==0) .and. (disturb_qlw   )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qlw   ,:2)', atmdata(i_qlw   ,:2)
-!~ IF ((mype_world==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_tair  ,:2)', atmdata(i_tair  ,:2)
-!~ IF ((mype_world==0) .and. (disturb_tair  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_prec  ,:2)', atmdata(i_prec  ,:2)
-!~ IF ((mype_world==0) .and. (disturb_prec  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_snow  ,:2)', atmdata(i_snow  ,:2)
-!~ IF ((mype_world==0) .and. (disturb_snow  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_mslp  ,:2)', atmdata(i_mslp  ,:2)
-!~ IF ((mype_world==0) .and. (disturb_mslp  )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qsr   ,:2)', atmdata(i_qsr   ,:2)
 
 DEALLOCATE(perturbation)
 DEALLOCATE(omega_v)
@@ -1201,7 +1156,7 @@ IF (filterpe) THEN
    ENDDO
 
    ! clean up:
-	deallocate(phi,delta,H)
+   deallocate(phi,delta,H)
 
 ENDIF
 
