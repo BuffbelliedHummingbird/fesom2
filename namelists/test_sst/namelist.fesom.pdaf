@@ -237,9 +237,14 @@ disturb_snow=.false.
 disturb_mslp=.true.
 
 varscale_wind = 0.2
-varscale_tair = 1.0
 varscale_humi = 1.0
 varscale_qlw  = 1.0
+varscale_qsr  = 1.0
+varscale_tair = 1.0
+varscale_prec = 0
+varscale_snow = 0
+varscale_mslp = 0.2
+
 
 write_atmos_st = .true. ! whether to protocol perturbed atmospheric fields (every member at every step)
 /

@@ -106,8 +106,9 @@ SUBROUTINE read_config_pdaf()
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
        atmos_stochasticity_ON, write_atmos_st, &
-       varscale_wind, varscale_tair, &
-       varscale_humi, varscale_qlw
+       varscale_wind, varscale_humi, varscale_qlw, &
+       varscale_qsr, varscale_tair, varscale_prec, &
+       varscale_snow, varscale_mslp
   USE mod_perturbation_pdaf, &
        ONLY: perturb_scale, &
        perturb_params_bio, perturb_params_phy
@@ -208,7 +209,9 @@ SUBROUTINE read_config_pdaf()
        disturb_xwind, disturb_ywind, disturb_humi, &
        disturb_qlw, disturb_qsr, disturb_tair, &
        disturb_prec, disturb_snow, disturb_mslp, &
-       varscale_wind, varscale_tair, varscale_humi, varscale_qlw, &
+       varscale_wind, varscale_humi, varscale_qlw, &
+       varscale_qsr, varscale_tair, varscale_prec, &
+       varscale_snow, varscale_mslp, &
        write_atmos_st
        
   NAMELIST /pp/ &
@@ -465,6 +468,10 @@ file_chl_cci_prefix = 'CCI_OC_'//TRIM(year_string)//'_dist72_'
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_tair ',       varscale_tair
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_humi ',       varscale_humi
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_qlw  ',       varscale_qlw
+     WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_qsr  ',       varscale_qsr
+     WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_prec ',       varscale_prec
+     WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_snow ',       varscale_snow
+     WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'varscale_mslp ',       varscale_mslp
      WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'perturb_params_bio',   perturb_params_bio
      WRITE (*,'(a,5x,a20,1x,l)')     'FESOM-PDAF',   'perturb_params_phy',   perturb_params_phy
      WRITE (*,'(a,5x,a20,1x,es10.2)')'FESOM-PDAF',   'perturb_scale',        perturb_scale

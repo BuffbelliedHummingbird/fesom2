@@ -103,7 +103,7 @@ SUBROUTINE init_dim_l_pdaf(step, nsweeped_domain_p, dim_l)
 ! *****************
 ! *** OMI Debug ***
 ! *****************
-IF (.true.) THEN
+IF (.false.) THEN
    IF ((mype_filter==18) .AND. (domain_p==477)) THEN
       call PDAFomi_set_debug_flag(1)
       call PDAF_set_debug_flag(1)
@@ -341,7 +341,7 @@ SUBROUTINE init_dim_l_pdaf_BGC(step, domain_p, dim_l)
 ! *****************
 ! *** OMI Debug ***
 ! *****************
-  IF (.true.) THEN
+  IF (.false.) THEN
      IF ((mype_filter==18) .AND. (domain_p==477)) THEN
         call PDAFomi_set_debug_flag(1)
         call PDAF_set_debug_flag(1)
@@ -502,7 +502,7 @@ SUBROUTINE init_dim_l_pdaf_PHY(step, domain_p, dim_l)
 ! *****************
 ! *** OMI Debug ***
 ! *****************
-  IF (.true.) THEN
+  IF (.false.) THEN
      IF ((mype_filter==18) .AND. (domain_p==477)) THEN
         call PDAFomi_set_debug_flag(1)
         call PDAF_set_debug_flag(1)

@@ -439,7 +439,7 @@ IF(disturb_snow ) CALL exchange_nod( perturbation_snow)
 IF(disturb_mslp ) CALL exchange_nod( perturbation_mslp)
 
 ! debugging output:
-! IF ((mype_world==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
+IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
 
 ! instantaneous potential solar radiation:
 IF (disturb_qsr) THEN
@@ -457,6 +457,9 @@ IF (disturb_prec)  atmdata(i_prec ,:) = atmdata(i_prec ,:) +        perturbation
 IF (disturb_snow)  atmdata(i_snow ,:) = atmdata(i_snow ,:) +        perturbation_snow
 IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) +        perturbation_mslp
 IF (disturb_qsr)   atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + ipsr * perturbation_qsr
+
+! debugging output:
+IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'ipsr_perturbation_qsr  ', ipsr(:2) * perturbation_qsr  (:2)
 
 ! corrections:
 ! rain, snow, humidity, downwelling shortwave and longwave radiation \
@@ -492,6 +495,7 @@ ENDIF
 
 !~ ! debugging output:
 !~ IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_xwind ,:2)', atmdata(i_xwind ,:2)
+IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qsr,:2)  ', atmdata(i_qsr,:2)
 
 DEALLOCATE(perturbation)
 DEALLOCATE(omega_v)
@@ -1125,6 +1129,8 @@ USE o_param, &
    ONLY: pi
 USE mod_parallel_pdaf, &
    ONLY: filterpe, COMM_couple
+USE g_rotate_grid, &
+   ONLY: r2g
 
 
 
@@ -1133,21 +1139,32 @@ IMPLICIT NONE
 REAL, ALLOCATABLE :: phi(:)   ! latitude (radians)
 REAL, ALLOCATABLE :: delta(:) ! solar declination (radians)
 REAL, ALLOCATABLE :: H(:)     ! hour angle from solar noon (radians)
+REAL, ALLOCATABLE :: glon(:)  ! geographic coordinates (radians)
+REAL, ALLOCATABLE :: glat(:)  ! geographic coordinates (radians)
 INTEGER :: i                  ! counter
 
 IF (filterpe) THEN
 
    ! filter-pe ensemble member (0) deals with computations
-   allocate(phi(myDim_nod2D+eDim_nod2D),delta(myDim_nod2D+eDim_nod2D),H(myDim_nod2D+eDim_nod2D))
+   allocate(phi(myDim_nod2D+eDim_nod2D), &
+            delta(myDim_nod2D+eDim_nod2D), &
+            H(myDim_nod2D+eDim_nod2D), &
+            glon(myDim_nod2D+eDim_nod2D), &
+            glat(myDim_nod2D+eDim_nod2D))
+   
+   ! get geographic coordinates from rotated mesh
+   DO i = 1, myDim_nod2D+eDim_nod2D
+      CALL r2g(glon(i),glat(i),mesh_fesom%geo_coord_nod2D(1,i),mesh_fesom%geo_coord_nod2D(2,i))
+   ENDDO
 
    ! latitude (radians)
-   phi = mesh_fesom%geo_coord_nod2D(2,1:myDim_nod2D+eDim_nod2D)
+   phi = glat
 
    ! solar declination (radians)
    delta = -23.45/180.0*pi * COS(2.0*pi* (daynew+10.0)/365.25)
 
    ! hour angle from solar noon (radians; positive = west)
-   H = -timenew/24.0/60.0/60.0*2.0*pi+pi - mesh_fesom%geo_coord_nod2D(1,1:myDim_nod2D+eDim_nod2D)
+   H = -timenew/24.0/60.0/60.0*2.0*pi+pi - glon
 
    ! instantaneous potential solar radiation
    ipsr = COS(phi)*COS(H)*COS(delta) + SIN(phi)*SIN(delta)
