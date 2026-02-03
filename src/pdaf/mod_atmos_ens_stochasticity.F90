@@ -351,7 +351,7 @@ IF (mype_model==0) THEN
    IF (first_call) WRITE (*,'(a,8x,a)') 'FESOM-PDAF','generate random omega for atmospheric perturbation; to be repeated at each step.'
 
    ! *** Generate uniform orthogonal matrix OMEGA ***
-   CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 1)
+   CALL PDAF_seik_omega_copy(dim_ens-1, Omega, 1, 1)
 
    ! ***      Generate ensemble of states         ***
    ! *** x_i = x + sqrt(FAC) eofV (Omega C^(-1))t ***
@@ -439,7 +439,7 @@ IF(disturb_snow ) CALL exchange_nod( perturbation_snow)
 IF(disturb_mslp ) CALL exchange_nod( perturbation_mslp)
 
 ! debugging output:
-IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
+! IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'perturbation_qsr  ', perturbation_qsr  (:2)
 
 ! instantaneous potential solar radiation:
 IF (disturb_qsr) THEN
@@ -459,7 +459,7 @@ IF (disturb_mslp)  atmdata(i_mslp ,:) = atmdata(i_mslp ,:) +        perturbation
 IF (disturb_qsr)   atmdata(i_qsr  ,:) = atmdata(i_qsr  ,:) + ipsr * perturbation_qsr
 
 ! debugging output:
-IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'ipsr_perturbation_qsr  ', ipsr(:2) * perturbation_qsr  (:2)
+! IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'ipsr_perturbation_qsr  ', ipsr(:2) * perturbation_qsr  (:2)
 
 ! corrections:
 ! rain, snow, humidity, downwelling shortwave and longwave radiation \
@@ -493,9 +493,9 @@ IF(disturb_qsr) THEN
   ENDWHERE
 ENDIF
 
-!~ ! debugging output:
-!~ IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_xwind ,:2)', atmdata(i_xwind ,:2)
-IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qsr,:2)  ', atmdata(i_qsr,:2)
+! ! debugging output:
+! IF ((mype_world==0) .and. (disturb_xwind )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_xwind ,:2)', atmdata(i_xwind ,:2)
+! IF ((mype_model==0) .and. (disturb_qsr   )) write(*,*) 'disturb_atmos_debug ', 'atmdata(i_qsr,:2)  ', atmdata(i_qsr,:2)
 
 DEALLOCATE(perturbation)
 DEALLOCATE(omega_v)
@@ -1141,6 +1141,7 @@ REAL, ALLOCATABLE :: delta(:) ! solar declination (radians)
 REAL, ALLOCATABLE :: H(:)     ! hour angle from solar noon (radians)
 REAL, ALLOCATABLE :: glon(:)  ! geographic coordinates (radians)
 REAL, ALLOCATABLE :: glat(:)  ! geographic coordinates (radians)
+REAL, ALLOCATABLE :: psr(:)   ! potential solar radiation at solar noon
 INTEGER :: i                  ! counter
 
 IF (filterpe) THEN
@@ -1168,12 +1169,18 @@ IF (filterpe) THEN
 
    ! instantaneous potential solar radiation
    ipsr = COS(phi)*COS(H)*COS(delta) + SIN(phi)*SIN(delta)
+   ! potential solar radiation at solar noon
+   psr  = COS(phi-delta)
    DO i = 1, myDim_nod2D+eDim_nod2D
+      ! set negative values to zero
       ipsr(i) = max(ipsr(i),0.0)
+      psr (i) = max(psr (i),0.0)
+      ! scale by solar noon radiation
+      IF (ipsr(i)>0) ipsr(i) = ipsr(i)/psr(i)
    ENDDO
 
    ! clean up:
-   deallocate(phi,delta,H)
+   deallocate(phi,delta,H,glon,glat)
 
 ENDIF
 
