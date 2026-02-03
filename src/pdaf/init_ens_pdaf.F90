@@ -64,7 +64,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   CHARACTER(len=5)   :: col_string     ! String for ensemble member
   CHARACTER(len=150) :: infile         ! File holding initial state estimate
   INTEGER :: dim_p_read
-  INTEGER            :: seedvec(4)     ! seed for generation of random omega
   LOGICAL :: runningmean               ! True: Initialize state vector from
                                        ! nc-file running mean
   REAL, ALLOCATABLE :: ens_p_per(:,:)  ! Ensemble of field perturbations
@@ -484,12 +483,6 @@ SUBROUTINE init_ens_pdaf(filtertype, dim_p, dim_ens, state_p, Uinv, &
   ! ****************
   ! *** clean up ***
   ! ****************
-  
-    ! after PDAF_seik_omega was called on only some PEs,
-    ! seed must be synchronized on all PEs
-    IF (mype_world==0) CALL PDAF_get_seed(seedvec)
-    CALL MPI_Bcast(seedvec, 4, MPI_INTEGER, 0, MPI_COMM_world, MPIerr)
-    CALL PDAF_set_seed(seedvec)
   
     DEALLOCATE(svals, eof_p, omega, id_per_cov, id_per_mod, id_cov_mod, offsets_cov)
     

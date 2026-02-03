@@ -128,8 +128,9 @@ SUBROUTINE init_pdaf(nsteps)
   INTEGER, parameter :: int0=0 ! Zero
   REAL, allocatable :: aux(:)  ! Temporary array
   
-  INTEGER, parameter  :: rank=1 ! used to init seed for random matrix generation
-  REAL     :: rndmat(1,1)       ! used to init seed for random matrix generation
+  INTEGER, parameter  :: rank=1     ! used to init seed for random matrix generation
+  REAL     :: rndmat(1,1)           ! used to init seed for random matrix generation
+    INTEGER           :: seedvec(4) ! seed for generation of random omega
   
   ! External subroutines
   EXTERNAL :: init_ens_pdaf            ! Ensemble initialization
@@ -841,6 +842,12 @@ ENDIF
        screen, status_pdaf)
        
   IF (this_is_pdaf_restart .or. start_from_ENS_spinup) deallocate(state_p_init,ens_p_init)
+  
+  ! after PDAF_seik_omega was called on only some PEs,
+  ! seed must be synchronized on all PEs
+  IF (mype_world==0) CALL PDAF_get_seed(seedvec)
+  CALL MPI_Bcast(seedvec, 4, MPI_INTEGER, 0, MPI_COMM_world, MPIerr)
+  CALL PDAF_set_seed(seedvec)
 
   ! *** Check whether initialization of PDAF was successful ***
   IF (status_pdaf /= 0) THEN
