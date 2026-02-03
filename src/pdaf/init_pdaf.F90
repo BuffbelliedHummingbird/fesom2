@@ -819,6 +819,9 @@ ENDIF
 ! *** Subsequently, PDAF_init is called.            ***
 ! *****************************************************
 
+  ! initialize seed vector for random matrix generation on all PEs
+  CALL PDAF_generate_rndmat(rank,rndmat,1)
+
   ! *** All other filters                       ***
   ! *** SEIK, LSEIK, ETKF, LETKF, ESTKF, LESTKF ***
   filter_param_i(1) = dim_state_p ! State dimension
@@ -847,8 +850,6 @@ ENDIF
      CALL abort_parallel()
   END IF
   
-  ! initialize seed vector for random matrix generation on all PEs
-  CALL PDAF_generate_rndmat(rank,rndmat,1)
   
 ! ***************************************
 ! *** Get domain limiting coordinates ***
