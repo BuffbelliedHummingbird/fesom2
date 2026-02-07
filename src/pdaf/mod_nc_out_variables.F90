@@ -77,7 +77,7 @@ INTEGER, PARAMETER :: ff=1, aa=2, mm=3, ii=4 ! forecast (ff), analysis (aa), mea
 INTEGER, PARAMETER :: sf=5, sa=6, si=7, sm=8 ! ensemble standard deviation snapshots: forecast (sf), analysis (sa), initial (si) and mean (sm)
 INTEGER, PARAMETER :: oo=1, ee=2, dd=3       ! any output (oo), ensemble members (ee) and daily values (dd)
 
-LOGICAL :: setoutput(18)
+LOGICAL :: setoutput(19)
                                              
 CONTAINS
 
@@ -1140,6 +1140,17 @@ IF (setoutput(18)) THEN
   sfields(id% DIN)    % output(aa,dd) = .True.
 ENDIF
 
+! ___________________________________________________________________________
+! ___ write daily m-fields of T and S ensemble mean _________________________
+IF (setoutput(19)) THEN
+  ! activate m-field output
+  sfields(id% temp  ) % output(mm,oo) = .True.
+  sfields(id% salt  ) % output(mm,oo) = .True.
+  ! set to daily
+  sfields(id% temp)   % output(mm,dd) = .True.
+  sfields(id% salt)   % output(mm,dd) = .True.
+ENDIF
+
 
 ! ________________________
 ! ___ FINALIZE        ____
@@ -1151,7 +1162,7 @@ DO s=1, nfields
   sfields(s)% output(ii,dd) = .True.
   sfields(s)% output(si,dd) = .True.
   
-  ! do not compute full ensemble state for m-fields! this takes memory and time. simply use fesom-output instead.
+  ! do not compute full ensemble member state for m-fields! this takes memory and time. simply use fesom-output instead.
   ! whatever settings made be before, we reset m-fields ens-member output to False, in the end.
   sfields(s)% output(mm,ee) = .False.
   
