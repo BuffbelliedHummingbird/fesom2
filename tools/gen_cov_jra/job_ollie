@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name=generate_covar
+#SBATCH -p smp
+#SBATCH --ntasks=1
+#SBATCH --time=00:30:00
+#SBATCH -o slurm-out.out
+#SBATCH -e slurm-err.out
+#SBATCH --mem=20GB
+
+ulimit -s unlimited
+srun generate_covar

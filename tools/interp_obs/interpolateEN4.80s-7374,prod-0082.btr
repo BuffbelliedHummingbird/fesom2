@@ -1,0 +1,6 @@
+
+interpolateEN4:7374 terminated with signal 11 at PC=409a12 SP=7fffffff72e0.  Backtrace:
+/home/ollie/frbunsen/f2r2_pdaf/fesom2.1_recom/PDAF_V2.0/modelbindings/FESOM2.1/tools/interp_obs/./interpolateEN4[0x409a12]
+/home/ollie/frbunsen/f2r2_pdaf/fesom2.1_recom/PDAF_V2.0/modelbindings/FESOM2.1/tools/interp_obs/./interpolateEN4[0x40379e]
+/lib64/libc.so.6(__libc_start_main+0xf5)[0x2aaab701b555]
+/home/ollie/frbunsen/f2r2_pdaf/fesom2.1_recom/PDAF_V2.0/modelbindings/FESOM2.1/tools/interp_obs/./interpolateEN4[0x4036a9]
